@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "AI 로또 번호 생성기",
+    "slug": "ai-lotto-generator",
+    "scheme": "ailotto",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0F172A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.ailotto"
+    },
+    "android": {
+      "package": "com.yourcompany.ailotto",
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "41bb14e7-a845-446f-a38d-c58aa4ab7419"
+      }
+    }
+  }
+}

@@ -1,0 +1,207 @@
+import React, { useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { DisclaimerCard, NumberGrid } from "../../src/components";
+import { generateLuckyProfileGame } from "../../src/lib/lottery/luckyNumber";
+import { buildGameMetadata } from "../../src/lib/lottery/pattern";
+import { calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "../../src/lib/lottery/probability";
+import { getPreferences, updatePreferences } from "../../src/lib/storage/preferences";
+import { useGenerationStore } from "../../src/state/generationStore";
+import type { GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
+
+const RATIO_OPTIONS = [
+  { label: "운명 30%", value: 0.3 },
+  { label: "운명 50%", value: 0.5 },
+  { label: "운명 70%", value: 0.7 },
+];
+
+export default function LuckyProfileScreen() {
+  const router = useRouter();
+  const setResult = useGenerationStore((s) => s.setResult);
+
+  const [year, setYear] = useState("");
+  const [month, setMonth] = useState("");
+  const [day, setDay] = useState("");
+  const [saveProfile, setSaveProfile] = useState(false);
+  const [preferred, setPreferred] = useState<number[]>([]);
+  const [ratio, setRatio] = useState(0.5);
+
+  useEffect(() => {
+    getPreferences().then((prefs) => {
+      setPreferred(prefs.preferredNumbers);
+      setSaveProfile(prefs.saveBirthProfile);
+      if (prefs.saveBirthProfile && prefs.birthProfile) {
+        setYear(String(prefs.birthProfile.year));
+        setMonth(String(prefs.birthProfile.month));
+        setDay(String(prefs.birthProfile.day));
+      }
+    });
+  }, []);
+
+  function togglePreferred(n: number) {
+    setPreferred((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+  }
+
+  async function handleGenerate() {
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 31) {
+      Alert.alert("생년월일을 확인해주세요.", "예: 1990 / 3 / 14");
+      return;
+    }
+
+    const birthProfile = { year: y, month: m, day: d };
+
+    await updatePreferences({
+      preferredNumbers: preferred,
+      saveBirthProfile: saveProfile,
+      birthProfile: saveProfile ? birthProfile : undefined,
+    });
+
+    const luckyResult = generateLuckyProfileGame({
+      birthProfile,
+      preferredNumbers: preferred,
+      excludedNumbers: [],
+      destinyRatio: ratio,
+    });
+
+    const game: GeneratedGame = {
+      id: `lucky_${Date.now()}`,
+      numbers: luckyResult.numbers,
+      mode: "LUCKY_PROFILE",
+      metadata: buildGameMetadata(luckyResult.numbers),
+      numberReasons: luckyResult.numberReasons,
+    };
+
+    const request: GenerationRequest = {
+      mode: "LUCKY_PROFILE",
+      gameCount: 1,
+      excludedNumbers: [],
+      requiredNumbers: [],
+      preferredNumbers: preferred,
+      consecutiveRule: "ANY",
+    };
+
+    setResult(request, {
+      requestId: game.id,
+      games: [game],
+      probability: calculateFirstPrizeProbability(1),
+      disclaimer: PROBABILITY_DISCLAIMER,
+    });
+    router.push("/generate/result");
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+      <Text style={styles.sectionTitle}>생년월일</Text>
+      <View style={styles.dateRow}>
+        <TextInput
+          style={styles.dateInput}
+          placeholder="년(YYYY)"
+          keyboardType="number-pad"
+          maxLength={4}
+          value={year}
+          onChangeText={setYear}
+        />
+        <TextInput
+          style={styles.dateInput}
+          placeholder="월"
+          keyboardType="number-pad"
+          maxLength={2}
+          value={month}
+          onChangeText={setMonth}
+        />
+        <TextInput
+          style={styles.dateInput}
+          placeholder="일"
+          keyboardType="number-pad"
+          maxLength={2}
+          value={day}
+          onChangeText={setDay}
+        />
+      </View>
+
+      <View style={styles.switchRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.switchLabel}>생년월일 이 기기에 저장</Text>
+          <Text style={styles.smallNotice}>
+            끄면 매번 새로 입력해야 하지만 기기에도 저장되지 않습니다.
+          </Text>
+        </View>
+        <Switch value={saveProfile} onValueChange={setSaveProfile} />
+      </View>
+
+      <Text style={styles.sectionTitle}>선호번호 ({preferred.length}개)</Text>
+      <NumberGrid selected={preferred} onToggle={togglePreferred} />
+
+      <Text style={styles.sectionTitle}>운명 비중</Text>
+      <View style={styles.row}>
+        {RATIO_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.value}
+            style={[styles.optionButton, ratio === opt.value && styles.optionButtonActive]}
+            onPress={() => setRatio(opt.value)}
+          >
+            <Text style={[styles.optionButtonText, ratio === opt.value && styles.optionButtonTextActive]}>
+              {opt.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <DisclaimerCard text="생년월일 파생번호는 참고용 재미 요소이며, 당첨 확률과는 무관합니다." />
+
+      <Pressable style={styles.generateButton} onPress={handleGenerate}>
+        <Text style={styles.generateButtonText}>행운번호 생성</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginTop: 16, marginBottom: 8 },
+  dateRow: { flexDirection: "row", gap: 8 },
+  dateInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  switchLabel: { fontSize: 14, color: "#0F172A", fontWeight: "600" },
+  smallNotice: { fontSize: 11, color: "#94A3B8", marginTop: 2, lineHeight: 16 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  optionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  optionButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+  optionButtonText: { fontSize: 12, color: "#334155", fontWeight: "600" },
+  optionButtonTextActive: { color: "#fff" },
+  generateButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  generateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+});

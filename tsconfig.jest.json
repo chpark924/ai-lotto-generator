@@ -1,0 +1,11 @@
+﻿{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "expo-crypto": ["./tests/mocks/expo-crypto.ts"]
+    }
+  }
+}
