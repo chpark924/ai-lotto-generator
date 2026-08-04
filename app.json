@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "AI 로또 번호 생성기",
+    "name": "금손로또",
     "slug": "ai-lotto-generator",
-    "scheme": "ailotto",
+    "scheme": "geumsonlotto",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
+    "icon": "./assets/icon.png",
     "splash": {
       "backgroundColor": "#0F172A"
     },
@@ -15,12 +16,13 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.ailotto"
+      "bundleIdentifier": "com.geumsonlotto.app"
     },
     "android": {
-      "package": "com.yourcompany.ailotto",
+      "package": "com.geumsonlotto.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0F172A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "web": {
@@ -29,7 +31,13 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "구매한 로또 용지의 QR코드를 스캔해 당첨 여부를 확인하려면 카메라 접근 권한이 필요합니다. 촬영된 이미지는 기기에 저장되거나 외부로 전송되지 않습니다."
+        }
+      ]
     ],
     "extra": {
       "router": {

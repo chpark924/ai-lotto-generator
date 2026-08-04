@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { DisclaimerCard, NumberGrid } from "../../src/components";
+import { DisclaimerCard, NumberGrid, BottomActionBar } from "../../src/components";
 import {
   generateDestinyGame,
   DESTINY_TARGET_LABELS,
@@ -14,11 +14,14 @@ import { getGenerationHistory, getPreferences } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { CONSECUTIVE_RULE_LABELS, DESTINY_TARGET_OPTIONS } from "../../src/constants/lottery";
 import type { ConsecutiveRule, GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
+import { useAppTheme, type AppColors } from "../../src/theme";
 
 const GENERATE_BUTTON_LABELS = ["이번 운명을 결정한다", "신의 번호를 내린다", "이번 주 운명을 연다"];
 
 export default function DestinyScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const setResult = useGenerationStore((s) => s.setResult);
 
   const [target, setTarget] = useState<DestinyTarget>("ONE");
@@ -83,7 +86,7 @@ export default function DestinyScreen() {
         requestId: game.id,
         games: [game],
         probability: calculateFirstPrizeProbability(1),
-        disclaimer: `${PROBABILITY_DISCLAIMER} 목표 당첨자 수는 엔터테인먼트용 시나리오이며 실제 당첨자 수를 예측하지 않습니다.`,
+        disclaimer: PROBABILITY_DISCLAIMER,
         resultNotice,
       });
       router.push("/generate/result");
@@ -96,7 +99,11 @@ export default function DestinyScreen() {
 
   if (isRunning) {
     return (
-      <View style={styles.progressContainer}>
+      <View
+        style={styles.progressContainer}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel="운명을 계산하는 중"
+      >
         <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.progressLabel}>운명을 계산하는 중...</Text>
       </View>
@@ -104,7 +111,8 @@ export default function DestinyScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
       <Text style={styles.sectionTitle}>목표 당첨자 수</Text>
       <View style={styles.row}>
         {DESTINY_TARGET_OPTIONS.map((opt) => (
@@ -112,6 +120,9 @@ export default function DestinyScreen() {
             key={opt.value}
             style={[styles.optionButton, target === opt.value && styles.optionButtonActive]}
             onPress={() => setTarget(opt.value)}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: target === opt.value }}
           >
             <Text style={[styles.optionButtonText, target === opt.value && styles.optionButtonTextActive]}>
               {opt.label}
@@ -127,6 +138,9 @@ export default function DestinyScreen() {
             key={rule}
             style={[styles.optionButton, consecutiveRule === rule && styles.optionButtonActive]}
             onPress={() => setConsecutiveRule(rule)}
+            accessibilityRole="button"
+            accessibilityLabel={CONSECUTIVE_RULE_LABELS[rule]}
+            accessibilityState={{ selected: consecutiveRule === rule }}
           >
             <Text
               style={[
@@ -142,57 +156,59 @@ export default function DestinyScreen() {
 
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>내 선호번호 반영</Text>
-        <Switch value={usePreferred} onValueChange={setUsePreferred} />
+        <Switch
+          value={usePreferred}
+          onValueChange={setUsePreferred}
+          accessibilityRole="switch"
+          accessibilityLabel="내 선호번호 반영"
+        />
       </View>
 
-      <Pressable onPress={() => setShowExclusionPicker((v) => !v)}>
+      <Pressable
+        onPress={() => setShowExclusionPicker((v) => !v)}
+        accessibilityRole="button"
+        accessibilityLabel={showExclusionPicker ? "제외번호 설정 닫기" : `제외번호 설정, ${excluded.length}개 선택됨`}
+      >
         <Text style={styles.toggleLink}>
           {showExclusionPicker ? "제외번호 설정 닫기" : `제외번호 설정 (${excluded.length}개)`}
         </Text>
       </Pressable>
       {showExclusionPicker ? <NumberGrid selected={excluded} onToggle={toggleExcluded} /> : null}
 
-      <DisclaimerCard text="목표 당첨자 수는 실제 당첨자 수를 예측하거나 통제하지 않는 엔터테인먼트용 시나리오입니다. 인기도 계산은 실제 타 사용자 데이터가 아니라 일반적인 선택 편향을 근사한 값입니다." />
+      <DisclaimerCard text="목표 당첨자 수는 실제 당첨자 수를 예측하거나 통제하지 않는 엔터테인먼트용 시나리오입니다. 일반적인 선택 편향을 근사한 값을 기반으로 구성됩니다." />
+      </ScrollView>
 
-      <Pressable style={styles.generateButton} onPress={handleGenerate}>
-        <Text style={styles.generateButtonText}>{buttonLabel}</Text>
-      </Pressable>
-    </ScrollView>
+      <BottomActionBar label={buttonLabel} onPress={handleGenerate} color="#7C3AED" />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginTop: 16, marginBottom: 8 },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  optionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  optionButtonActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
-  optionButtonText: { fontSize: 12, color: "#334155", fontWeight: "600" },
-  optionButtonTextActive: { color: "#fff" },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  switchLabel: { fontSize: 14, color: "#0F172A", fontWeight: "600" },
-  toggleLink: { color: "#7C3AED", fontSize: 13, fontWeight: "600", marginVertical: 8 },
-  generateButton: {
-    backgroundColor: "#7C3AED",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  generateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0F172A" },
-  progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", marginTop: 16 },
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    optionButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    optionButtonActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+    optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
+    optionButtonTextActive: { color: "#fff" },
+    switchRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 8,
+    },
+    switchLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
+    toggleLink: { color: "#7C3AED", fontSize: 13, fontWeight: "600", marginVertical: 8 },
+    // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
+    progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0F172A" },
+    progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", marginTop: 16 },
+  });
+}

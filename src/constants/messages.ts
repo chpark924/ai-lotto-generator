@@ -5,11 +5,20 @@ export const ALL_COMBINATIONS_EQUAL_NOTICE =
 export const COVERAGE_NOTICE =
   "탐색 범위는 내부적으로 검토한 후보의 비율이며, 당첨 확률이 아닙니다.";
 
-export const ENTERTAINMENT_NOTICE =
-  "이 앱은 당첨번호를 예측하지 않는 엔터테인먼트용 번호 생성 서비스입니다.";
+export const ENTERTAINMENT_NOTICE = "이 앱은 엔터테인먼트용 번호 생성 서비스입니다.";
 
 export const POPULARITY_HEURISTIC_NOTICE =
-  "'많이 선택되는 번호' 정보는 실제 타 사용자 데이터가 아니라, 일반적인 번호 선택 편향(생일번호 쏠림 등)을 근사한 값입니다.";
+  "'많이 선택되는 번호' 정보는 실제 타 사용자 데이터가 아니라, 일반적인 번호 선택 편향(생일번호 쏠림 등)을 근사한 값입니다. 당첨 확률과는 무관하며, 당첨 시 같은 번호를 고른 다른 당첨자와 상금을 나눠 받게 될 가능성에만 관련된 개념입니다.";
 
 export const AI_EXPLANATION_NOTICE =
   "AI 설명은 조합의 특징을 요약할 뿐 당첨 가능성을 의미하지 않습니다.";
+
+/**
+ * GeneratedGameCard의 "추천 적합도" 점수 바로 아래 표기하는 짧은 설명.
+ * "확률은 항상 동일하다"는 문구는 결과 화면(확률 카드·하단 안내)에 이미 표시되므로
+ * 여기서는 반복하지 않는다 — 카드마다(최대 5번) 반복 노출되면 기대감을 과도하게
+ * 꺾을 수 있어 제외했다(제품 결정). 대신 이 지표가 무엇을 근거로 하는지만 전문적으로
+ * 짧게 설명해 신뢰감을 준다.
+ */
+export const SCORE_EXPLANATION_NOTICE =
+  "이 점수는 설정한 조건과의 부합도, 자주 선택되는 번호 회피 정도, 내 기존 번호와의 차별성을 종합한 상대적 지표입니다.";

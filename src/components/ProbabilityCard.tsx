@@ -55,5 +55,7 @@ const styles = StyleSheet.create({
   label: { color: "#94A3B8", fontSize: 13 },
   value: { color: "#F8FAFC", fontSize: 13, fontWeight: "600" },
   divider: { height: 1, backgroundColor: "#1E293B", marginVertical: 8 },
-  notice: { color: "#64748B", fontSize: 11, marginTop: 8, lineHeight: 16 },
+  // 이 텍스트는 어두운 카드(#0F172A) 위에 놓이므로, 밝은 배경용 회색(#64748B)을 쓰면
+  // 대비가 오히려 부족해진다(약 3.8:1). 어두운 배경에서는 #94A3B8이 AA 기준(4.5:1)을 만족한다.
+  notice: { color: "#94A3B8", fontSize: 11, marginTop: 8, lineHeight: 16 },
 });

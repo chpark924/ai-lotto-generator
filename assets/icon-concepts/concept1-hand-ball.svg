@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE29A"/>
+      <stop offset="45%" stop-color="#FBC400"/>
+      <stop offset="100%" stop-color="#E29F00"/>
+    </linearGradient>
+    <radialGradient id="ballShine" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="35%" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#FBC400" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#FBC400" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <circle cx="512" cy="430" r="360" fill="url(#glow)"/>
+
+  <!-- Hand: palm + fingers, flat golden silhouette -->
+  <g fill="url(#gold)">
+    <!-- palm -->
+    <path d="M300 780
+             C300 620 340 560 512 560
+             C684 560 724 620 724 780
+             C724 860 660 900 512 900
+             C364 900 300 860 300 780 Z" />
+    <!-- thumb -->
+    <rect x="255" y="600" width="120" height="230" rx="60" transform="rotate(-32 315 715)"/>
+    <!-- pinky -->
+    <rect x="352" y="430" width="86" height="220" rx="43"/>
+    <!-- ring -->
+    <rect x="450" y="380" width="90" height="270" rx="45"/>
+    <!-- middle -->
+    <rect x="552" y="360" width="92" height="290" rx="46"/>
+    <!-- index -->
+    <rect x="656" y="400" width="88" height="250" rx="44"/>
+  </g>
+
+  <!-- Lotto ball resting on the palm -->
+  <circle cx="512" cy="700" r="128" fill="#FF7272"/>
+  <circle cx="512" cy="700" r="128" fill="url(#ballShine)"/>
+  <circle cx="512" cy="700" r="128" fill="none" stroke="#0B1220" stroke-opacity="0.15" stroke-width="4"/>
+
+  <!-- sparkles -->
+  <g fill="#FDE68A">
+    <path d="M792 300 l14 34 34 14 -34 14 -14 34 -14 -34 -34 -14 34 -14 Z"/>
+    <path d="M220 250 l9 22 22 9 -22 9 -9 22 -9 -22 -22 -9 22 -9 Z"/>
+  </g>
+</svg>

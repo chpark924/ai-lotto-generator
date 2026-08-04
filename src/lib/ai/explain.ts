@@ -17,7 +17,9 @@ import type { GameFeatures } from "./types";
 export function buildGameFeatures(
   game: GeneratedGame,
   popularityByNumber: number[],
-  savedCombinations: number[][]
+  savedCombinations: number[][],
+  /** 최근 4주(회차) 실제 당첨번호(중복 제거)의 합집합. 못 불러왔으면 null. */
+  recentWinningNumbers: number[] | null = null
 ): GameFeatures {
   const oddCount = getOddCount(game.numbers);
   const evenCount = 6 - oddCount;
@@ -27,6 +29,9 @@ export function buildGameFeatures(
   ).length;
   const maxOverlap =
     savedCombinations.length > 0 ? maxOverlapAgainstList(game.numbers, savedCombinations) : 0;
+  const recentWinningMatchCount = recentWinningNumbers
+    ? game.numbers.filter((n) => recentWinningNumbers.includes(n)).length
+    : null;
 
   return {
     mode: game.mode,
@@ -37,6 +42,7 @@ export function buildGameFeatures(
     popularNumberCount,
     birthdayRangeCount,
     similarityToSavedNumbers: Math.round((maxOverlap / 6) * 100) / 100,
+    recentWinningMatchCount,
   };
 }
 
@@ -58,7 +64,9 @@ export function explainGameLocally(features: GameFeatures): string {
     parts.push("1~31 범위 밖의 번호 비중이 높습니다.");
   }
 
-  if (features.popularNumberCount === 0) {
+  if (features.recentWinningMatchCount !== null && features.recentWinningMatchCount > 0) {
+    parts.push(`최근 4주간 당첨된 번호가 ${features.recentWinningMatchCount}개 포함되어 있습니다.`);
+  } else if (features.popularNumberCount === 0) {
     parts.push("일반적으로 많이 선택되는 번호는 포함되어 있지 않습니다.");
   } else {
     parts.push(`일반적으로 많이 선택되는 번호가 ${features.popularNumberCount}개 포함되어 있습니다.`);

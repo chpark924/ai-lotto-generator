@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { NumberGrid, DisclaimerCard } from "../../src/components";
+import { NumberGrid, DisclaimerCard, BottomActionBar, LottoBallLoader } from "../../src/components";
 import { generateAiSearchGames } from "../../src/lib/lottery/generator";
 import type { ConsecutiveRule, GenerationRequest } from "../../src/lib/lottery/types";
 import { ValidationError } from "../../src/lib/lottery/validators";
@@ -13,12 +13,15 @@ import {
   POPULARITY_HEURISTIC_NOTICE,
 } from "../../src/constants/messages";
 import { CONSECUTIVE_RULE_LABELS, SEARCH_STRENGTH_OPTIONS } from "../../src/constants/lottery";
+import { useAppTheme, type AppColors } from "../../src/theme";
 
 export default function AiSearchScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const setResult = useGenerationStore((s) => s.setResult);
 
-  const [searchCount, setSearchCount] = useState<1 | 10000 | 100000>(10000);
+  const [searchCount, setSearchCount] = useState<1 | 30000 | 100000 | 1000000>(30000);
   const [excluded, setExcluded] = useState<number[]>([]);
   const [preferred, setPreferred] = useState<number[]>([]);
   const [consecutiveRule, setConsecutiveRule] = useState<ConsecutiveRule>("ANY");
@@ -85,19 +88,24 @@ export default function AiSearchScreen() {
 
   if (isRunning) {
     return (
-      <View style={styles.progressContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <View
+        style={styles.progressContainer}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={`${progressLabel}, ${progressPercent}퍼센트`}
+      >
+        <LottoBallLoader />
         <Text style={styles.progressLabel}>{progressLabel}</Text>
         <Text style={styles.progressPercent}>{progressPercent}%</Text>
         <Text style={styles.progressCaption}>
-          모든 계산은 이 기기 안에서 이뤄지며, 서버나 AI 모델 호출이 없습니다.
+          무작위 알고리즘을 통해 조합을 탐색하고 온디바이스로 연산이 이뤄집니다.
         </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
       <Text style={styles.sectionTitle}>탐색 강도</Text>
       <View style={styles.row}>
         {SEARCH_STRENGTH_OPTIONS.map((opt) => (
@@ -105,6 +113,9 @@ export default function AiSearchScreen() {
             key={opt.value}
             style={[styles.optionButton, searchCount === opt.value && styles.optionButtonActive]}
             onPress={() => setSearchCount(opt.value)}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: searchCount === opt.value }}
           >
             <Text
               style={[
@@ -125,6 +136,9 @@ export default function AiSearchScreen() {
             key={rule}
             style={[styles.optionButton, consecutiveRule === rule && styles.optionButtonActive]}
             onPress={() => setConsecutiveRule(rule)}
+            accessibilityRole="button"
+            accessibilityLabel={CONSECUTIVE_RULE_LABELS[rule]}
+            accessibilityState={{ selected: consecutiveRule === rule }}
           >
             <Text
               style={[
@@ -140,13 +154,23 @@ export default function AiSearchScreen() {
 
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>인기번호 회피</Text>
-        <Switch value={avoidPopular} onValueChange={setAvoidPopular} />
+        <Switch
+          value={avoidPopular}
+          onValueChange={setAvoidPopular}
+          accessibilityRole="switch"
+          accessibilityLabel="인기번호 회피"
+        />
       </View>
       {avoidPopular ? <Text style={styles.smallNotice}>{POPULARITY_HEURISTIC_NOTICE}</Text> : null}
 
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>내 저장번호 회피</Text>
-        <Switch value={avoidMySaved} onValueChange={setAvoidMySaved} />
+        <Switch
+          value={avoidMySaved}
+          onValueChange={setAvoidMySaved}
+          accessibilityRole="switch"
+          accessibilityLabel="내 저장번호 회피"
+        />
       </View>
 
       <Text style={styles.sectionTitle}>제외번호 ({excluded.length}개)</Text>
@@ -162,6 +186,9 @@ export default function AiSearchScreen() {
             key={c}
             style={[styles.optionButton, gameCount === c && styles.optionButtonActive]}
             onPress={() => setGameCount(c)}
+            accessibilityRole="button"
+            accessibilityLabel={`${c}게임 생성`}
+            accessibilityState={{ selected: gameCount === c }}
           >
             <Text style={[styles.optionButtonText, gameCount === c && styles.optionButtonTextActive]}>
               {c}게임
@@ -171,48 +198,41 @@ export default function AiSearchScreen() {
       </View>
 
       <DisclaimerCard text={ALL_COMBINATIONS_EQUAL_NOTICE} />
+      </ScrollView>
 
-      <Pressable style={styles.generateButton} onPress={handleGenerate}>
-        <Text style={styles.generateButtonText}>탐색 시작</Text>
-      </Pressable>
-    </ScrollView>
+      <BottomActionBar label="탐색 시작" onPress={handleGenerate} />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginTop: 16, marginBottom: 8 },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  optionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  optionButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
-  optionButtonText: { fontSize: 12, color: "#334155", fontWeight: "600" },
-  optionButtonTextActive: { color: "#fff" },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  switchLabel: { fontSize: 14, color: "#0F172A", fontWeight: "600" },
-  smallNotice: { fontSize: 11, color: "#94A3B8", marginBottom: 4, lineHeight: 16 },
-  generateButton: {
-    backgroundColor: "#2563EB",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  generateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0F172A" },
-  progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
-  progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
-  progressCaption: { color: "#64748B", fontSize: 12, marginTop: 16, textAlign: "center" },
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    optionButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    optionButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+    optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
+    optionButtonTextActive: { color: "#fff" },
+    switchRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 8,
+    },
+    switchLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
+    smallNotice: { fontSize: 11, color: colors.textMuted, marginBottom: 4, lineHeight: 16 },
+    // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
+    progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0F172A" },
+    progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
+    progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
+    progressCaption: { color: "#94A3B8", fontSize: 12, marginTop: 16, textAlign: "center" },
+  });
+}

@@ -2,7 +2,15 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { getBallColor } from "../constants/lottery";
 
-export function LottoBall({ number, size = 36 }: { number: number; size?: number }) {
+export function LottoBall({
+  number,
+  size = 36,
+  hideNumber = false,
+}: {
+  number: number;
+  size?: number;
+  hideNumber?: boolean;
+}) {
   return (
     <View
       style={[
@@ -14,8 +22,10 @@ export function LottoBall({ number, size = 36 }: { number: number; size?: number
           backgroundColor: getBallColor(number),
         },
       ]}
+      accessible={!hideNumber}
+      accessibilityLabel={hideNumber ? undefined : `로또 번호 ${number}`}
     >
-      <Text style={[styles.text, { fontSize: size * 0.42 }]}>{number}</Text>
+      {hideNumber ? null : <Text style={[styles.text, { fontSize: size * 0.42 }]}>{number}</Text>}
     </View>
   );
 }

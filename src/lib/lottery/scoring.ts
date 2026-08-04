@@ -115,3 +115,34 @@ export function scoreCandidate(numbers: number[], context: ScoringContext): Cand
 export function isConsecutiveRuleOk(numbers: number[], rule: ConsecutiveRule): boolean {
   return isConsecutiveRuleSatisfied(getMaxConsecutiveLength(numbers), rule);
 }
+
+/**
+ * "추천 적합도" 화면 표시용 점수 재조정.
+ *
+ * AI 조합 탐색은 수천~수만 개 후보 중 상위 1~5%만 골라 보여준다. 순위통계 특성상
+ * 이렇게 뽑힌 상위권 후보들의 원점수(totalScore)는 서로 매우 가깝게 몰리기 쉽고,
+ * 반올림하면 여러 조합이 우연히 같은 점수로 보이는 경우가 흔하다(예: 88점이 반복).
+ * 애초에 이 점수는 당첨 확률이 아니라 상대적 추천 지표이므로, 실제 우열 순서는
+ * 그대로 유지한 채 사용자가 체감할 수 있는 폭으로 펼쳐서 보여준다.
+ */
+export function stretchScoresForDisplay(
+  scores: number[],
+  targetMin = 65,
+  targetMax = 98
+): number[] {
+  if (scores.length === 0) return [];
+  if (scores.length === 1) return [Math.round(targetMax)];
+
+  const max = Math.max(...scores);
+  const min = Math.min(...scores);
+
+  if (max - min < 1e-6) {
+    // 원점수가 사실상 동점이면, 순위 순서대로만 살짝 차등을 준다(입력 순서 = 우열 순서 가정).
+    return scores.map((_, i) => Math.max(targetMin, Math.round(targetMax - i * 2)));
+  }
+
+  return scores.map((s) => {
+    const ratio = (s - min) / (max - min);
+    return Math.round(targetMin + ratio * (targetMax - targetMin));
+  });
+}

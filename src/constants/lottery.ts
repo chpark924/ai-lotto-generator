@@ -20,10 +20,11 @@ export const CONSECUTIVE_RULE_LABELS: Record<string, string> = {
 
 export const EXCLUSION_PRESETS = [6, 10, 15, 20, 25, 30];
 
-export const SEARCH_STRENGTH_OPTIONS: { label: string; value: 1 | 10000 | 100000 }[] = [
+export const SEARCH_STRENGTH_OPTIONS: { label: string; value: 1 | 30000 | 100000 | 1000000 }[] = [
   { label: "바로 생성", value: 1 },
-  { label: "1만 회 탐색", value: 10000 },
-  { label: "10만 회 정밀 탐색", value: 100000 },
+  { label: "3만 회 탐색", value: 30000 },
+  { label: "10만 회 탐색", value: 100000 },
+  { label: "100만 회 부스터 탐색", value: 1000000 },
 ];
 
 export const DESTINY_TARGET_OPTIONS: { label: string; value: "ONE" | "FIVE" | "TEN" | "TWENTY" | "CHAOS" | "GODS_WILL" }[] = [

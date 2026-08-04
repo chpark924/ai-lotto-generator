@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getBallColor } from "../constants/lottery";
+import { useAppTheme, type AppColors } from "../theme";
 
 export function NumberGrid({
   selected,
@@ -11,6 +12,8 @@ export function NumberGrid({
   disabled?: number[];
   onToggle: (n: number) => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const selectedSet = new Set(selected);
   const disabledSet = new Set(disabled);
 
@@ -29,6 +32,9 @@ export function NumberGrid({
               isSelected && { backgroundColor: getBallColor(n) },
               isDisabled && styles.cellDisabled,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={`번호 ${n}`}
+            accessibilityState={{ selected: isSelected, disabled: isDisabled }}
           >
             <Text
               style={[
@@ -48,27 +54,30 @@ export function NumberGrid({
 
 const CELL_SIZE = 44;
 
-const styles = StyleSheet.create({
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  cell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    borderRadius: CELL_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  cellDisabled: {
-    backgroundColor: "#F8FAFC",
-    opacity: 0.4,
-  },
-  cellText: { fontSize: 14, fontWeight: "600", color: "#334155" },
-  cellTextSelected: { color: "#0F172A" },
-  cellTextDisabled: { color: "#CBD5E1" },
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    cell: {
+      width: CELL_SIZE,
+      height: CELL_SIZE,
+      borderRadius: CELL_SIZE / 2,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cellDisabled: {
+      backgroundColor: colors.background,
+      opacity: 0.4,
+    },
+    cellText: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
+    // 선택된 셀은 로또공 색(밝은 색) 배경 위라 항상 짙은 남색 글자를 쓴다 — 테마와 무관.
+    cellTextSelected: { color: "#0F172A" },
+    cellTextDisabled: { color: "#CBD5E1" },
+  });
+}

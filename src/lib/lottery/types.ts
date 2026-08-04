@@ -35,8 +35,12 @@ export interface GenerationRequest {
   minSum?: number;
   maxSum?: number;
 
-  /** 1(즉시 생성) | 10000(AI 탐색) | 100000(AI 정밀 탐색) */
-  searchCount?: 1 | 10000 | 100000;
+  /**
+   * AI 조합 탐색의 반복 횟수. UI 프리셋(SEARCH_STRENGTH_OPTIONS)은 1(바로 생성) /
+   * 30000(3만 회 탐색) / 100000(10만 회 탐색) / 1000000(100만 회 부스터 탐색)을 쓰지만,
+   * 엔진 자체는 특정 값에 묶이지 않도록 일반 number로 둔다.
+   */
+  searchCount?: number;
 
   avoidPopularNumbers?: boolean;
   avoidMySavedNumbers?: boolean;

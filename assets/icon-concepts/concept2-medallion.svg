@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141B2E"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="coinOuter" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE9A8"/>
+      <stop offset="50%" stop-color="#FBC400"/>
+      <stop offset="100%" stop-color="#D98F00"/>
+    </linearGradient>
+    <linearGradient id="coinInner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3CE"/>
+      <stop offset="55%" stop-color="#FDD24A"/>
+      <stop offset="100%" stop-color="#F2AE00"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" fill="url(#bg2)"/>
+
+  <!-- 6 ball dots ringing the coin (6/45 nod) -->
+  <g>
+    <circle cx="512" cy="150" r="30" fill="#FBC400"/>
+    <circle cx="765" cy="270" r="30" fill="#69C8F2"/>
+    <circle cx="855" cy="512" r="30" fill="#FF7272"/>
+    <circle cx="765" cy="754" r="30" fill="#AAAAAA"/>
+    <circle cx="512" cy="874" r="30" fill="#B0D840"/>
+    <circle cx="259" cy="754" r="30" fill="#69C8F2"/>
+  </g>
+
+  <!-- coin -->
+  <circle cx="512" cy="512" r="300" fill="url(#coinOuter)"/>
+  <circle cx="512" cy="512" r="262" fill="url(#coinInner)"/>
+  <circle cx="512" cy="512" r="262" fill="none" stroke="#D98F00" stroke-width="6" stroke-opacity="0.5"/>
+
+  <!-- emblem: bold "金" (gold) hanja, stamped as dark negative space -->
+  <text x="512" y="600" font-size="330" text-anchor="middle" font-family="'Noto Sans CJK KR','Noto Sans KR','Malgun Gothic',sans-serif" font-weight="900" fill="#16213A">金</text>
+  <circle cx="512" cy="512" r="262" fill="none" stroke="#16213A" stroke-width="10" stroke-opacity="0.08"/>
+</svg>

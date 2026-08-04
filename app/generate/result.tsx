@@ -1,19 +1,34 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { DisclaimerCard, GeneratedGameCard, ProbabilityCard } from "../../src/components";
+import { DisclaimerCard, GeneratedGameCard, LottoBallLoader, ProbabilityCard } from "../../src/components";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { buildGameFeatures, explainGameLocally } from "../../src/lib/ai";
 import { getGenerationHistory, saveTicket } from "../../src/lib/storage";
 import { buildPopularityHeuristic } from "../../src/lib/draws/drawStats";
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
+import { getRecentDrawsSafe } from "../../src/lib/draws/drawCache";
 import { generateAiSearchGames, buildBasicGenerationResult } from "../../src/lib/lottery/generator";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
+import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+
+/** 결과 설명에 쓸 "최근 4주(회차) 실제 당첨번호" 합집합. 못 불러오면 null. */
+const RECENT_WEEKS_FOR_EXPLANATION = 4;
+async function loadRecentWinningNumbers(): Promise<number[] | null> {
+  const draws = await getRecentDrawsSafe(RECENT_WEEKS_FOR_EXPLANATION);
+  if (draws.length === 0) return null;
+  return [...new Set(draws.flatMap((d) => d.numbers))];
+}
 
 export default function ResultScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors, tints } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
   const { lastResult, lastRequest, setResult } = useGenerationStore();
   const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const canRegenerate =
     lastRequest?.mode === "AI_SEARCH" || lastRequest?.mode === "EXCLUSION" || lastRequest?.mode === "PURE_RANDOM";
@@ -21,13 +36,14 @@ export default function ResultScreen() {
   useEffect(() => {
     if (!lastResult) return;
     (async () => {
-      const [history, popularity] = await Promise.all([
+      const [history, popularity, recentWinningNumbers] = await Promise.all([
         getGenerationHistory(),
         Promise.resolve(buildPopularityHeuristic()),
+        loadRecentWinningNumbers(),
       ]);
       const next: Record<string, string> = {};
       for (const game of lastResult.games) {
-        const features = buildGameFeatures(game, popularity, history);
+        const features = buildGameFeatures(game, popularity, history, recentWinningNumbers);
         next[game.id] = explainGameLocally(features);
       }
       setExplanations(next);
@@ -38,7 +54,12 @@ export default function ResultScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>표시할 생성 결과가 없습니다.</Text>
-        <Pressable style={styles.emptyButton} onPress={() => router.replace("/(tabs)/generate")}>
+        <Pressable
+          style={styles.emptyButton}
+          onPress={() => router.replace("/(tabs)/generate")}
+          accessibilityRole="button"
+          accessibilityLabel="번호 만들기로 이동"
+        >
           <Text style={styles.emptyButtonText}>번호 만들기로 이동</Text>
         </Pressable>
       </View>
@@ -47,11 +68,15 @@ export default function ResultScreen() {
 
   async function handleSave(game: GeneratedGame, status: "SAVED" | "PLANNED") {
     const nextDrawNumber = estimateLatestDrawNumber() + 1;
-    await saveTicket(game, status, nextDrawNumber);
-    Alert.alert(
-      status === "SAVED" ? "저장했습니다." : "구매 예정으로 등록했습니다.",
-      `제 ${nextDrawNumber}회 기준으로 등록했어요. 내 번호 탭에서 회차를 바꿀 수 있어요.`
-    );
+    try {
+      await saveTicket(game, status, nextDrawNumber);
+      Alert.alert(
+        status === "SAVED" ? "저장했습니다." : "구매 예정으로 등록했습니다.",
+        `제 ${nextDrawNumber}회 기준으로 등록했어요. 내 번호 탭에서 회차를 바꿀 수 있어요.`
+      );
+    } catch {
+      Alert.alert("저장 실패", "번호를 저장하지 못했어요. 다시 시도해주세요.");
+    }
   }
 
   async function handleShare(game: GeneratedGame) {
@@ -66,25 +91,33 @@ export default function ResultScreen() {
   }
 
   async function handleRegenerate() {
-    if (!lastRequest) return;
-    if (lastRequest.mode === "AI_SEARCH") {
-      const [history, popularity] = await Promise.all([
-        lastRequest.avoidMySavedNumbers ? getGenerationHistory() : Promise.resolve([]),
-        Promise.resolve(buildPopularityHeuristic()),
-      ]);
-      const result = await generateAiSearchGames(lastRequest, {
-        popularityByNumber: lastRequest.avoidPopularNumbers ? popularity : new Array(45).fill(0),
-        savedCombinations: history,
-      });
-      setResult(lastRequest, result);
-    } else {
-      const result = buildBasicGenerationResult(lastRequest);
-      setResult(lastRequest, result);
+    if (!lastRequest || isRegenerating) return;
+    setIsRegenerating(true);
+    try {
+      if (lastRequest.mode === "AI_SEARCH") {
+        const [history, popularity] = await Promise.all([
+          lastRequest.avoidMySavedNumbers ? getGenerationHistory() : Promise.resolve([]),
+          Promise.resolve(buildPopularityHeuristic()),
+        ]);
+        const result = await generateAiSearchGames(lastRequest, {
+          popularityByNumber: lastRequest.avoidPopularNumbers ? popularity : new Array(45).fill(0),
+          savedCombinations: history,
+        });
+        setResult(lastRequest, result);
+      } else {
+        const result = buildBasicGenerationResult(lastRequest);
+        setResult(lastRequest, result);
+      }
+    } finally {
+      setIsRegenerating(false);
     }
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+    >
       {lastResult.resultNotice ? (
         <View style={styles.noticeCard}>
           <Text style={styles.noticeText}>{lastResult.resultNotice}</Text>
@@ -100,13 +133,28 @@ export default function ResultScreen() {
           explanation={explanations[game.id]}
           footer={
             <View style={styles.cardFooter}>
-              <Pressable style={styles.footerButton} onPress={() => handleSave(game, "SAVED")}>
+              <Pressable
+                style={styles.footerButton}
+                onPress={() => handleSave(game, "SAVED")}
+                accessibilityRole="button"
+                accessibilityLabel="번호 저장"
+              >
                 <Text style={styles.footerButtonText}>번호 저장</Text>
               </Pressable>
-              <Pressable style={styles.footerButton} onPress={() => handleSave(game, "PLANNED")}>
+              <Pressable
+                style={styles.footerButton}
+                onPress={() => handleSave(game, "PLANNED")}
+                accessibilityRole="button"
+                accessibilityLabel="구매 예정 등록"
+              >
                 <Text style={styles.footerButtonText}>구매 예정 등록</Text>
               </Pressable>
-              <Pressable style={styles.footerButton} onPress={() => handleShare(game)}>
+              <Pressable
+                style={styles.footerButton}
+                onPress={() => handleShare(game)}
+                accessibilityRole="button"
+                accessibilityLabel="번호 공유"
+              >
                 <Text style={styles.footerButtonText}>공유</Text>
               </Pressable>
             </View>
@@ -117,42 +165,66 @@ export default function ResultScreen() {
       <DisclaimerCard text={lastResult.disclaimer} />
 
       {canRegenerate ? (
-        <Pressable style={styles.regenerateButton} onPress={handleRegenerate}>
-          <Text style={styles.regenerateButtonText}>같은 조건으로 다시 생성</Text>
-        </Pressable>
+        isRegenerating ? (
+          <View style={styles.regenerateLoadingContainer}>
+            <LottoBallLoader />
+            <Text style={styles.regenerateLoadingText}>다시 생성하는 중...</Text>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.regenerateButton}
+            onPress={handleRegenerate}
+            disabled={isRegenerating}
+            accessibilityRole="button"
+            accessibilityLabel="같은 조건으로 다시 생성"
+            accessibilityState={{ disabled: isRegenerating }}
+          >
+            <Text style={styles.regenerateButtonText}>같은 조건으로 다시 생성</Text>
+          </Pressable>
+        )
       ) : null}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  noticeCard: {
-    backgroundColor: "#EDE9FE",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-  },
-  noticeText: { color: "#5B21B6", fontSize: 12, fontWeight: "600", lineHeight: 20 },
-  cardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
-  footerButton: {
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  footerButtonText: { color: "#4338CA", fontSize: 12, fontWeight: "700" },
-  regenerateButton: {
-    backgroundColor: "#0F172A",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  emptyText: { color: "#64748B", fontSize: 14, marginBottom: 16 },
-  emptyButton: { backgroundColor: "#2563EB", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-  emptyButtonText: { color: "#fff", fontWeight: "700" },
-});
+function createStyles(colors: AppColors, tints: AppTints) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    noticeCard: {
+      backgroundColor: tints.purple.bg,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 12,
+    },
+    noticeText: { color: tints.purple.fg, fontSize: 12, fontWeight: "600", lineHeight: 20 },
+    cardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+    footerButton: {
+      backgroundColor: tints.indigo.bg,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    footerButtonText: { color: tints.indigo.fg, fontSize: 12, fontWeight: "700" },
+    // 재생성 버튼/로딩 카드는 항상 어두운 브랜드 톤을 유지한다.
+    regenerateButton: {
+      backgroundColor: "#0F172A",
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+    regenerateLoadingContainer: {
+      backgroundColor: "#0F172A",
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    regenerateLoadingText: { color: "#fff", fontWeight: "700", fontSize: 13, marginTop: 8 },
+    emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
+    emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
+    emptyButton: { backgroundColor: "#2563EB", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+    emptyButtonText: { color: "#fff", fontWeight: "700" },
+  });
+}

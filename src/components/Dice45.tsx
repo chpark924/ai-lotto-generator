@@ -64,11 +64,11 @@ export function Dice45({
 
     const flicker = setInterval(() => {
       setDisplayNumber(Math.floor(Math.random() * 45) + 1);
-    }, 55);
+    }, 38);
 
     Animated.timing(spinRotate, {
       toValue: 1,
-      duration: 850,
+      duration: 480,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
@@ -94,8 +94,14 @@ export function Dice45({
   const tilt = spinRotate.interpolate({ inputRange: [0, 0.5, 1], outputRange: ["0deg", "16deg", "0deg"] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] });
 
+  const statusLabel = isSpinning
+    ? "45면체 주사위, 굴리는 중"
+    : number !== null
+      ? `45면체 주사위, 방금 ${number} 확정`
+      : "45면체 주사위, 탭해서 굴려보세요";
+
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} accessible accessibilityLabel={statusLabel}>
       <Animated.View pointerEvents="none" style={[styles.glow, { opacity: glowOpacity }]} />
 
       <Animated.View

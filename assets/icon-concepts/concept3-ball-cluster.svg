@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141B2E"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <radialGradient id="glow3" cx="50%" cy="46%" r="55%">
+      <stop offset="0%" stop-color="#FBC400" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FBC400" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- per-ball glossy-sphere gradients: light (upper-left) -> true hue -> dark core shadow (lower-right) -->
+    <radialGradient id="ballRed" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#FFD9D9"/>
+      <stop offset="38%" stop-color="#FF7272"/>
+      <stop offset="100%" stop-color="#A83232"/>
+    </radialGradient>
+    <radialGradient id="ballYellow" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#FFF3CC"/>
+      <stop offset="38%" stop-color="#FBC400"/>
+      <stop offset="100%" stop-color="#966600"/>
+    </radialGradient>
+    <radialGradient id="ballBlue" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#E3F5FD"/>
+      <stop offset="38%" stop-color="#69C8F2"/>
+      <stop offset="100%" stop-color="#2A6F94"/>
+    </radialGradient>
+    <radialGradient id="ballGray" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#F2F2F2"/>
+      <stop offset="38%" stop-color="#AAAAAA"/>
+      <stop offset="100%" stop-color="#5E5E5E"/>
+    </radialGradient>
+    <radialGradient id="ballGreen" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#F0F8D6"/>
+      <stop offset="38%" stop-color="#B0D840"/>
+      <stop offset="100%" stop-color="#5E7A1A"/>
+    </radialGradient>
+    <radialGradient id="ballGold" cx="32%" cy="26%" r="78%">
+      <stop offset="0%" stop-color="#FFEBB0"/>
+      <stop offset="38%" stop-color="#E8A929"/>
+      <stop offset="100%" stop-color="#7A4F0A"/>
+    </radialGradient>
+
+    <!-- tight specular highlight, reused per ball -->
+    <radialGradient id="spec" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <!-- soft rim occlusion where balls meet, lower-right edge -->
+    <radialGradient id="rim" cx="68%" cy="72%" r="45%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="softShadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" fill="url(#bg3)"/>
+  <circle cx="512" cy="522" r="380" fill="url(#glow3)"/>
+
+  <!-- contact shadows first (behind all balls), roughly under the whole cluster -->
+  <ellipse cx="512" cy="640" rx="330" ry="90" fill="#000000" opacity="0.35" filter="url(#softShadow)"/>
+
+  <!-- ball helper: base sphere + core-shadow rim + specular highlight -->
+  <g>
+    <circle cx="512" cy="330" r="120" fill="url(#ballRed)"/>
+    <circle cx="512" cy="330" r="120" fill="url(#rim)"/>
+    <circle cx="472" cy="288" r="34" fill="url(#spec)"/>
+  </g>
+
+  <g>
+    <circle cx="704" cy="432" r="120" fill="url(#ballYellow)"/>
+    <circle cx="704" cy="432" r="120" fill="url(#rim)"/>
+    <circle cx="664" cy="390" r="34" fill="url(#spec)"/>
+  </g>
+
+  <g>
+    <circle cx="630" cy="656" r="120" fill="url(#ballBlue)"/>
+    <circle cx="630" cy="656" r="120" fill="url(#rim)"/>
+    <circle cx="590" cy="614" r="34" fill="url(#spec)"/>
+  </g>
+
+  <g>
+    <circle cx="394" cy="656" r="120" fill="url(#ballGreen)"/>
+    <circle cx="394" cy="656" r="120" fill="url(#rim)"/>
+    <circle cx="354" cy="614" r="34" fill="url(#spec)"/>
+  </g>
+
+  <g>
+    <circle cx="320" cy="432" r="120" fill="url(#ballGray)"/>
+    <circle cx="320" cy="432" r="120" fill="url(#rim)"/>
+    <circle cx="280" cy="390" r="34" fill="url(#spec)"/>
+  </g>
+
+  <!-- hero center ball: distinct rich gold, slightly larger + brighter highlight -->
+  <g>
+    <circle cx="512" cy="512" r="128" fill="url(#ballGold)"/>
+    <circle cx="512" cy="512" r="128" fill="url(#rim)"/>
+    <circle cx="466" cy="464" r="38" fill="url(#spec)"/>
+  </g>
+</svg>

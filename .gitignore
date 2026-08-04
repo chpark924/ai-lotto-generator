@@ -4,3 +4,12 @@ dist/
 web-build/
 *.log
 .DS_Store
+
+# 네이티브 프로젝트는 커밋하지 않는다 — 이 앱은 네이티브 코드를 직접 손댄 적이 없고
+# 전부 app.json의 plugins 설정으로만 관리한다. android/ios가 커밋된 채로 남아있으면
+# EAS Build가 app.json 변경(아이콘, 신규 네이티브 모듈 등)을 무시하고 낡은 네이티브
+# 폴더를 그대로 쓰는 문제가 생긴다(2026-08-04에 실제로 겪음) — 매번
+# `npx expo prebuild --clean`으로 새로 만드는 걸 표준 워크플로로 삼는다.
+android/
+ios/
+android_backup_before_clean/

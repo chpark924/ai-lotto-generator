@@ -7,11 +7,11 @@
  *  - "AI 탐색/AI 정밀 탐색"이라는 이름은 사용자 경험상의 네이밍일 뿐,
  *    실제로는 로컬 난수 엔진 + 규칙 기반 점수 엔진이다.
  */
-import { randomInt, secureShuffle } from "./random";
+import { randomInt, securePartialShuffle } from "./random";
 import { buildGameMetadata } from "./pattern";
 import { combinationKey, maxOverlapAgainstList } from "./similarity";
 import { calculateCoveragePercent, calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "./probability";
-import { scoreCandidate, isConsecutiveRuleOk, type ScoringContext } from "./scoring";
+import { scoreCandidate, isConsecutiveRuleOk, stretchScoresForDisplay, type ScoringContext } from "./scoring";
 import { validateGenerationRequest } from "./validators";
 import type {
   GeneratedGame,
@@ -48,7 +48,7 @@ export function generatePureRandom(
   }
 
   const remainingCount = 6 - required.length;
-  const selected = secureShuffle(available).slice(0, remainingCount);
+  const selected = securePartialShuffle(available, remainingCount);
   return [...required, ...selected].sort((a, b) => a - b);
 }
 
@@ -103,7 +103,7 @@ export async function generateAiSearchGames(
   options: AiSearchOptions
 ): Promise<GenerationResult> {
   validateGenerationRequest(request);
-  const requestedIterations = request.searchCount ?? 10000;
+  const requestedIterations = request.searchCount ?? 30000;
   const batchSize = options.batchSize ?? 500;
 
   const uniqueCandidates = new Map<string, number[]>();
@@ -170,7 +170,12 @@ export async function generateAiSearchGames(
     }
   }
 
-  const games = chosen.map((c) => buildGeneratedGame(c.numbers, request.mode, c.score));
+  // 최종 채택된 후보끼리는 원점수가 서로 몰려 있기 쉬우므로, 화면에 보여줄 총점만
+  // 상대적 우열은 유지한 채 체감 가능한 폭으로 펼친다(구성요소별 세부 점수는 그대로 둔다).
+  const displayTotals = stretchScoresForDisplay(chosen.map((c) => c.score.totalScore));
+  const games = chosen.map((c, i) =>
+    buildGeneratedGame(c.numbers, request.mode, { ...c.score, totalScore: displayTotals[i] })
+  );
 
   const coveragePercent = calculateCoveragePercent(uniqueCandidates.size);
   const probability = calculateFirstPrizeProbability(games.length);
