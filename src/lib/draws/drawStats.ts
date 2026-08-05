@@ -2,7 +2,7 @@
  * 기획서 14장 로또 연구소 - 기본 당첨 통계 / 조합 패턴 통계.
  * 기기에 캐시된 과거 당첨번호만으로 전부 클라이언트에서 계산한다 (서버 집계 없음).
  */
-import { getOddCount, getLowNumberCount, getMaxConsecutiveLength } from "../lottery/pattern";
+import { getOddCount, getLowNumberCount, getMaxConsecutiveLength, getNumberSum } from "../lottery/pattern";
 import type { WinningDraw } from "./types";
 
 export interface NumberFrequency {
@@ -103,6 +103,44 @@ export function buildPopularityHeuristic(): number[] {
     byNumber[n - 1] = Math.max(0, Math.min(1, score));
   }
   return byNumber;
+}
+
+/**
+ * 로또 6/45 번호 합계의 이론적 중간값. 최소합(1+2+3+4+5+6=21)과 최대합(40+41+42+43+44+45=255)의
+ * 정중앙이다: (21 + 255) / 2 = 138.
+ */
+export const SUM_MIDPOINT = 138;
+
+export interface SumTrendPoint {
+  drawNumber: number;
+  drawDate: string;
+  sum: number;
+  /** sum이 SUM_MIDPOINT 이상이면 true(고합), 미만이면 false(저합). */
+  isHigh: boolean;
+}
+
+/**
+ * 회차별 당첨번호 합계를 중간값(138) 기준 고/저로 분류해 시간순(과거→최신)으로 반환한다.
+ * `draws`는 보통 최신순으로 들어오므로(drawCache.ts의 getRecentDraws 참고) 여기서 뒤집는다 —
+ * 그래프는 왼쪽이 과거, 오른쪽이 최신이 되는 게 자연스럽기 때문이다.
+ *
+ * 주의: 이 함수는 어디까지나 "지금까지 실제로 그랬다"는 서술적 통계를 계산할 뿐이다. 로또 추첨은
+ * 매회 독립 사건이라 과거 합계의 고/저 패턴이 다음 회차의 확률에 전혀 영향을 주지 않는다
+ * (ALL_COMBINATIONS_EQUAL_NOTICE 참고) — 이 값을 소비하는 화면은 반드시 그 취지의 안내문을
+ * 함께 표시해야 한다.
+ */
+export function computeSumTrend(draws: WinningDraw[]): SumTrendPoint[] {
+  return [...draws]
+    .sort((a, b) => a.drawNumber - b.drawNumber)
+    .map((draw) => {
+      const sum = getNumberSum(draw.numbers);
+      return {
+        drawNumber: draw.drawNumber,
+        drawDate: draw.drawDate,
+        sum,
+        isHigh: sum >= SUM_MIDPOINT,
+      };
+    });
 }
 
 /** 참고용: 과거 당첨 데이터 내 실제 출현 빈도(무작위 추첨 결과이므로 편향의 증거가 아니다). */

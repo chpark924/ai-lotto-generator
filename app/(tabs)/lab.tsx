@@ -4,15 +4,17 @@ import {
   getRecentDrawsSafe,
   computeNumberFrequencies,
   computeCombinationPatternStats,
+  computeSumTrend,
   getLongestAbsentNumbers,
+  SUM_MIDPOINT,
   type WinningDraw,
   type NumberFrequency,
 } from "../../src/lib/draws";
 import { getGenerationHistory, getTickets } from "../../src/lib/storage";
 import { getOddCount } from "../../src/lib/lottery/pattern";
 import { overlapCount } from "../../src/lib/lottery/similarity";
-import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall } from "../../src/components";
-import { POPULARITY_HEURISTIC_NOTICE } from "../../src/constants/messages";
+import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart } from "../../src/components";
+import { POPULARITY_HEURISTIC_NOTICE, SUM_TREND_NOTICE } from "../../src/constants/messages";
 import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
 /** 번호별 출현 빈도·패턴 통계의 기준 표본 크기 (최근 52주 = 1년치 회차). */
@@ -165,6 +167,7 @@ export default function LabScreen() {
   const longestAbsent = latestDraw
     ? getLongestAbsentNumbers(frequencies, latestDraw.drawNumber, 6)
     : [];
+  const sumTrend = computeSumTrend(draws);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
@@ -312,6 +315,27 @@ export default function LabScreen() {
           </Text>
         </View>
       )}
+
+      <View style={styles.card}>
+        {sumTrend.length > 0 ? (
+          <>
+            <Text style={styles.cardTitle}>당첨번호 합계 추세 (최근 {sumTrend.length}회)</Text>
+            <Text style={styles.cardSub}>
+              6개 당첨번호를 더한 값이 이론적 중간값({SUM_MIDPOINT}) 대비 높았는지(빨강) 낮았는지(파랑)를
+              회차 순서대로 보여줍니다.
+            </Text>
+            <SumTrendChart points={sumTrend} midpoint={SUM_MIDPOINT} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardTitle}>당첨번호 합계 추세</Text>
+            <Text style={styles.cardSub}>
+              당첨번호 데이터를 불러오지 못해 그래프를 그릴 수 없어요. 위 "다시 시도"를 눌러주세요.
+            </Text>
+          </>
+        )}
+      </View>
+      {sumTrend.length > 0 ? <DisclaimerCard text={SUM_TREND_NOTICE} /> : null}
 
       <DisclaimerCard text={POPULARITY_HEURISTIC_NOTICE} />
     </ScrollView>

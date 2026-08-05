@@ -22,3 +22,6 @@ export const AI_EXPLANATION_NOTICE =
  */
 export const SCORE_EXPLANATION_NOTICE =
   "이 점수는 설정한 조건과의 부합도, 자주 선택되는 번호 회피 정도, 내 기존 번호와의 차별성을 종합한 상대적 지표입니다.";
+
+export const SUM_TREND_NOTICE =
+  "이 그래프는 과거 당첨번호 합계가 중간값(138) 대비 높았는지 낮았는지를 보여주는 서술적 통계일 뿐입니다. 로또 추첨은 매회 독립적으로 이뤄지므로, 과거의 고/저 흐름이 다음 회차의 확률에 영향을 주지 않습니다.";

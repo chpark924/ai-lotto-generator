@@ -2,6 +2,8 @@ import {
   computeNumberFrequencies,
   getLongestAbsentNumbers,
   computeCombinationPatternStats,
+  computeSumTrend,
+  SUM_MIDPOINT,
 } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
 
@@ -83,5 +85,41 @@ describe("computeNumberFrequencies / getLongestAbsentNumbers", () => {
       expect(a.drawsSinceLastSeen).toBe(100);
       expect([1, 2, 3, 4, 5, 6]).not.toContain(a.number);
     }
+  });
+});
+
+describe("computeSumTrend", () => {
+  it("이론적 중간값(138)은 최소합(21)과 최대합(255)의 정중앙이다", () => {
+    const minSum = 1 + 2 + 3 + 4 + 5 + 6;
+    const maxSum = 40 + 41 + 42 + 43 + 44 + 45;
+    expect((minSum + maxSum) / 2).toBe(SUM_MIDPOINT);
+  });
+
+  it("합계를 정확히 계산하고 중간값 기준으로 고/저를 정확히 분류한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6] }), // 합 21 → 저
+      draw({ drawNumber: 2, numbers: [40, 41, 42, 43, 44, 45] }), // 합 255 → 고
+      draw({ drawNumber: 3, numbers: [23, 24, 25, 26, 27, 13] }), // 합 138 → 정확히 138(경계값)은 고로 취급
+    ];
+    const trend = computeSumTrend(draws);
+
+    const byDraw = new Map(trend.map((p) => [p.drawNumber, p]));
+    expect(byDraw.get(1)).toMatchObject({ sum: 21, isHigh: false });
+    expect(byDraw.get(2)).toMatchObject({ sum: 255, isHigh: true });
+    expect(byDraw.get(3)).toMatchObject({ sum: 138, isHigh: true });
+  });
+
+  it("입력 순서와 무관하게 항상 회차 오름차순(과거→최신)으로 반환한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 300, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 100, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 200, numbers: [1, 2, 3, 4, 5, 6] }),
+    ];
+    const trend = computeSumTrend(draws);
+    expect(trend.map((p) => p.drawNumber)).toEqual([100, 200, 300]);
+  });
+
+  it("빈 배열이면 빈 배열을 반환한다", () => {
+    expect(computeSumTrend([])).toEqual([]);
   });
 });
