@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { NumberGrid, DisclaimerCard, BottomActionBar, LottoBallLoader } from "../../src/components";
@@ -7,13 +7,24 @@ import type { ConsecutiveRule, GenerationRequest } from "../../src/lib/lottery/t
 import { ValidationError } from "../../src/lib/lottery/validators";
 import { getGenerationHistory } from "../../src/lib/storage";
 import { buildPopularityHeuristic } from "../../src/lib/draws/drawStats";
+import { getRecentDrawsSafe, computeCombinationPatternStats } from "../../src/lib/draws";
 import { useGenerationStore } from "../../src/state/generationStore";
 import {
   ALL_COMBINATIONS_EQUAL_NOTICE,
   POPULARITY_HEURISTIC_NOTICE,
+  SUM_AVERAGE_PREFERENCE_NOTICE,
 } from "../../src/constants/messages";
-import { CONSECUTIVE_RULE_LABELS, SEARCH_STRENGTH_OPTIONS } from "../../src/constants/lottery";
+import {
+  CONSECUTIVE_RULE_LABELS,
+  SEARCH_STRENGTH_OPTIONS,
+  SUM_AVERAGE_PREFERENCE_OPTIONS,
+} from "../../src/constants/lottery";
 import { useAppTheme, type AppColors } from "../../src/theme";
+
+/** 실제 최근 당첨번호 합계 평균을 계산할 때 쓰는 표본 크기 (최근 52주 = 1년치 회차). lab.tsx와 동일 기준. */
+const RECENT_SUM_SAMPLE_SIZE = 52;
+
+type SumAveragePreference = "NONE" | "UP" | "DOWN";
 
 // 탐색 단계별 안내 문구. generator.ts가 보고하는 phase에 그대로 매핑한다 —
 // percent 임계값(예: 60%, 85%)으로 라벨을 추측하지 않고, 실제 계산 단계와 항상 일치시킨다.
@@ -37,9 +48,54 @@ export default function AiSearchScreen() {
   const [avoidMySaved, setAvoidMySaved] = useState(true);
   const [gameCount, setGameCount] = useState(5);
 
+  const [sumAveragePreference, setSumAveragePreference] = useState<SumAveragePreference>("NONE");
+  const [recentAverageSum, setRecentAverageSum] = useState<number | null>(null);
+  const [avgSumStatus, setAvgSumStatus] = useState<"loading" | "ready" | "error">("loading");
+
   const [isRunning, setIsRunning] = useState(false);
   const [progressLabel, setProgressLabel] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
+
+  // 화면 진입 시 미리 최근 52주 평균 합계를 계산해 UI에 보여준다("최근 52주 기준"이라는
+  // 설명이 실제 숫자와 함께 표시돼야 사용자가 뭘 근거로 UP/DOWN을 고르는지 신뢰할 수 있다).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const recentDraws = await getRecentDrawsSafe(RECENT_SUM_SAMPLE_SIZE);
+        if (cancelled) return;
+        if (recentDraws.length === 0) {
+          setAvgSumStatus("error");
+          return;
+        }
+        const { averageSum } = computeCombinationPatternStats(recentDraws);
+        setRecentAverageSum(averageSum);
+        setAvgSumStatus("ready");
+      } catch {
+        if (!cancelled) setAvgSumStatus("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // handleGenerate()에서 이 값을 그대로 믿지 않고 한 번 더 확인한다 — 화면 진입 직후 곧바로
+  // "탐색 시작"을 눌러 위 useEffect fetch가 아직 안 끝났을 수도 있기 때문에, 아직 없으면
+  // 여기서 다시 한번 실제로 가져와서 UP/DOWN 선택이 "실제로" 반영되도록 보장한다.
+  async function resolveRecentAverageSum(): Promise<number | null> {
+    if (recentAverageSum !== null) return recentAverageSum;
+    try {
+      const recentDraws = await getRecentDrawsSafe(RECENT_SUM_SAMPLE_SIZE);
+      if (recentDraws.length === 0) return null;
+      const { averageSum } = computeCombinationPatternStats(recentDraws);
+      setRecentAverageSum(averageSum);
+      setAvgSumStatus("ready");
+      return averageSum;
+    } catch {
+      return null;
+    }
+  }
 
   function toggleExcluded(n: number) {
     setExcluded((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
@@ -49,6 +105,24 @@ export default function AiSearchScreen() {
   }
 
   async function handleGenerate() {
+    // "UP" 선택 시 minSum, "DOWN" 선택 시 maxSum을 최근 52주 실제 평균 합계로 설정한다.
+    // scoring.ts의 conditionMatchScore()가 이미 minSum/maxSum을 소프트 페널티로 반영하므로,
+    // 여기서 값만 정확히 넘겨주면 결과에 실제로 반영된다(하드 필터가 아니라 점수 가중치라
+    // 조건이 안 맞는 조합이 완전히 배제되진 않지만, 상위로 랭크되는 조합들은 UP/DOWN 방향에
+    // 뚜렷하게 치우치게 된다).
+    let sumBounds: Pick<GenerationRequest, "minSum" | "maxSum"> = {};
+    if (sumAveragePreference !== "NONE") {
+      const avg = await resolveRecentAverageSum();
+      if (avg !== null) {
+        sumBounds = sumAveragePreference === "UP" ? { minSum: avg } : { maxSum: avg };
+      } else {
+        Alert.alert(
+          "평균값을 불러오지 못했습니다",
+          "최근 당첨번호 데이터를 불러오지 못해 UP/DOWN 옵션이 이번 탐색에는 적용되지 않았습니다."
+        );
+      }
+    }
+
     const request: GenerationRequest = {
       mode: "AI_SEARCH",
       gameCount,
@@ -59,6 +133,7 @@ export default function AiSearchScreen() {
       searchCount,
       avoidPopularNumbers: avoidPopular,
       avoidMySavedNumbers: avoidMySaved,
+      ...sumBounds,
     };
 
     setIsRunning(true);
@@ -187,6 +262,40 @@ export default function AiSearchScreen() {
           accessibilityLabel="내 저장번호 회피"
         />
       </View>
+
+      <Text style={styles.sectionTitle}>당첨숫자 총합 평균값 UP/DOWN 선택</Text>
+      <View style={styles.row}>
+        {SUM_AVERAGE_PREFERENCE_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.value}
+            style={[
+              styles.optionButton,
+              sumAveragePreference === opt.value && styles.optionButtonActive,
+            ]}
+            onPress={() => setSumAveragePreference(opt.value)}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: sumAveragePreference === opt.value }}
+          >
+            <Text
+              style={[
+                styles.optionButtonText,
+                sumAveragePreference === opt.value && styles.optionButtonTextActive,
+              ]}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.smallNotice}>
+        {SUM_AVERAGE_PREFERENCE_NOTICE}
+        {avgSumStatus === "ready" && recentAverageSum !== null
+          ? ` (최근 52주 평균 합계: ${recentAverageSum.toFixed(1)})`
+          : avgSumStatus === "loading"
+            ? " (평균값 불러오는 중…)"
+            : " (평균값을 불러오지 못했습니다.)"}
+      </Text>
 
       <Text style={styles.sectionTitle}>제외번호 ({excluded.length}개)</Text>
       <NumberGrid selected={excluded} disabled={preferred} onToggle={toggleExcluded} />

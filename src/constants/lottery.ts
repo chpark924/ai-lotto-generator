@@ -27,6 +27,12 @@ export const SEARCH_STRENGTH_OPTIONS: { label: string; value: 1 | 30000 | 100000
   { label: "100만 회 부스터 탐색", value: 1000000 },
 ];
 
+export const SUM_AVERAGE_PREFERENCE_OPTIONS: { label: string; value: "NONE" | "UP" | "DOWN" }[] = [
+  { label: "상관없음", value: "NONE" },
+  { label: "UP (평균보다 높게)", value: "UP" },
+  { label: "DOWN (평균보다 낮게)", value: "DOWN" },
+];
+
 export const DESTINY_TARGET_OPTIONS: { label: string; value: "ONE" | "FIVE" | "TEN" | "TWENTY" | "CHAOS" | "GODS_WILL" }[] = [
   { label: "당첨자 1명", value: "ONE" },
   { label: "당첨자 5명", value: "FIVE" },

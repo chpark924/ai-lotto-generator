@@ -108,4 +108,59 @@ describe("generateAiSearchGames", () => {
       }
     }
   }, 20000);
+
+  // AI 조합탐색 화면의 "당첨숫자 총합 평균값 UP/DOWN 선택" 옵션이 실제로 결과에 반영되는지
+  // 검증한다(장식용 UI가 아니라 minSum/maxSum을 통해 scoring.ts의 소프트 페널티에 실제로
+  // 반영되어야 한다는 요구사항). 138(이론적 중간값) 기준으로 UP은 평균 합계가 그보다
+  // 뚜렷하게 높아야 하고, DOWN은 뚜렷하게 낮아야 한다.
+  describe("minSum/maxSum (당첨숫자 총합 평균값 UP/DOWN 선택)", () => {
+    function averageSum(numbers: number[][]): number {
+      const total = numbers.reduce((sum, game) => sum + game.reduce((s, n) => s + n, 0), 0);
+      return total / numbers.length;
+    }
+
+    it("minSum을 지정하면(UP) 생성된 조합의 합계 평균이 그 값 이상으로 뚜렷하게 치우친다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 20000, minSum: 138 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      expect(averageSum(result.games.map((g) => g.numbers))).toBeGreaterThan(138);
+    }, 20000);
+
+    it("maxSum을 지정하면(DOWN) 생성된 조합의 합계 평균이 그 값 이하로 뚜렷하게 치우친다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 20000, maxSum: 138 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      expect(averageSum(result.games.map((g) => g.numbers))).toBeLessThan(138);
+    }, 20000);
+
+    it("minSum/maxSum을 지정하지 않은 기존 동작 대비, UP/DOWN 결과의 합계 평균이 반대 방향으로 갈라진다", async () => {
+      const upRequest = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 20000, minSum: 138 });
+      const downRequest = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 20000, maxSum: 138 });
+
+      const [upResult, downResult] = await Promise.all([
+        generateAiSearchGames(upRequest, {
+          popularityByNumber: new Array(45).fill(0.3),
+          savedCombinations: [],
+          batchSize: 2000,
+        }),
+        generateAiSearchGames(downRequest, {
+          popularityByNumber: new Array(45).fill(0.3),
+          savedCombinations: [],
+          batchSize: 2000,
+        }),
+      ]);
+
+      const upAverage = averageSum(upResult.games.map((g) => g.numbers));
+      const downAverage = averageSum(downResult.games.map((g) => g.numbers));
+      expect(upAverage).toBeGreaterThan(downAverage);
+    }, 30000);
+  });
 });
