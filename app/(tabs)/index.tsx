@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { estimateLatestDrawNumber, getRecentDrawsSafe, getLongestAbsentNumbers, computeNumberFrequencies } from "../../src/lib/draws";
 import { getGenerationHistory } from "../../src/lib/storage";
@@ -26,6 +28,30 @@ export default function HomeScreen() {
   // 이 값이 true인 동안은 아래 카드들이 스켈레톤으로 표시된다(빈 화면 → 카드가
   // 갑자기 팝업되는 것보다 레이아웃을 미리 보여주는 게 자연스럽다).
   const [loading, setLoading] = useState(true);
+
+  // 홈 화면에서 왼쪽으로 스와이프하면 바로 오른쪽 탭("번호 만들기")으로 이동.
+  // 임계값은 RN 스와이프 제스처 구현에서 가장 흔히 쓰이는 값(이동거리 50px, 속도 0.3)을 사용.
+  // - onMoveShouldSetPanResponderCapture: 안드로이드 기본 touch slop(≈8~10dp)과 비슷한 최소
+  //   이동량(10px)을 넘고, 가로 이동이 세로 이동보다 클 때만 제스처를 가져간다. 세로 스크롤(카드
+  //   목록)이나 탭/버튼 누르기(움직임 없음)와 충돌하지 않는다.
+  // - onPanResponderRelease: 이동거리(dx)나 손을 뗄 때 속도(vx) 둘 중 하나만 기준을 넘어도
+  //   스와이프로 인정 — 길게 천천히 미는 동작과 짧고 빠른 플릭 동작을 모두 자연스럽게 인식한다.
+  const SWIPE_DISTANCE_THRESHOLD = 50;
+  const SWIPE_VELOCITY_THRESHOLD = 0.3;
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        const isLeftSwipe =
+          gestureState.dx < -SWIPE_DISTANCE_THRESHOLD || gestureState.vx < -SWIPE_VELOCITY_THRESHOLD;
+        if (isLeftSwipe && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)) {
+          router.push("/generate");
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     (async () => {
@@ -58,6 +84,7 @@ export default function HomeScreen() {
 
   return (
     <>
+      <View style={styles.swipeArea} {...panResponder.panHandlers}>
       <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
         <Pressable
           style={styles.settingsLink}
@@ -66,6 +93,7 @@ export default function HomeScreen() {
           accessibilityLabel="설정 열기"
         >
           <Text style={styles.settingsLinkText}>설정</Text>
+          <Ionicons name="settings-sharp" size={16} color={colors.textMuted} />
         </Pressable>
         <View style={styles.heroCard}>
           {loading ? (
@@ -77,27 +105,48 @@ export default function HomeScreen() {
           )}
           <Text style={styles.heroTitle}>이번 주 운명을 만들어보세요</Text>
           <Pressable
-            style={({ pressed }) => [styles.ctaButton, pressed && styles.ctaButtonPressed]}
-            android_ripple={{ color: "#1D4ED8" }}
+            style={styles.ctaButtonWrapper}
+            android_ripple={{ color: "#0F1F38" }}
             onPress={() => router.push("/generate/ai-search")}
             accessibilityRole="button"
             accessibilityLabel="AI로 번호 만들기, 기기 안에서 계산되는 온디바이스 규칙 엔진"
           >
-            <Text style={styles.ctaButtonText}>AI로 번호 만들기</Text>
+            {({ pressed }) => (
+              <LinearGradient
+                colors={["#496DA3", "#20385E"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={[styles.ctaButton, pressed && styles.ctaButtonPressed]}
+              >
+                <Text style={styles.ctaButtonText}>AI로 번호 만들기</Text>
+              </LinearGradient>
+            )}
           </Pressable>
         </View>
 
         <View style={styles.quickMenuRow}>
-          <QuickMenuItem styles={styles} label="제외하고 만들기" onPress={() => router.push("/generate/exclusion")} />
-          <QuickMenuItem styles={styles} label="행운번호" onPress={() => router.push("/generate/lucky")} />
-          <QuickMenuItem styles={styles} label="45면체 주사위" onPress={() => router.push("/generate/dice")} />
-          {/* QA 피드백: 기존 생성 기능 그룹과 아래 "자주 선택한 번호" 사이 위치에 당첨 확인 진입점을 추가.
-              나머지 3개와 형태·톤은 동일하게 유지하고, 테두리 색만 살짝 인디고 톤으로 차등을 줘서
-              "생성"이 아니라 "조회" 기능이라는 걸 은근히 구분되게 한다(variant prop으로 스타일만 분리). */}
           <QuickMenuItem
             styles={styles}
-            label="QR 당첨확인"
-            variant="qr"
+            icon={require("../../assets/quick-menu-icons/exclusion.png")}
+            label="제외해보기"
+            onPress={() => router.push("/generate/exclusion")}
+          />
+          <QuickMenuItem
+            styles={styles}
+            icon={require("../../assets/quick-menu-icons/lucky.png")}
+            label="행운번호"
+            onPress={() => router.push("/generate/lucky")}
+          />
+          <QuickMenuItem
+            styles={styles}
+            icon={require("../../assets/quick-menu-icons/dice.png")}
+            label="45면체 주사위"
+            onPress={() => router.push("/generate/dice")}
+          />
+          <QuickMenuItem
+            styles={styles}
+            icon={require("../../assets/quick-menu-icons/qr.png")}
+            label="QR당첨확인"
             onPress={() => router.push("/generate/qr-check")}
           />
         </View>
@@ -161,6 +210,7 @@ export default function HomeScreen() {
 
         <Text style={styles.footerNotice}>{ENTERTAINMENT_NOTICE}</Text>
       </ScrollView>
+      </View>
 
       <SettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
     </>
@@ -168,63 +218,78 @@ export default function HomeScreen() {
 }
 
 function QuickMenuItem({
+  icon,
   label,
   onPress,
   styles,
-  variant,
 }: {
+  icon: number;
   label: string;
   onPress: () => void;
   styles: ReturnType<typeof createStyles>;
-  variant?: "qr";
 }) {
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.quickMenuItem,
-        variant === "qr" && styles.quickMenuItemQr,
-        pressed && styles.quickMenuItemPressed,
-      ]}
+      style={({ pressed }) => [styles.quickMenuItem, pressed && styles.quickMenuItemPressed]}
       android_ripple={{ color: "#E2E8F0" }}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Text style={styles.quickMenuText}>{label}</Text>
+      <Image source={icon} style={styles.quickMenuIcon} resizeMode="contain" />
+      <Text
+        style={styles.quickMenuText}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
+    swipeArea: { flex: 1 },
     container: { flex: 1, backgroundColor: colors.background },
-    settingsLink: { alignSelf: "flex-end", marginBottom: 8 },
-    settingsLinkText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
-    // 히어로 카드는 시스템 테마와 무관하게 항상 어두운 브랜드 카드로 고정한다.
+    settingsLink: {
+      alignSelf: "flex-end",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginBottom: 8,
+    },
+    settingsLinkText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+    // 히어로 카드: 어두운 브랜드 카드에서 밝은 카드(제목/부제는 어두운 텍스트)로 변경.
+    // CTA 버튼만 남색 그라디언트 필로 어두운 톤을 유지한다(디자인 참고 이미지 반영).
     heroCard: {
-      backgroundColor: "#0F172A",
+      backgroundColor: colors.surface,
       borderRadius: 20,
       padding: 20,
       marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    heroSubtitle: { color: "#94A3B8", fontSize: 13, marginBottom: 6 },
-    heroSkeletonSubtitle: { marginBottom: 6, backgroundColor: "#293045" },
+    heroSubtitle: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
+    heroSkeletonSubtitle: { marginBottom: 6 },
     skeletonTitle: { marginBottom: 10 },
-    heroTitle: { color: "#fff", fontSize: 20, fontWeight: "700", marginBottom: 16 },
+    heroTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 16 },
+    ctaButtonWrapper: { borderRadius: 16, overflow: "hidden" },
     ctaButton: {
-      backgroundColor: "#2563EB",
-      borderRadius: 12,
-      paddingVertical: 14,
+      borderRadius: 16,
+      paddingVertical: 16,
       alignItems: "center",
     },
-    ctaButtonPressed: { backgroundColor: "#1D4ED8", transform: [{ scale: 0.98 }] },
+    ctaButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
     ctaButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
     quickMenuRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
     quickMenuItem: {
       flex: 1,
       backgroundColor: colors.surface,
       borderRadius: 12,
-      paddingVertical: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 2,
       alignItems: "center",
       borderWidth: 1,
       borderColor: colors.border,
@@ -234,14 +299,14 @@ function createStyles(colors: AppColors) {
       borderColor: colors.border,
       transform: [{ scale: 0.97 }],
     },
-    // "생성" 계열 3개와 형태는 동일하게 두고 테두리 색만 살짝 인디고 톤으로 바꿔
-    // "조회" 기능이라는 기능적 차이를 은근히 드러낸다. 톤앤매너를 해치지 않도록
-    // 배경/텍스트 색은 건드리지 않는다.
-    quickMenuItemQr: {
-      borderColor: "#A5B4FC",
-      borderWidth: 1.5,
+    quickMenuIcon: { width: 40, height: 40, marginBottom: 6 },
+    quickMenuText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      textAlign: "center",
+      width: "100%",
     },
-    quickMenuText: { fontSize: 12, fontWeight: "600", color: colors.textSecondary, textAlign: "center" },
     card: {
       backgroundColor: colors.surface,
       borderRadius: 16,

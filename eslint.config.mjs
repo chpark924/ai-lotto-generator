@@ -54,7 +54,7 @@ export default tseslint.config(
   {
     // Node에서 직접 실행되는 설정/스크립트 파일: module/require/process/console 등
     // Node 전역이 실제로 쓰이므로 no-undef가 오탐하지 않도록 전역을 등록한다.
-    files: ["**/*.config.js", "**/*.config.mjs", "smoke_test.mjs"],
+    files: ["**/*.config.js", "**/*.config.mjs", "smoke_test.mjs", "scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         module: "writable",
@@ -63,6 +63,11 @@ export default tseslint.config(
         process: "readonly",
         console: "readonly",
         __dirname: "readonly",
+        // scripts/update-lotto-data.mjs가 쓰는 Node 18+ 내장 웹 표준 전역.
+        fetch: "readonly",
+        AbortController: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
       },
     },
   }

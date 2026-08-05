@@ -64,6 +64,11 @@ export function isPlausibleWinningDraw(data: RawDrawResponse, requestedDrawNumbe
 // 일부 네트워크/기기 환경에서는 User-Agent/Referer가 없는 요청을 차단하거나 다른 응답을
 // 주는 경우가 있다(진짜 오프라인이 아닌데도 network_error로 보이는 원인 중 하나).
 // 브라우저에서 보내는 것과 비슷한 헤더를 실어 이런 오탐을 줄인다.
+//
+// 중요: 이 ENDPOINT/헤더는 scripts/update-lotto-data.mjs와 동일하게 맞춰뒀다(둘 중 하나만
+// 고치면 어긋난다). 또한 2026-08 조사 결과 dhlottery.co.kr 자체가 donghanglottery.com으로
+// 개편되며 이 구 도메인이 죽었을 가능성이 있다 — 이 함수는 이제 1순위 데이터 소스가 아니라
+// drawCache.ts에서 GitHub 정적 JSON(githubDataSource.ts)이 실패했을 때만 쓰이는 폴백이다.
 const REQUEST_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Linux; Android 13; SM-S911N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36",
@@ -123,9 +128,19 @@ export async function fetchWinningDraw(drawNumber: number): Promise<WinningDraw 
   return result.status === "success" ? result.draw : null;
 }
 
-/** 확인이 안 될 때 사용자가 직접 확인할 수 있는 동행복권 공식 결과 페이지 URL. */
+/**
+ * 확인이 안 될 때 사용자가 직접 확인할 수 있는 동행복권 공식 결과 페이지 URL.
+ *
+ * 2026-08 조사 결과 동행복권이 dhlottery.co.kr에서 donghanglottery.com으로 사이트를
+ * 개편하면서 예전 gameResult.do 주소가 더 이상 정상 응답하지 않는 것으로 보인다(사용자가
+ * 실기기에서 이 링크를 눌렀을 때 ERROR 404가 뜨는 걸 확인해 알려줌 — QA_LOG.md 참고). 새
+ * 도메인의 회차별 결과 페이지가 쿼리 파라미터(drwNo)를 그대로 지원하는지까지는 이 프로젝트
+ * 개발 환경(실인터넷 없음)에서 확정하지 못했지만, 적어도 아예 죽은 예전 주소보다는 살아있는
+ * 새 도메인의 결과 페이지로 보내는 쪽이 훨씬 낫다 — 파라미터가 안 먹더라도 사용자는 최소한
+ * "추첨결과" 메뉴가 있는 정상 페이지에 도착해 직접 회차를 찾아볼 수 있다.
+ */
 export function buildOfficialResultPageUrl(drawNumber: number): string {
-  return `https://www.dhlottery.co.kr/gameResult.do?method=byWin&drwNo=${drawNumber}`;
+  return `https://donghanglottery.com/lt645/result?drwNo=${drawNumber}`;
 }
 
 const FIRST_DRAW_DATE = new Date("2002-12-07T00:00:00+09:00");

@@ -14,7 +14,7 @@
 |---|---|---|
 | 번호 생성 | 서버 권장 (중복 회피 위해) | 100% 기기(클라이언트) 내부 계산 |
 | 백엔드 | Node.js + Supabase 등 자체 서버 | 없음. 모든 사용자 데이터는 기기에만 저장 (AsyncStorage) |
-| 과거 당첨번호 | 자체 DB에 적재 | 동행복권 공개 조회 API를 앱이 직접 호출 + 기기 캐시 |
+| 과거 당첨번호 | 자체 DB에 적재 | GitHub Actions가 주 1회 동행복권에서 받아와 이 저장소에 정적 JSON으로 커밋 → 앱은 그 파일을 raw.githubusercontent.com에서 받아 기기 캐시(실패 시 기존처럼 앱이 직접 조회하는 방식으로 폴백) |
 | 다른 사용자 인기번호 | 서버 집계 | 서버가 없어 실제 집계 불가. 대신 "일반적인 선택 편향(생일번호 쏠림 등)"을 정적 규칙으로 근사 — UI에 그 사실을 명시 |
 | AI 사용 | 조건 해석 + 결과 설명 + 통계 해설 | 결과 설명 한 곳에서만, 기본값 OFF. 켜도 로컬 템플릿이 항상 무료로 우선 제공되고, AI는 사용자 본인의 API 키(BYOK)로만 호출됨 |
 | 난수 생성 | node:crypto (서버) | expo-crypto의 기기 내 CSPRNG (서버 없이 동일한 안전성 확보) |
@@ -42,6 +42,30 @@ src/state/             화면 간 생성 결과 전달용 인메모리 스토어
 app/                   Expo Router 화면 (탭 4개 + 생성 플로우 5종 + 결과 + 설정 + 선호번호 관리)
 tests/                 Jest 단위 테스트 (엔진 정확성 검증)
 ```
+
+## 당첨번호 데이터 파이프라인 (설정 필요)
+
+`src/lib/draws/`가 당첨번호를 받아오는 방식이 두 겹으로 돼 있습니다.
+
+1. **1순위 — GitHub 정적 JSON**: `data/lotto-draws.json`을 앱이 `raw.githubusercontent.com`으로
+   받아온다(`src/lib/draws/githubDataSource.ts`). 이 파일은 `.github/workflows/update-lotto-data.yml`이
+   매주 토요일 추첨 후 자동으로 갱신·커밋한다(`scripts/update-lotto-data.mjs`). 서버 비용 0원.
+2. **2순위(폴백) — 기기에서 직접 조회**: 1순위가 실패하거나(아직 설정 안 됨, 오프라인 등)
+   해당 회차가 없으면 기존 방식대로 기기가 동행복권에 직접 요청한다(`drawApi.ts`).
+
+**이 저장소를 새로 GitHub에 올렸다면 아직 1순위가 비활성 상태입니다.** 다음을 해야 합니다.
+
+1. `src/lib/draws/githubDataSource.ts`의 `GITHUB_OWNER`/`GITHUB_REPO`를 실제 값으로 채운다.
+2. `data/README.md` 안내대로 `node scripts/update-lotto-data.mjs`를 실인터넷이 되는 환경(로컬 PC 등)에서
+   한 번 실행해 초기 데이터를 채우고 커밋·푸시한다.
+3. GitHub 저장소 Settings → Actions → General에서 워크플로 쓰기 권한이 켜져 있는지 확인한다
+   (`permissions: contents: write`가 워크플로 파일에 있지만, 저장소 설정에서 Actions의 기본
+   권한이 read-only로 잠겨 있으면 커밋 단계가 실패할 수 있다).
+
+**중요**: `scripts/update-lotto-data.mjs`가 재사용하는 동행복권 엔드포인트(`dhlottery.co.kr`)가
+2026-08 기준 사이트 개편(`donghanglottery.com`으로 이전)으로 이미 죽었을 가능성이 있습니다.
+개발 환경에 실인터넷이 없어 최종 확인은 못 했습니다 — 위 2번 단계(로컬 실행)에서 계속 실패한다면
+`scripts/update-lotto-data.mjs` 상단 주석과 `QA_LOG.md` 34번 항목을 참고해 새 API로 교체해야 합니다.
 
 ## 구현된 기능 (기획서 24장 1차 MVP + 2차 + 3차 대부분)
 

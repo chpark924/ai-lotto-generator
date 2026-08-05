@@ -1,0 +1,45 @@
+name: Update Lotto Data
+
+# 로또 6/45 추첨(매주 토요일 20:35 KST) 이후 당첨번호를 받아와 data/lotto-draws.json에
+# 커밋한다. 앱은 이 파일을 raw.githubusercontent.com으로 받아가므로(src/lib/draws/githubDataSource.ts),
+# 이 워크플로가 실패해도 앱은 기존 방식(기기에서 직접 조회)으로 자동 폴백한다 — 절대
+# 사용자 경험을 막는 단일 장애점이 아니다.
+#
+# 참고: GitHub는 60일 이상 커밋이 없는 저장소의 예약 실행(schedule)을 자동으로 비활성화한다.
+# 그 경우 Actions 탭에서 이 워크플로를 열고 수동으로 한 번 실행(Run workflow)하면 다시 살아난다.
+"on":
+  schedule:
+    # 21:30 KST(=UTC 12:30) 매주 토요일. 추첨 방송(20:35 KST)과 공식 발표 사이 여유를 뒀다.
+    - cron: "30 12 * * 6"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run scraper
+        run: node scripts/update-lotto-data.mjs
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet -- data/lotto-draws.json; then
+            echo "변경 사항 없음 — 커밋을 건너뜁니다."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/lotto-draws.json
+          LATEST_DRW=$(node -e "const d=require('./data/lotto-draws.json'); console.log(d.length ? d[d.length-1].drawNumber : 'unknown')")
+          git commit -m "chore: update lotto draw data (최신 ${LATEST_DRW}회)"
+          git push

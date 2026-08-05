@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { NumberGrid, DisclaimerCard, BottomActionBar, LottoBallLoader } from "../../src/components";
-import { generateAiSearchGames } from "../../src/lib/lottery/generator";
+import { generateAiSearchGames, type AiSearchPhase } from "../../src/lib/lottery/generator";
 import type { ConsecutiveRule, GenerationRequest } from "../../src/lib/lottery/types";
 import { ValidationError } from "../../src/lib/lottery/validators";
 import { getGenerationHistory } from "../../src/lib/storage";
@@ -14,6 +14,14 @@ import {
 } from "../../src/constants/messages";
 import { CONSECUTIVE_RULE_LABELS, SEARCH_STRENGTH_OPTIONS } from "../../src/constants/lottery";
 import { useAppTheme, type AppColors } from "../../src/theme";
+
+// 탐색 단계별 안내 문구. generator.ts가 보고하는 phase에 그대로 매핑한다 —
+// percent 임계값(예: 60%, 85%)으로 라벨을 추측하지 않고, 실제 계산 단계와 항상 일치시킨다.
+const PHASE_LABELS: Record<AiSearchPhase, string> = {
+  GENERATING: "무작위 후보 생성 중",
+  SCORING: "조건에 맞지 않는 조합 제외 중",
+  FINALIZING: "최종 조합 선정 중",
+};
 
 export default function AiSearchScreen() {
   const router = useRouter();
@@ -67,12 +75,9 @@ export default function AiSearchScreen() {
         popularityByNumber: avoidPopular ? popularity : new Array(45).fill(0),
         savedCombinations: history,
         batchSize: 1000,
-        onProgress: (completed, total) => {
-          const percent = Math.round((completed / total) * 100);
+        onProgress: (percent, phase) => {
           setProgressPercent(percent);
-          if (percent < 60) setProgressLabel("무작위 후보 생성 중");
-          else if (percent < 85) setProgressLabel("조건에 맞지 않는 조합 제외 중");
-          else setProgressLabel("최종 조합 선정 중");
+          setProgressLabel(PHASE_LABELS[phase]);
         },
       });
 
@@ -87,6 +92,11 @@ export default function AiSearchScreen() {
   }
 
   if (isRunning) {
+    // 탐색 강도가 높을 때(특히 100만 회)는 몇 초 이상 걸릴 수 있어서, 퍼센트 숫자만으로는
+    // "멈춘 것 같다"는 인상을 주기 쉽다. 그래서 (1) 실제 진행 단계와 항상 일치하는 라벨,
+    // (2) 눈으로 계속 움직임이 보이는 막대 바, (3) 막바지에는 안심시키는 문구로 바꿔
+    // 오래 걸리는 연산이라는 걸 자연스럽게 체감시킨다.
+    const isAlmostDone = progressPercent >= 95;
     return (
       <View
         style={styles.progressContainer}
@@ -96,8 +106,13 @@ export default function AiSearchScreen() {
         <LottoBallLoader />
         <Text style={styles.progressLabel}>{progressLabel}</Text>
         <Text style={styles.progressPercent}>{progressPercent}%</Text>
+        <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        </View>
         <Text style={styles.progressCaption}>
-          무작위 알고리즘을 통해 조합을 탐색하고 온디바이스로 연산이 이뤄집니다.
+          {isAlmostDone
+            ? "거의 다 됐어요, 조금만 기다려주세요."
+            : "무작위 알고리즘을 통해 조합을 탐색하고 온디바이스로 연산이 이뤄집니다."}
         </Text>
       </View>
     );
@@ -233,6 +248,15 @@ function createStyles(colors: AppColors) {
     progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0F172A" },
     progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
     progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
+    progressBarTrack: {
+      width: "100%",
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "#1E293B",
+      marginTop: 14,
+      overflow: "hidden",
+    },
+    progressBarFill: { height: "100%", borderRadius: 3, backgroundColor: "#3B82F6" },
     progressCaption: { color: "#94A3B8", fontSize: 12, marginTop: 16, textAlign: "center" },
   });
 }

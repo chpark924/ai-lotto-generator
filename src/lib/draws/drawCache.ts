@@ -1,12 +1,62 @@
 import { readJson, writeJson } from "../storage/storage";
 import { estimateLatestDrawNumber, fetchWinningDraw, fetchWinningDrawWithStatus } from "./drawApi";
 import type { DrawFetchResult } from "./drawApi";
+import { fetchAllDrawsFromGithub, isGithubDataSourceConfigured } from "./githubDataSource";
 import type { WinningDraw } from "./types";
 
 const KEY = "winningDraws";
+const GITHUB_SYNC_KEY = "githubDrawsSyncedAt";
+// GitHub 정적 JSON은 주 1회만 갱신되므로(update-lotto-data.yml), 화면 진입마다 다시 받아올
+// 필요가 없다. 몇 시간에 한 번만 시도해서 앱 실행/화면 전환 때마다 불필요한 네트워크 요청이
+// 쌓이지 않게 한다.
+const GITHUB_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * 설정돼 있다면(githubDataSource.ts 참고) GitHub에 커밋된 당첨번호 이력을 받아 로컬 캐시에
+ * 병합한다. 아직 로컬에 없는 회차만 추가하고(기존 값을 덮어쓰지 않음 — 당첨번호는 한 번
+ * 확정되면 바뀌지 않으므로 병합 순서는 상관없다), 실패해도 조용히 넘어간다. 이 함수가 하는
+ * 일은 어디까지나 "가능하면 더 풍부한 캐시로 미리 채워두는" 최적화일 뿐, 실패해도 이후 로직
+ * (개별 회차 직접 조회)이 그대로 폴백으로 동작한다.
+ */
+async function syncFromGithubIfNeeded(cache: Record<number, WinningDraw>): Promise<boolean> {
+  if (!isGithubDataSourceConfigured()) return false;
+
+  const lastSyncedAt = await readJson<number>(GITHUB_SYNC_KEY, 0);
+  if (Date.now() - lastSyncedAt < GITHUB_SYNC_INTERVAL_MS) return false;
+
+  const draws = await fetchAllDrawsFromGithub();
+  // 동기화를 "시도했다"는 사실은 성공 여부와 무관하게 기록한다. 그러지 않으면 GitHub가
+  // 응답하지 않는 상황에서 화면에 들어갈 때마다 다시 타임아웃을 기다리게 된다.
+  try {
+    await writeJson(GITHUB_SYNC_KEY, Date.now());
+  } catch {
+    // no-op
+  }
+
+  if (!draws) return false;
+
+  let changed = false;
+  for (const draw of draws) {
+    if (!cache[draw.drawNumber]) {
+      cache[draw.drawNumber] = draw;
+      changed = true;
+    }
+  }
+  return changed;
+}
 
 async function getCachedMap(): Promise<Record<number, WinningDraw>> {
-  return readJson<Record<number, WinningDraw>>(KEY, {});
+  const cache = await readJson<Record<number, WinningDraw>>(KEY, {});
+  const changed = await syncFromGithubIfNeeded(cache);
+  if (changed) {
+    try {
+      await setCachedMap(cache);
+    } catch {
+      // no-op: 이번 호출에서 이미 메모리상 cache는 확보했으니, 저장 실패가 이번 조회 결과에
+      // 영향을 주지 않는다 — 다음에 다시 시도하면 된다.
+    }
+  }
+  return cache;
 }
 
 async function setCachedMap(map: Record<number, WinningDraw>): Promise<void> {

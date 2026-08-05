@@ -50,12 +50,23 @@ const MAX_GAMES = 5;
 const GAME_BLOCK_LENGTH = 13; // 게임유형 1글자 + 번호 12자리
 const NUMBERS_PER_GAME = 6;
 
+// 2026-08 조사 결과 동행복권이 dhlottery.co.kr에서 donghanglottery.com으로 사이트를
+// 개편한 것으로 보인다(QA_LOG.md 참고). 이 QR 파서는 원래 dhlottery.co.kr 용지로만 검증한
+// 것이라, 개편 이후 발급된 실물 용지의 QR이 새 도메인(예: donghanglottery.com)을 가리킬
+// 가능성이 있다 — 다만 실제 신규 발급 용지로 확인은 못 했다(개발 환경에 실인터넷이 없음).
+// 그래서 도메인 검사를 두 도메인 다 허용하도록 넉넉하게 잡는다. 이렇게 넓혀도 안전한 이유:
+// 이 파서는 회차/번호만 뽑아낼 뿐이고, 실제 당첨 여부는 항상 서버(동행복권)에서 그 회차의
+// 공식 당첨번호를 다시 조회해 로컬 재계산하므로(getDrawByNumberWithStatus/computeRank), QR
+// 안의 도메인이나 번호가 조작됐다 해도 "존재하지 않는 조합"으로 처리될 뿐 오탐 위험이 없다.
+// TODO: 실기기에서 개편 이후 실제 발급된 용지로 QR을 스캔해 이 정규식이 맞는지 확인 필요.
+const KNOWN_WIN_QR_URL_PATTERN = /(dhlottery\.co\.kr|donghanglottery\.com)\/qr\.do\?/;
+
 /** URL 전체(예: 카메라로 스캔한 QR 원문)에서 v= 파라미터 값을 뽑아낸다. */
 function extractVParam(raw: string): string | null {
   const trimmed = raw.trim();
 
-  // 동행복권 당첨 확인 URL 형태 (모바일/PC 도메인 모두 허용).
-  const isDhlotteryWinQrUrl = /dhlottery\.co\.kr\/qr\.do\?/.test(trimmed) && /method=winQr/.test(trimmed);
+  // 동행복권 당첨 확인 URL 형태 (모바일/PC 도메인, 신구 도메인 모두 허용).
+  const isDhlotteryWinQrUrl = KNOWN_WIN_QR_URL_PATTERN.test(trimmed) && /method=winQr/.test(trimmed);
   if (isDhlotteryWinQrUrl) {
     const match = trimmed.match(/[?&]v=([^&]+)/);
     return match ? match[1] : null;

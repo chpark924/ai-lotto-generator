@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme, type AppColors } from "../src/theme";
 
 const EFFECTIVE_DATE = "2026-08-04";
-const CONTACT_EMAIL = "park.changhyun@cashwalk.io";
+const CONTACT_EMAIL = "jasanups@gmail.com";
 
 type Section = { title: string; body: string };
 
