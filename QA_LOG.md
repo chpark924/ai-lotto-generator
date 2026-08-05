@@ -330,3 +330,16 @@
   2. `src/constants/messages.ts`: `SUM_AVERAGE_PREFERENCE_NOTICE` 추가 — "최근 52주 실제 평균값 기준"이라는 점과, 이 역시 서술적 통계일 뿐 다음 회차 확률과 무관하다는 안내를 함께 명시(기획서 23장 원칙 유지).
   3. `app/generate/ai-search.tsx`: 화면 진입 시 `getRecentDrawsSafe(52)` + `computeCombinationPatternStats(draws).averageSum`으로 실제 평균 합계를 계산해 옵션 설명 문구 옆에 함께 표시(예: "최근 52주 평균 합계: 137.4") — 근거 숫자를 눈으로 보여줘야 신뢰할 수 있다고 판단. `handleGenerate()`에서는 이 값을 그대로 믿지 않고, 화면 진입 직후 곧바로 "탐색 시작"을 눌러 아직 로딩이 안 끝났을 가능성까지 감안해 필요 시 한 번 더 실제로 가져온 뒤(`resolveRecentAverageSum`), UP이면 `minSum`에 DOWN이면 `maxSum`에 그 값을 넣어 `GenerationRequest`를 구성한다. 데이터를 끝내 못 가져온 경우엔 조용히 무시하지 않고 "이번 탐색에는 적용되지 않았다"고 `Alert`로 알림(데이터 정확성 원칙 — 안 될 때 안 된다고 말하는 것도 정확성의 일부).
 - **검증**: `npx tsc --noEmit`, `npx eslint .` 클린. `unit`/`components` 두 프로젝트 전체 18개 스위트 회귀 없이 통과. **"실제로 작동하는지"를 말로만 확인하지 않고**, `tests/generator.test.ts`에 새 테스트 3개를 추가해 직접 검증: `minSum: 138`을 넘겼을 때 실제 생성된 5게임의 합계 평균이 138을 확실히 웃도는지, `maxSum: 138`을 넘겼을 때 138을 확실히 밑도는지, 그리고 UP/DOWN을 각각 적용한 두 결과의 합계 평균이 서로 반대 방향으로 뚜렷하게 갈라지는지까지 통계적으로 확인 — 3개 전부 통과(`npx jest generator.test.ts` 개별 재실행으로도 재확인). 즉 이 옵션은 장식이 아니라 실제로 결과에 반영된다는 것을 테스트로 못박아 뒀다.
+
+### 41. 디바이스/AOS 버전별 해상도 최적화 정적 점검 — 할 일 목록 (아직 미착수)
+
+- **배경**: "디바이스/AOS 버전별 해상도 최적화도 지원이 잘되는지 점검해달라"는 요청으로 코드/설정 기준 정적 점검 진행(실기기 테스트는 아님).
+- **양호하게 확인된 부분**: 레이아웃 전반이 flex/flexWrap 기반이라 해상도별 분기 없이도 자연 대응, `SafeAreaProvider`/`useSafeAreaInsets`가 루트와 주요 화면(BottomActionBar, result.tsx, preferences.tsx, privacy.tsx, SettingsSheet.tsx)에 적용됨, 아이콘 1024x1024 원본 + Expo 자동 밀도별 생성, `android/` 네이티브 폴더가 gitignore 처리되고 `compileSdk`/`targetSdk`/`minSdk`가 설치된 Expo 버전에서 자동 산출(현재 Expo SDK 54 → compileSdk/targetSdk 36 = Android 16, minSdk 24 = Android 7.0+).
+- **미착수 개선 항목(우선순위순, 이 세션 태스크 목록에도 등록함)**:
+  1. Android 16(API 36)부터 edge-to-edge가 강제 적용됨(끌 수 없음) — safe-area insets는 이미 적용돼 있으나, 실제 Android 15/16 기기·에뮬레이터에서 상태바/하단 네비바에 콘텐츠가 가려지는 화면이 없는지 육안 확인 필요.
+  2. `src/components/SettingsSheet.tsx:23`의 `Dimensions.get("window")`이 모듈 로드 시 1회만 읽힘 — 폴더블/멀티윈도우 대응을 위해 `useWindowDimensions()` 훅으로 교체 권장.
+  3. `src/components/NumberGrid.tsx`의 45개 공 그리드가 고정 `CELL_SIZE=44`px — 좁은 화면은 flexWrap으로 문제없으나 태블릿(`ios.supportsTablet: true`)에서 빈 공간이 많이 남음. 화면 폭 기반 셀 크기 조정 검토.
+  4. 로또 공 안 숫자, HOT/추천 배지 등 고정 크기 작은 요소에 `maxFontSizeMultiplier` 제한이 없어 시스템 큰 글씨 설정 시 텍스트가 잘릴 가능성.
+  5. `app.json`의 최상위 `splash` 키(이미지 없이 배경색만)가 Expo에서 deprecated 처리됨 — 현재는 하위호환 자동 매핑으로 정상 동작하지만, 다음 SDK 업그레이드 전에 `expo-splash-screen` 플러그인 방식으로 이전 필요.
+  6. (하우스키핑, 낮은 우선순위) 프로젝트 루트의 `android_backup_before_clean/` 폴더가 이전 세션 잔여물로 보임 — gitignore돼있어 무해하나 정리 권장.
+- **한계**: 정적 코드/설정 점검이며, 다양한 실제 기기·해상도에서의 시각적 확인(특히 1번 edge-to-edge 건)은 아직 수행하지 못했다.
