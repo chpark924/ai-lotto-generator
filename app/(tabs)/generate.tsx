@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppTheme, type AppColors } from "../../src/theme";
 
-const MENU_ITEMS: { title: string; description: string; path: string; recommended?: boolean }[] = [
+const MENU_ITEMS: { title: string; description: string; path: string; recommended?: boolean; hot?: boolean }[] = [
   {
     title: "제외하고 생성",
     description: "나오지 않을 것 같은 번호를 제외한 뒤 무작위로 생성합니다.",
@@ -29,6 +29,7 @@ const MENU_ITEMS: { title: string; description: string; path: string; recommende
     title: "운명의 신",
     description: "목표 당첨자 수와 번호 성격을 설정하는 게임형 생성입니다.",
     path: "/generate/destiny",
+    hot: true,
   },
 ];
 
@@ -50,7 +51,9 @@ export default function GenerateHubScreen() {
           accessibilityLabel={
             item.recommended
               ? `추천. ${item.title}. ${item.description}`
-              : `${item.title}. ${item.description}`
+              : item.hot
+                ? `HOT. ${item.title}. ${item.description}`
+                : `${item.title}. ${item.description}`
           }
         >
           <View style={styles.cardTitleRow}>
@@ -58,6 +61,11 @@ export default function GenerateHubScreen() {
             {item.recommended ? (
               <View style={styles.recommendedBadge}>
                 <Text style={styles.recommendedBadgeText}>추천</Text>
+              </View>
+            ) : null}
+            {item.hot ? (
+              <View style={styles.hotBadge}>
+                <Text style={styles.hotBadgeText}>HOT</Text>
               </View>
             ) : null}
           </View>
@@ -96,5 +104,12 @@ function createStyles(colors: AppColors) {
       paddingVertical: 2,
     },
     recommendedBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    hotBadge: {
+      backgroundColor: "#DC2626",
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    hotBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   });
 }
