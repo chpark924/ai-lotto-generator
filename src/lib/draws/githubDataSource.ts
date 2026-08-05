@@ -2,8 +2,10 @@
  * GitHub에 정적 파일로 커밋해둔 당첨번호 이력(data/lotto-draws.json)을 앱에서 받아오는 계층.
  *
  * 왜 필요한가: 기존엔 기기가 매번 dhlottery.co.kr을 "직접" 호출했는데, 이 방식이 여러 세션에
- * 걸쳐 "당첨번호를 불러오지 못했다"는 문제를 반복적으로 일으켰다(QA_LOG.md 참고 — 2026-08 조사
- * 결과 동행복권이 donghanglottery.com으로 사이트를 개편하며 구 도메인이 죽은 것으로 보임).
+ * 걸쳐 "당첨번호를 불러오지 못했다"는 문제를 반복적으로 일으켰다(QA_LOG.md 34/35/36번 항목
+ * 참고 — dhlottery.co.kr이 응답은 하지만 예상한 JSON 형식이 아닌 것으로 확인됨; 한때 "새
+ * 도메인 donghanglottery.com으로 개편됐다"고 판단했었지만 이는 오판이었다 — 그 도메인은
+ * 오히려 한국 정부가 법적 사유로 차단한 사이트였다. 정확한 원인/대체 주소는 아직 미확정).
  * 이제는 이 저장소의 GitHub Actions(.github/workflows/update-lotto-data.yml)가 주 1회
  * 당첨번호를 받아와 data/lotto-draws.json에 커밋해두고, 앱은 그 정적 파일 하나만
  * raw.githubusercontent.com에서 받아온다 — 서버 비용 없이, 기기에서의 불안정한 스크래핑

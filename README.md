@@ -53,19 +53,26 @@ tests/                 Jest 단위 테스트 (엔진 정확성 검증)
 2. **2순위(폴백) — 기기에서 직접 조회**: 1순위가 실패하거나(아직 설정 안 됨, 오프라인 등)
    해당 회차가 없으면 기존 방식대로 기기가 동행복권에 직접 요청한다(`drawApi.ts`).
 
-**이 저장소를 새로 GitHub에 올렸다면 아직 1순위가 비활성 상태입니다.** 다음을 해야 합니다.
+`GITHUB_OWNER`/`GITHUB_REPO`는 이미 `chpark924`/`ai-lotto-generator`로 설정되어 있고 저장소도
+GitHub에 푸시된 상태입니다. **남은 건 `data/lotto-draws.json`을 실제 데이터로 채우는 것뿐입니다.**
 
-1. `src/lib/draws/githubDataSource.ts`의 `GITHUB_OWNER`/`GITHUB_REPO`를 실제 값으로 채운다.
-2. `data/README.md` 안내대로 `node scripts/update-lotto-data.mjs`를 실인터넷이 되는 환경(로컬 PC 등)에서
-   한 번 실행해 초기 데이터를 채우고 커밋·푸시한다.
-3. GitHub 저장소 Settings → Actions → General에서 워크플로 쓰기 권한이 켜져 있는지 확인한다
+1. `data/README.md` 안내대로 `node scripts/update-lotto-data.mjs`를 실인터넷이 되는 환경(로컬 PC 등)에서
+   실행해 초기 데이터를 채우고 커밋·푸시한다. (37번 항목 수정 이후로는 회차 범위를 한 번의
+   요청으로 받아오므로 예전보다 훨씬 빠르게 끝난다.)
+2. GitHub 저장소 Settings → Actions → General에서 워크플로 쓰기 권한이 켜져 있는지 확인한다
    (`permissions: contents: write`가 워크플로 파일에 있지만, 저장소 설정에서 Actions의 기본
    권한이 read-only로 잠겨 있으면 커밋 단계가 실패할 수 있다).
 
-**중요**: `scripts/update-lotto-data.mjs`가 재사용하는 동행복권 엔드포인트(`dhlottery.co.kr`)가
-2026-08 기준 사이트 개편(`donghanglottery.com`으로 이전)으로 이미 죽었을 가능성이 있습니다.
-개발 환경에 실인터넷이 없어 최종 확인은 못 했습니다 — 위 2번 단계(로컬 실행)에서 계속 실패한다면
-`scripts/update-lotto-data.mjs` 상단 주석과 `QA_LOG.md` 34번 항목을 참고해 새 API로 교체해야 합니다.
+**해결됨(QA_LOG.md 37번 항목)**: `dhlottery.co.kr`의 옛 JSON 엔드포인트(`common.do`)와 옛 결과
+페이지(`gameResult.do`)가 죽어 있던 진짜 원인을 찾았습니다 — 도메인이 바뀐 게 아니라, 사이트
+자체가 새 프론트엔드로 전면 개편되며 경로만 바뀐 것이었습니다(새 API:
+`/lt645/selectPstLt645Info.do`, 새 결과 페이지: `/lt645/result`). 사용자의 실기기(한국 네트워크)
+Chrome으로 직접 확인해 찾아냈고, `drawApi.ts`/`scripts/update-lotto-data.mjs` 모두 이 새
+엔드포인트로 갱신했습니다.
+
+**절대 주의**: `donghanglottery.com`은 대체 도메인으로 시도하지 마세요 — 한국 정부
+(방송통신심의위원회)가 법적 사유로 차단한 사이트(HTTP 451)로 확인됐습니다. 진짜 동행복권과
+무관한 가짜/불법 사이트일 가능성이 매우 높습니다.
 
 ## 구현된 기능 (기획서 24장 1차 MVP + 2차 + 3차 대부분)
 

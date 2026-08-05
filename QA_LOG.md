@@ -256,3 +256,46 @@
   3. `node scripts/update-lotto-data.mjs`를 실인터넷이 되는 로컬 환경에서 실행해 초기 데이터를 채우고 커밋(`data/README.md` 참고) — 만약 이 단계에서도 계속 network_error만 난다면, 위에서 밝힌 "구 도메인이 죽었다"는 추정이 맞다는 뜻이므로 새 API를 직접 찾아 스크립트를 교체해야 한다(브라우저 개발자도구 Network 탭에서 `donghanglottery.com/lt645/result` 진입 시 호출되는 XHR 확인 — 이 방법이 가장 확실함).
   4. GitHub Actions 수동 실행(`workflow_dispatch`)으로 파이프라인이 실제로 동작하는지 1회 확인.
 - **검증**: `npx tsc --noEmit`, `npx eslint .` 전체 클린. 신규 테스트 `tests/drawCache.test.ts`(4개 — GitHub 미설정 시 기존 방식 그대로 동작/GitHub 캐시 적중 시 직접조회 생략/GitHub 실패 시 폴백/동기화 주기 내 재조회 안 함) + `tests/githubDataSource.test.ts`(미설정 시 fetch 자체를 시도 안 함) 전부 통과. 전체 `unit` 프로젝트 17개 스위트 107개 테스트 회귀 없이 통과. `scripts/update-lotto-data.mjs`는 이 샌드박스에서 직접 실행해 "연속 3회 실패 시 조기 중단 + 종료코드 1" 로직이 의도대로 동작하는 것까지는 확인(다만 이 환경 자체가 dhlottery.co.kr에 못 붙는 게 스크립트 버그 때문인지 진짜 사이트가 죽어서인지는 이 환경에서 최종 구분 불가 — 그래서 위 "사용자가 해야 하는 일" 3번이 필요).
+
+### 36. ⚠️ 정정 — 35번 항목의 `donghanglottery.com` 판단은 오판이었음(한국 정부 법적 차단 사이트로 확인)
+
+- **배경**: 35번 항목에서 GitHub JSON 파이프라인을 실제로 GitHub에 올리고 사용자가 실기기(한국 네트워크)에서 직접 검증에 들어감.
+  1. `GITHUB_OWNER`/`GITHUB_REPO`를 `chpark924`/`ai-lotto-generator`로 채우고 GitHub에 푸시 성공.
+  2. `node scripts/update-lotto-data.mjs`를 로컬(실인터넷)에서 실행 — **3회 연속 `network_error: JSON 파싱 실패(HTML 등 다른 응답이 온 것으로 보임)`로 실패, 0건 수집.** 즉 `dhlottery.co.kr` 엔드포인트는 완전히 죽은 게 아니라 **응답은 하지만 기대한 JSON이 아닌 다른 응답**을 준다 — 이건 35번 항목에서 "구 도메인이 완전히 죽었다"고 판단한 것과는 다른, 더 정확한 관찰.
+  3. 35번 항목에서 `buildOfficialResultPageUrl`에 넣은 `donghanglottery.com/lt645/result`로 실기기에서 이동했더니 **`ERR_CONNECTION_RESET`**(PC 크롬)이 뜸.
+  4. 이어서 모바일 브라우저로 직접 접속을 시도한 결과, **`HTTP 451 — 법적 사유로 이용 불가`** 오류 페이지가 표시됨. Cloudflare가 띄우는 이 차단 페이지는 한국 방송통신심의위원회(정부 기관) 명령에 따른 것이라고 명시하고 있었고, `lumendatabase.org` 링크로 차단 근거를 확인할 수 있게 되어 있었음(사용자가 스크린샷으로 전달).
+- **원인 분석(제 실수)**: 35번 항목에서 `WebFetch`/`WebSearch`로 `donghanglottery.com`을 조사했을 때, 실제 회차와 일치하는 그럴듯한 로또 데이터가 렌더링된 페이지가 응답했고, "동행복권 사이트 개편" 류의 검색 결과도 함께 나와 이를 "동행복권의 공식 신규 도메인"이라고 결론 내렸다. **하지만 이 결론은 확정 근거(공식 발표문 원문 확인, 공식 SNS/앱스토어 링크 대조 등) 없이 정황만으로 내린 성급한 판단이었다.** `WebFetch`는 Anthropic 인프라(해외 네트워크로 추정)에서 요청을 보내므로, 한국 정부가 국내 ISP 단에서 거는 접속 차단(HTTP 451)의 영향을 받지 않아 마치 정상 사이트처럼 응답을 받을 수 있었던 것으로 보인다 — 이게 바로 오판을 만든 맹점이었다. 이런 종류의 지역 기반 법적 차단은 실제로 그 지역(한국) 네트워크에서 접속해보지 않으면 절대 알 수 없다.
+- **위험성**: 이 오판을 기반으로 앱 코드 두 곳에 `donghanglottery.com`을 실제로 반영했었다.
+  1. `src/lib/draws/drawApi.ts`의 `buildOfficialResultPageUrl` — 조회 실패 시 사용자에게 "동행복권에서 확인" 링크로 이 도메인을 노출.
+  2. `src/lib/qr/parseLottoQr.ts`의 `KNOWN_WIN_QR_URL_PATTERN` — QR 스캔 시 이 도메인도 정상 동행복권 QR로 인식하도록 정규식을 넓힘(당첨 여부 자체는 항상 서버 재조회로 재계산하므로 QR 오인식이 가짜 당첨 결과를 만들지는 않지만, "이 도메인이 신뢰할 수 있는 동행복권 소유"라는 잘못된 전제를 코드에 심은 것 자체가 문제).
+  만약 사용자가 실기기 테스트 없이 이 상태로 배포했다면, 앱 사용자들이 정부가 차단한(=불법/사기 가능성이 있는) 사이트로 유도됐을 수 있었다 — **품질 문제를 넘어 사용자 안전 문제였다.**
+- **수정(전부 원복)**:
+  1. `src/lib/draws/drawApi.ts`: `buildOfficialResultPageUrl`을 원래의 `https://www.dhlottery.co.kr/gameResult.do?method=byWin&drwNo=${drawNumber}`로 되돌리고, 이번 정정 내용을 설명하는 doc comment로 교체.
+  2. `src/lib/qr/parseLottoQr.ts`: `KNOWN_WIN_QR_URL_PATTERN`을 원래의 `/dhlottery\.co\.kr\/qr\.do\?/` 단독으로 되돌리고, 같은 이유를 설명하는 주석 추가 — "서버 재검증이 있으니 도메인 검사를 완화해도 안전하다"는 논리 자체가 틀린 게 아니라, **검증 안 된(심지어 정부가 차단한) 도메인을 애초에 신뢰 후보에 올린 것 자체가 잘못**이었다는 점을 명확히 함.
+  3. `src/lib/draws/githubDataSource.ts`, `scripts/update-lotto-data.mjs`, `data/README.md`, `README.md`의 관련 docstring/설명을 모두 "donghanglottery.com이 신규 공식 도메인"이라는 전제에서 "그 도메인은 정부 차단 사이트로 확인됨, 절대 신뢰하지 않음 + 정확한 원인/대체 주소는 여전히 미확정"으로 정정.
+- **현재 상태(정직하게 요약)**:
+  - GitHub 정적 JSON 파이프라인 구조(35번 항목) 자체는 여전히 유효하고 그대로 유지 — 이 구조는 어떤 데이터 소스를 쓰든 도움이 된다.
+  - 다만 그 파이프라인이 의존하는 `dhlottery.co.kr` 스크래핑이 지금 실제로 작동하지 않는다(3회 연속 network_error 확인됨) — **아직 미해결**.
+  - `donghanglottery.com`은 확실히 배제됐다 — 이건 명확한 진전.
+  - **다음 단계(추측 대신 검증 우선으로 진행할 것)**: (a) `dhlottery.co.kr`을 실제 브라우저로 직접 열어 사이트 자체 생사와 결과 조회 페이지 동작 여부 확인, (b) 정상 동작하면 개발자도구 Network 탭에서 실제 API 요청을 캡처해 스크립트 교체, (c) 사이트가 다른 주소로 완전히 옮겨간 것 같다면 검색 결과/커뮤니티 글만으로 판단하지 말고 동행복권 공식 고객센터(1588-6450) 또는 공식 앱스토어 앱 내 안내로 새 주소를 직접 대조 확인한 뒤에만 코드에 반영 — 이번 사고의 교훈을 반영해, 앞으로는 "그럴듯해 보인다"만으로 도메인을 신뢰 후보에 올리지 않는다.
+  - **사용자 확인 요청**: `donghanglottery.com`에 개인정보(로그인, 결제정보 등)를 입력한 적이 없는지 다시 한번 확인 권장(사용자 확인 완료 — 입력한 적 없음).
+- **검증**: 원복한 두 파일(`drawApi.ts`, `parseLottoQr.ts`) 관련 기존 테스트 회귀 여부는 재확인 필요(이 세션 마지막에 `tsc`/`eslint`/`jest` 재실행 예정).
+
+### 37. 진짜 원인 발견 및 해결 — dhlottery.co.kr은 살아있었다, 사이트 개편으로 URL 구조만 바뀐 것
+
+- **배경**: 36번 항목에서 `donghanglottery.com`을 완전히 배제한 뒤에도 근본 문제(`dhlottery.co.kr`의 옛 JSON 엔드포인트가 network_error만 반환하는 것)는 미해결로 남아있었다. 사용자가 "빨리 수정해서 정상작동되도록 해"라고 요청 — 이번엔 추측이 아니라 사용자의 실제 기기로 직접 검증하는 방법을 택했다.
+- **방법**: 이 세션에서 처음으로 Claude in Chrome 브라우저 도구가 연결되어 있었고, `list_connected_browsers`로 확인한 결과 사용자의 실제 로컬 PC(Windows, `isLocal: true`)와 연결된 것임을 확인했다. 즉 이 브라우저로 접속하면 **한국 네트워크에서 실제로 보이는 화면을 그대로** 볼 수 있다 — 36번 항목에서 오판을 만들었던 "해외 네트워크라 한국 내 차단/개편이 반영 안 됨" 문제 자체가 원천적으로 없는 방법이다.
+  1. `https://www.dhlottery.co.kr/`에 접속 → 정상적으로 로드됨. 실제 최신 회차(1235회, 2026.08.01), 실제 사업자 정보(주소, 대표자, 사업자등록번호, 고객센터 1588-6450)까지 전부 진짜 동행복권 공식 정보와 일치 — **이 도메인은 여전히 100% 살아있는 진짜 공식 사이트임을 확인.**
+  2. 기존에 쓰던 `gameResult.do?method=byWin&drwNo=1235`로 이동 → **`ERROR 404`** 확인(사용자가 이전에 스크린샷으로 보여줬던 것과 동일한 증상 재현). 즉 도메인이 아니라 **이 특정 경로 자체가 폐지**된 것.
+  3. 사이트 상단 메뉴("추첨식 복권" → "로또6/45" → "추첨결과")를 실제로 클릭해 들어가 보니 새 경로 `https://www.dhlottery.co.kr/lt645/result`가 정상적으로 로또 6/45 당첨결과를 보여줌 — 최신 회차(1234, 1235회) 번호가 `selectMainInfo.do`(홈 화면이 자동으로 호출하는 API)의 데이터와 정확히 일치.
+  4. 이 페이지에는 회차 범위를 지정해 조회하는 UI(`srchStrLtEpsd`~`srchEndLtEpsd` select 두 개 + "조회하기" 버튼)가 있었다. `devtools` 네트워크 탭 대신 `read_network_requests`로 실제 호출을 캡처해, 진짜 새 API를 특정했다: `GET https://www.dhlottery.co.kr/lt645/selectPstLt645Info.do?srchStrLtEpsd={시작회차}&srchEndLtEpsd={끝회차}`.
+  5. 이 API를 직접 `fetch()`로 호출해 검증: 1~3회차 응답이 실제 역사적 기록과 정확히 일치(1회차: 2002-12-07, 번호 10 23 29 33 37 40, 보너스 16 — 이 프로젝트 코드에 이미 있던 `FIRST_DRAW_DATE` 상수와도 일치). **1~1235회 전체를 단 한 번의 요청으로 조회해도 정상 응답**함을 확인(회차 범위 제한 없음, 응답 크기 약 746KB). 존재하지 않거나 아직 추첨 전인 회차를 요청하면 에러 없이 빈 배열을 반환하는 것도 확인(1236~1240회 요청 시 `{"data":{"list":[]}}`).
+  6. 결과 상세 페이지도 `?ltEpsd={회차}` 쿼리로 특정 회차를 바로 열 수 있음을 확인(`/lt645/result?ltEpsd=1000` → 999/1000/1001회 표시).
+- **결론**: 여러 세션에 걸쳐 반복됐던 "당첨번호를 불러오지 못했다" 문제의 진짜 원인은 도메인이 바뀐 것도, 사이트가 죽은 것도 아니라 **2026년에 dhlottery.co.kr이 프론트엔드를 전면 개편하며 옛 API/페이지 경로(`common.do`, `gameResult.do`)를 전부 폐지했기 때문**이었다. 새 경로로 바꾸기만 하면 되는 문제였다.
+- **수정**:
+  1. `src/lib/draws/drawApi.ts`: `ENDPOINT`를 `lt645/selectPstLt645Info.do`로 교체, 응답 구조(`{resultCode, resultMessage, data: {list: [...]}}`, 필드명 `ltEpsd`/`tm1WnNo`~`tm6WnNo`/`bnsWnNo`/`ltRflYmd`(YYYYMMDD, 하이픈 변환 필요)/`rnk1WnNope`/`rnk1WnAmt`/`rlvtEpsdSumNtslAmt`)에 맞게 `RawDrawResponse`/`RawDrawListItem` 타입과 `isPlausibleWinningDraw`, `fetchWinningDrawWithStatus`를 전면 수정. 빈 배열 응답을 `not_announced`로 자연스럽게 처리(기존엔 `returnValue !== "success"`로 판단했던 것을 대체). `buildOfficialResultPageUrl`도 `lt645/result?ltEpsd=` 형식으로 교체.
+  2. `scripts/update-lotto-data.mjs`: 동일한 새 엔드포인트로 교체하면서, 새 API가 회차 범위를 한 번에 조회할 수 있다는 점을 활용해 **기존의 회차 하나씩 순회하는 루프(요청 간 200ms 지연 포함)를 완전히 제거**하고 필요한 범위 전체를 단 한 번의 요청으로 가져오도록 재작성 — 초기 백필(1~1235회)도 이제 요청 1번이면 끝난다. 실패 시 진단을 쉽게 하려고 응답 본문 앞부분을 콘솔에 출력하도록 추가(이전엔 "network_error"라고만 뜨고 실제 응답 내용을 볼 방법이 없어 원인 파악이 오래 걸렸던 것을 반영한 개선).
+  3. `data/README.md`, `README.md`의 관련 설명을 전부 새 엔드포인트/새 상황에 맞게 갱신.
+- **남은 불확실성(정직하게 밝힘)**: 새 API가 사용자의 실제 브라우저 세션(쿠키 등)이 있는 상태에서는 정상 동작함을 확인했지만, `scripts/update-lotto-data.mjs`처럼 브라우저 세션 없이 서버 환경(로컬 Node, GitHub Actions)에서 콜드하게 호출했을 때도 똑같이 동작하는지는 **아직 검증되지 않았다** — 사이트가 봇 차단용 트레이서 스크립트(`tracer.dhlottery.co.kr:48081/TRACERAPI/checkBotIp.do`)를 쓰고 있는 것을 관찰했기 때문이다. 다음에 사용자가 로컬에서 스크립트를 실행해보면 이 부분이 최종 확인된다.
+- **검증**: `npx tsc --noEmit`, `npx eslint .`, `npx jest --selectProjects unit` 전체 재실행 예정(이 항목 직후). `tests/drawApi.test.ts`를 새 응답 구조에 맞게 전면 재작성(URL 형식 검증 테스트 추가 포함).
+- **사용자에게 남은 작업**: `node scripts/update-lotto-data.mjs`를 로컬(실인터넷 환경)에서 실행해 `data/lotto-draws.json`을 채우고 커밋·푸시. 이제 요청 1번으로 끝나므로 예전보다 훨씬 빠르다.

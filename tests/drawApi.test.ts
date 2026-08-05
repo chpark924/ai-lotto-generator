@@ -3,32 +3,31 @@ import {
   estimateDrawDate,
   isPlausibleWinningDraw,
   fetchWinningDrawWithStatus,
-  type RawDrawResponse,
+  type RawDrawListItem,
 } from "../src/lib/draws/drawApi";
 
-function validRawResponse(overrides: Partial<RawDrawResponse> = {}): RawDrawResponse {
+function validRawItem(overrides: Partial<RawDrawListItem> = {}): RawDrawListItem {
   return {
-    returnValue: "success",
-    drwNo: 1235,
-    drwNoDate: "2026-08-08",
-    drwtNo1: 3,
-    drwtNo2: 11,
-    drwtNo3: 19,
-    drwtNo4: 27,
-    drwtNo5: 35,
-    drwtNo6: 44,
-    bnusNo: 21,
-    firstWinamnt: 2000000000,
-    firstPrzwnerCo: 10,
-    totSellamnt: 90000000000,
+    ltEpsd: 1235,
+    ltRflYmd: "20260808",
+    tm1WnNo: 3,
+    tm2WnNo: 11,
+    tm3WnNo: 19,
+    tm4WnNo: 27,
+    tm5WnNo: 35,
+    tm6WnNo: 44,
+    bnsWnNo: 21,
+    rnk1WnNope: 10,
+    rnk1WnAmt: 2000000000,
+    rlvtEpsdSumNtslAmt: 90000000000,
     ...overrides,
   };
 }
 
-function mockFetchOnce(body: unknown, ok = true) {
+function mockFetchOnce(list: unknown, ok = true) {
   global.fetch = jest.fn().mockResolvedValue({
     ok,
-    json: async () => body,
+    json: async () => ({ resultCode: null, resultMessage: null, data: { list } }),
   }) as unknown as typeof fetch;
 }
 
@@ -79,40 +78,41 @@ describe("estimateDrawDate / estimateLatestDrawNumber", () => {
 
 describe("isPlausibleWinningDraw — 아직 추첨 안 한 회차를 당첨번호로 오인하지 않는지", () => {
   it("정상적인 응답은 신뢰한다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse(), 1235)).toBe(true);
+    expect(isPlausibleWinningDraw(validRawItem(), 1235)).toBe(true);
   });
 
-  it("요청한 회차와 응답의 drwNo가 다르면 신뢰하지 않는다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse({ drwNo: 1234 }), 1235)).toBe(false);
+  it("요청한 회차와 응답의 ltEpsd가 다르면 신뢰하지 않는다", () => {
+    expect(isPlausibleWinningDraw(validRawItem({ ltEpsd: 1234 }), 1235)).toBe(false);
   });
 
-  it("번호가 전부 0으로 채워진 것처럼 비정상이면(아직 추첨 안 됐는데 success로 잘못 응답하는 경우 등) 신뢰하지 않는다", () => {
-    const zeroed = validRawResponse({
-      drwtNo1: 0,
-      drwtNo2: 0,
-      drwtNo3: 0,
-      drwtNo4: 0,
-      drwtNo5: 0,
-      drwtNo6: 0,
-      bnusNo: 0,
+  it("번호가 전부 0으로 채워진 것처럼 비정상이면 신뢰하지 않는다", () => {
+    const zeroed = validRawItem({
+      tm1WnNo: 0,
+      tm2WnNo: 0,
+      tm3WnNo: 0,
+      tm4WnNo: 0,
+      tm5WnNo: 0,
+      tm6WnNo: 0,
+      bnsWnNo: 0,
     });
     expect(isPlausibleWinningDraw(zeroed, 1235)).toBe(false);
   });
 
   it("번호가 1~45 범위를 벗어나면 신뢰하지 않는다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse({ drwtNo6: 46 }), 1235)).toBe(false);
+    expect(isPlausibleWinningDraw(validRawItem({ tm6WnNo: 46 }), 1235)).toBe(false);
   });
 
   it("번호에 중복이 있으면 신뢰하지 않는다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse({ drwtNo2: 3 }), 1235)).toBe(false); // drwtNo1도 3
+    expect(isPlausibleWinningDraw(validRawItem({ tm2WnNo: 3 }), 1235)).toBe(false); // tm1WnNo도 3
   });
 
   it("보너스번호가 본번호와 겹치면 신뢰하지 않는다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse({ bnusNo: 3 }), 1235)).toBe(false); // drwtNo1이 3
+    expect(isPlausibleWinningDraw(validRawItem({ bnsWnNo: 3 }), 1235)).toBe(false); // tm1WnNo가 3
   });
 
-  it("추첨일 정보가 비어 있으면 신뢰하지 않는다", () => {
-    expect(isPlausibleWinningDraw(validRawResponse({ drwNoDate: "" }), 1235)).toBe(false);
+  it("추첨일 정보가 비어 있거나 형식이 이상하면 신뢰하지 않는다", () => {
+    expect(isPlausibleWinningDraw(validRawItem({ ltRflYmd: "" }), 1235)).toBe(false);
+    expect(isPlausibleWinningDraw(validRawItem({ ltRflYmd: "2026-08-08" }), 1235)).toBe(false);
   });
 });
 
@@ -121,35 +121,36 @@ describe("fetchWinningDrawWithStatus — 회차 상태에 따라 정확히 구�
     jest.restoreAllMocks();
   });
 
-  it("아직 추첨되지 않은 미래 회차는 'not_announced'로 반환하고, 당첨번호를 절대 만들어내지 않는다", async () => {
-    mockFetchOnce({ returnValue: "fail" });
+  it("아직 추첨되지 않은 미래 회차는 빈 배열로 응답하며, 'not_announced'로 반환하고 당첨번호를 절대 만들어내지 않는다", async () => {
+    mockFetchOnce([]);
     const result = await fetchWinningDrawWithStatus(9999999);
     expect(result.status).toBe("not_announced");
     expect(result).not.toHaveProperty("draw");
   });
 
   it("정상 회차는 'success'와 함께 실제 당첨번호를 반환한다", async () => {
-    mockFetchOnce(validRawResponse({ drwNo: 1235 }));
+    mockFetchOnce([validRawItem({ ltEpsd: 1235 })]);
     const result = await fetchWinningDrawWithStatus(1235);
     expect(result.status).toBe("success");
     if (result.status === "success") {
       expect(result.draw.numbers).toHaveLength(6);
       expect(result.draw.drawNumber).toBe(1235);
+      expect(result.draw.drawDate).toBe("2026-08-08");
     }
   });
 
-  it("형식은 success지만 내용이 비정상(0으로 채워짐 등)이면 'success'로 속지 않고 network_error로 안전하게 처리한다", async () => {
-    mockFetchOnce(
-      validRawResponse({
-        drwtNo1: 0,
-        drwtNo2: 0,
-        drwtNo3: 0,
-        drwtNo4: 0,
-        drwtNo5: 0,
-        drwtNo6: 0,
-        bnusNo: 0,
-      })
-    );
+  it("형식은 정상이지만 내용이 비정상(0으로 채워짐 등)이면 success로 속지 않고 network_error로 안전하게 처리한다", async () => {
+    mockFetchOnce([
+      validRawItem({
+        tm1WnNo: 0,
+        tm2WnNo: 0,
+        tm3WnNo: 0,
+        tm4WnNo: 0,
+        tm5WnNo: 0,
+        tm6WnNo: 0,
+        bnsWnNo: 0,
+      }),
+    ]);
     const result = await fetchWinningDrawWithStatus(1235);
     // 절대 success가 되어서는 안 된다 — 그러면 화면에 가짜 당첨번호가 뜬다.
     expect(result.status).not.toBe("success");
@@ -157,9 +158,18 @@ describe("fetchWinningDrawWithStatus — 회차 상태에 따라 정확히 구�
   });
 
   it("응답 회차가 요청 회차와 다르면 success로 취급하지 않는다", async () => {
-    mockFetchOnce(validRawResponse({ drwNo: 1 }));
+    mockFetchOnce([validRawItem({ ltEpsd: 1 })]);
     const result = await fetchWinningDrawWithStatus(1235);
     expect(result.status).not.toBe("success");
+  });
+
+  it("응답이 배열이 아닌 이상한 형태면 network_error를 반환한다", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ resultCode: null, resultMessage: null, data: {} }),
+    }) as unknown as typeof fetch;
+    const result = await fetchWinningDrawWithStatus(1235);
+    expect(result.status).toBe("network_error");
   });
 
   it("네트워크 요청 자체가 실패하면 network_error를 반환한다", async () => {
@@ -169,8 +179,23 @@ describe("fetchWinningDrawWithStatus — 회차 상태에 따라 정확히 구�
   });
 
   it("HTTP 응답이 실패(ok=false)면 network_error를 반환한다", async () => {
-    mockFetchOnce({}, false);
+    mockFetchOnce([], false);
     const result = await fetchWinningDrawWithStatus(1235);
     expect(result.status).toBe("network_error");
+  });
+
+  it("요청 URL이 새 range API 형식(srchStrLtEpsd/srchEndLtEpsd)을 정확히 사용한다", async () => {
+    const fetchSpy = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ resultCode: null, resultMessage: null, data: { list: [validRawItem({ ltEpsd: 500 })] } }),
+    });
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    await fetchWinningDrawWithStatus(500);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://www.dhlottery.co.kr/lt645/selectPstLt645Info.do?srchStrLtEpsd=500&srchEndLtEpsd=500",
+      expect.anything()
+    );
   });
 });

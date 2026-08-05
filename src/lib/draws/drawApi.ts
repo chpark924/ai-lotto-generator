@@ -5,27 +5,44 @@
  * 제공하는 조회용 엔드포인트를 기기(클라이언트)에서 "직접" 호출한다. 모바일 앱은
  * 브라우저 CORS 제약이 없으므로 별도 프록시 서버가 필요 없다.
  *
- * 참고: 이 엔드포인트는 비공식 공개 API로, 서비스 정책 변경 시 응답 형식이 바뀔 수 있다.
+ * 정정(QA_LOG.md 37번 항목, 중요): 기존에 쓰던 `common.do?method=getLottoNumber` 엔드포인트는
+ * 더 이상 유효하지 않다(응답은 오지만 JSON이 아님 — 원인은 사이트 자체가 새 프론트엔드로
+ * 전면 개편됐기 때문이었다). **도메인(`dhlottery.co.kr`)은 그대로이고, 사칭 사이트로
+ * 오인했던 `donghanglottery.com`과는 무관하다** — 실제로는 같은 공식 도메인 안에서 URL
+ * 구조만 바뀐 것이었다. 사용자의 실기기(한국 네트워크) Chrome을 통해 정상 접속되는 화면을
+ * 직접 확인하고, 그 화면이 실제로 호출하는 새 API를 devtools 네트워크 탭으로 캡처해 찾아냈다
+ * (`/lt645/selectPstLt645Info.do?srchStrLtEpsd=N&srchEndLtEpsd=N`) — 1회차(2002-12-07,
+ * 10 23 29 33 37 40 보너스16)까지 과거 기록과 정확히 일치함을 확인해 신뢰도를 검증했다.
+ * 새 API는 시작~끝 회차 범위를 한 번에 조회할 수 있고(전체 1~1235회를 한 번의 요청으로도
+ * 확인함), 아직 추첨 전인 회차를 요청하면 에러 없이 빈 배열을 반환한다.
+ *
+ * 참고: 이 엔드포인트는 비공식 공개 API로, 서비스 정책 변경 시 응답 형식이 다시 바뀔 수 있다.
  * 실패 시에는 로컬 캐시(drawCache.ts)에 저장된 마지막 데이터로 그레이스풀하게 폴백한다.
  */
 import type { WinningDraw } from "./types";
 
-const ENDPOINT = "https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo=";
+const ENDPOINT = "https://www.dhlottery.co.kr/lt645/selectPstLt645Info.do";
+
+/** 새 API 응답의 회차 하나에 대한 원본 항목 형태. */
+export interface RawDrawListItem {
+  ltEpsd: number;
+  ltRflYmd: string; // "YYYYMMDD" (구 API의 drwNoDate와 달리 하이픈이 없다 — 변환 필요)
+  tm1WnNo: number;
+  tm2WnNo: number;
+  tm3WnNo: number;
+  tm4WnNo: number;
+  tm5WnNo: number;
+  tm6WnNo: number;
+  bnsWnNo: number;
+  rnk1WnNope: number;
+  rnk1WnAmt: number;
+  rlvtEpsdSumNtslAmt: number;
+}
 
 export interface RawDrawResponse {
-  returnValue: "success" | "fail";
-  drwNo: number;
-  drwNoDate: string;
-  drwtNo1: number;
-  drwtNo2: number;
-  drwtNo3: number;
-  drwtNo4: number;
-  drwtNo5: number;
-  drwtNo6: number;
-  bnusNo: number;
-  firstWinamnt: number;
-  firstPrzwnerCo: number;
-  totSellamnt: number;
+  resultCode: string | null;
+  resultMessage: string | null;
+  data: { list: RawDrawListItem[] };
 }
 
 /**
@@ -41,45 +58,55 @@ export type DrawFetchResult =
   | { status: "network_error" };
 
 /**
- * returnValue가 "success"라고 해서 그대로 믿지 않는다. 아직 추첨되지 않은 회차인데도
- * 서버/네트워크 이슈로 형식만 success인 이상한 응답(0으로 채워진 값, 회차 불일치 등)이
- * 오면 그걸 "진짜 당첨번호"로 오인해 사용자에게 등수를 잘못 알려줄 수 있다 — 이건 단순
- * 버그를 넘어 "없는 당첨 결과를 있는 것처럼 보여주는" 심각한 오해를 부를 수 있으므로,
- * 형식상 success여도 내용이 실제 로또 당첨번호로 말이 안 되면 신뢰하지 않는다.
+ * 응답에 항목이 있다고 해서 그대로 믿지 않는다. 서버/네트워크 이슈로 회차 불일치나
+ * 이상한 값(범위 밖 번호, 중복 번호 등)이 섞여 오면 그걸 "진짜 당첨번호"로 오인해
+ * 사용자에게 등수를 잘못 알려줄 수 있다 — 이건 단순 버그를 넘어 "없는 당첨 결과를
+ * 있는 것처럼 보여주는" 심각한 오해를 부를 수 있으므로, 내용이 실제 로또 당첨번호로
+ * 말이 안 되면 신뢰하지 않는다.
  */
-export function isPlausibleWinningDraw(data: RawDrawResponse, requestedDrawNumber: number): boolean {
-  if (data.drwNo !== requestedDrawNumber) return false;
-  if (!data.drwNoDate) return false;
+export function isPlausibleWinningDraw(item: RawDrawListItem, requestedDrawNumber: number): boolean {
+  if (item.ltEpsd !== requestedDrawNumber) return false;
+  if (!item.ltRflYmd || !/^\d{8}$/.test(item.ltRflYmd)) return false;
 
-  const numbers = [data.drwtNo1, data.drwtNo2, data.drwtNo3, data.drwtNo4, data.drwtNo5, data.drwtNo6];
+  const numbers = [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo];
   const allValid1To45 = numbers.every((n) => Number.isInteger(n) && n >= 1 && n <= 45);
   const allDistinct = new Set(numbers).size === 6;
   const bonusValid =
-    Number.isInteger(data.bnusNo) && data.bnusNo >= 1 && data.bnusNo <= 45 && !numbers.includes(data.bnusNo);
+    Number.isInteger(item.bnsWnNo) && item.bnsWnNo >= 1 && item.bnsWnNo <= 45 && !numbers.includes(item.bnsWnNo);
 
   return allValid1To45 && allDistinct && bonusValid;
 }
 
+/** "YYYYMMDD" → "YYYY-MM-DD" (WinningDraw.drawDate가 요구하는 형식). */
+function formatYmd(ymd: string): string {
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+}
+
 // 이 엔드포인트는 브라우저에서 직접 접근하는 걸 전제로 하는 페이지 내 호출이라,
 // 일부 네트워크/기기 환경에서는 User-Agent/Referer가 없는 요청을 차단하거나 다른 응답을
-// 주는 경우가 있다(진짜 오프라인이 아닌데도 network_error로 보이는 원인 중 하나).
-// 브라우저에서 보내는 것과 비슷한 헤더를 실어 이런 오탐을 줄인다.
+// 주는 경우가 있다. 브라우저에서 보내는 것과 비슷한 헤더를 실어 이런 오탐을 줄인다.
 //
 // 중요: 이 ENDPOINT/헤더는 scripts/update-lotto-data.mjs와 동일하게 맞춰뒀다(둘 중 하나만
-// 고치면 어긋난다). 또한 2026-08 조사 결과 dhlottery.co.kr 자체가 donghanglottery.com으로
-// 개편되며 이 구 도메인이 죽었을 가능성이 있다 — 이 함수는 이제 1순위 데이터 소스가 아니라
-// drawCache.ts에서 GitHub 정적 JSON(githubDataSource.ts)이 실패했을 때만 쓰이는 폴백이다.
+// 고치면 어긋난다). QA_LOG.md 37번 항목 참고 — 이 엔드포인트는 사용자의 실기기(한국 네트워크)
+// Chrome 브라우저 devtools 네트워크 탭에서 직접 캡처해 확인한, 현재(2026-08) 실제로 동작하는
+// 공식 주소다. 다만 이 헤더 없이(즉 브라우저 세션/쿠키 없이) GitHub Actions 같은 서버 환경에서
+// 콜드하게 호출했을 때도 똑같이 동작하는지는 아직 검증되지 않았다 — 이 사이트는 봇 차단용
+// 트레이서 스크립트(tracer.dhlottery.co.kr)를 쓰고 있어, 서버 환경에서 막힐 가능성을 배제할 수
+// 없다. 이 함수는 1순위 데이터 소스가 아니라 drawCache.ts에서 GitHub 정적 JSON
+// (githubDataSource.ts)이 실패했을 때만 쓰이는 폴백이다.
 const REQUEST_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Linux; Android 13; SM-S911N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36",
-  Referer: "https://www.dhlottery.co.kr/gameResult.do?method=byWin",
+  Referer: "https://www.dhlottery.co.kr/lt645/result",
   Accept: "application/json, text/plain, */*",
 };
 
 export async function fetchWinningDrawWithStatus(drawNumber: number): Promise<DrawFetchResult> {
   let response: Response;
   try {
-    response = await fetch(`${ENDPOINT}${drawNumber}`, { headers: REQUEST_HEADERS });
+    response = await fetch(`${ENDPOINT}?srchStrLtEpsd=${drawNumber}&srchEndLtEpsd=${drawNumber}`, {
+      headers: REQUEST_HEADERS,
+    });
   } catch {
     return { status: "network_error" };
   }
@@ -95,13 +122,18 @@ export async function fetchWinningDrawWithStatus(drawNumber: number): Promise<Dr
     return { status: "network_error" };
   }
 
-  if (data.returnValue !== "success") {
-    // 아직 추첨 전인 미래 회차를 조회하면 서버가 정상적으로 이렇게 응답한다 — 정상 상황.
+  const list = data?.data?.list;
+  if (!Array.isArray(list)) {
+    return { status: "network_error" };
+  }
+  if (list.length === 0) {
+    // 이 API는 아직 추첨 전(또는 존재하지 않는) 회차를 요청하면 에러 없이 빈 배열을 준다.
     return { status: "not_announced" };
   }
 
-  if (!isPlausibleWinningDraw(data, drawNumber)) {
-    // 형식은 success인데 내용이 실제 당첨번호로 신뢰할 수 없다. "아직 미발표"라고
+  const item = list[0];
+  if (!isPlausibleWinningDraw(item, drawNumber)) {
+    // 응답은 왔는데 내용이 실제 당첨번호로 신뢰할 수 없다. "아직 미발표"라고
     // 잘못 말하기보다("아직 발표 안 됐으니 나중에 확인" — 실제론 응답이 이상한 것),
     // "지금 확인할 수 없다"고 안전하게 안내해 잘못된 당첨 결과를 보여주는 걸 막는다.
     return { status: "network_error" };
@@ -110,14 +142,15 @@ export async function fetchWinningDrawWithStatus(drawNumber: number): Promise<Dr
   return {
     status: "success",
     draw: {
-      drawNumber: data.drwNo,
-      drawDate: data.drwNoDate,
-      numbers: [data.drwtNo1, data.drwtNo2, data.drwtNo3, data.drwtNo4, data.drwtNo5, data.drwtNo6]
-        .sort((a, b) => a - b) as WinningDraw["numbers"],
-      bonusNumber: data.bnusNo,
-      firstPrizeWinnerCount: data.firstPrzwnerCo,
-      firstPrizeAmount: data.firstWinamnt,
-      totalSalesAmount: data.totSellamnt,
+      drawNumber: item.ltEpsd,
+      drawDate: formatYmd(item.ltRflYmd),
+      numbers: [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo].sort(
+        (a, b) => a - b
+      ) as WinningDraw["numbers"],
+      bonusNumber: item.bnsWnNo,
+      firstPrizeWinnerCount: item.rnk1WnNope,
+      firstPrizeAmount: item.rnk1WnAmt,
+      totalSalesAmount: item.rlvtEpsdSumNtslAmt,
     },
   };
 }
@@ -131,16 +164,18 @@ export async function fetchWinningDraw(drawNumber: number): Promise<WinningDraw 
 /**
  * 확인이 안 될 때 사용자가 직접 확인할 수 있는 동행복권 공식 결과 페이지 URL.
  *
- * 2026-08 조사 결과 동행복권이 dhlottery.co.kr에서 donghanglottery.com으로 사이트를
- * 개편하면서 예전 gameResult.do 주소가 더 이상 정상 응답하지 않는 것으로 보인다(사용자가
- * 실기기에서 이 링크를 눌렀을 때 ERROR 404가 뜨는 걸 확인해 알려줌 — QA_LOG.md 참고). 새
- * 도메인의 회차별 결과 페이지가 쿼리 파라미터(drwNo)를 그대로 지원하는지까지는 이 프로젝트
- * 개발 환경(실인터넷 없음)에서 확정하지 못했지만, 적어도 아예 죽은 예전 주소보다는 살아있는
- * 새 도메인의 결과 페이지로 보내는 쪽이 훨씬 낫다 — 파라미터가 안 먹더라도 사용자는 최소한
- * "추첨결과" 메뉴가 있는 정상 페이지에 도착해 직접 회차를 찾아볼 수 있다.
+ * 정정 이력(QA_LOG.md 35/36/37번 항목 참고): 한때 "동행복권이 donghanglottery.com으로
+ * 개편됐다"고 오판해 이 URL을 그 도메인으로 바꿨던 적이 있다 — donghanglottery.com은 실제로는
+ * 한국 정부(방송통신심의위원회)가 "법적 사유"로 차단한 사이트(HTTP 451)로 확인되어 완전히
+ * 배제했다. 그 뒤 원래 도메인(dhlottery.co.kr)의 옛 경로(`gameResult.do?method=byWin`)로
+ * 되돌렸지만, 이 경로도 이미 죽어 있었다(ERROR 404) — **진짜 원인은 도메인이 바뀐 게 아니라
+ * dhlottery.co.kr 사이트 자체가 새 프론트엔드로 전면 개편되며 URL 구조가 바뀐 것**이었다.
+ * 사용자의 실기기(한국 네트워크) Chrome으로 직접 확인해 새 경로(`/lt645/result`, 회차는
+ * `?ltEpsd=` 쿼리로 지정 가능)를 찾아냈다 — 같은 공식 도메인 안에서의 정상적인 변경이므로
+ * 안전하다.
  */
 export function buildOfficialResultPageUrl(drawNumber: number): string {
-  return `https://donghanglottery.com/lt645/result?drwNo=${drawNumber}`;
+  return `https://www.dhlottery.co.kr/lt645/result?ltEpsd=${drawNumber}`;
 }
 
 const FIRST_DRAW_DATE = new Date("2002-12-07T00:00:00+09:00");
