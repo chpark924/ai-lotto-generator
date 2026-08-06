@@ -8,9 +8,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "icon": "./assets/icon.png",
-    "splash": {
-      "backgroundColor": "#0F172A"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -28,6 +25,9 @@
     "web": {
       "bundler": "metro"
     },
+    "androidNavigationBar": {
+      "enforceContrast": true
+    },
     "plugins": [
       "expo-router",
       "expo-notifications",
@@ -36,6 +36,12 @@
         "expo-camera",
         {
           "cameraPermission": "구매한 로또 용지의 QR코드를 스캔해 당첨 여부를 확인하려면 카메라 접근 권한이 필요합니다. 촬영된 이미지는 기기에 저장되거나 외부로 전송되지 않습니다."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F172A"
         }
       ]
     ],
