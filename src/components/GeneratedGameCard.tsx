@@ -120,16 +120,19 @@ function createStyles(colors: AppColors, tints: AppTints) {
       borderRadius: 8,
     },
     chipText: { fontSize: 11, color: tints.indigo.fg },
-    // 기본 메타 정보(홀짝/합계 등)와 구분되도록 보라색 톤을 써서 "전문 분석 배지"임을
+    // 기본 메타 정보(홀짝/합계 등)와 구분되도록 초록색 톤을 써서 "전문 분석 배지"임을
     // 은근히 표시한다(별도 헤더 텍스트 없이 색으로만 구분 — UI를 번잡하게 만들지 않기 위함).
+    // 보라색(tints.purple)은 이미 result.tsx의 "운명의 신" 시나리오 안내 배너(noticeCard)가
+    // 쓰고 있어서 피했다 — 사카이 분석 패턴 배지는 모드 무관하게 뜰 수 있어, 운명의 신
+    // 결과 화면에서 상단 안내 배너와 카드 안 배지가 같은 색으로 겹쳐 보일 수 있기 때문.
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
     badgeChip: {
-      backgroundColor: tints.purple.bg,
+      backgroundColor: tints.green.bg,
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 8,
     },
-    badgeChipText: { fontSize: 11, color: tints.purple.fg, fontWeight: "600" },
+    badgeChipText: { fontSize: 11, color: tints.green.fg, fontWeight: "600" },
     explanation: { marginTop: 10, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
   });
 }
