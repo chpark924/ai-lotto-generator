@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { GeneratedGame } from "../lib/lottery/types";
 import type { ResultBadge } from "../lib/lottery/resultBadges";
+import { buildGameAccessibilitySummary } from "../lib/lottery/accessibilitySummary";
 import { SCORE_EXPLANATION_NOTICE } from "../constants/messages";
 import { LottoBall } from "./LottoBall";
 import { useAppTheme, type AppColors, type AppTints } from "../theme";
@@ -24,49 +25,56 @@ export function GeneratedGameCard({
 }) {
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  // 로또공 6개(각각 개별 접근성 라벨 보유) + 점수 + 메타 칩 3개 + 배지 최대 4개 + 설명 문단이
+  // 전부 따로 초점을 잡으면 스크린리더로 카드 하나를 이해하는 데 스와이프를 15번 넘게 해야
+  // 한다. 아래에서 이 "읽기 전용 정보" 구간만 하나의 접근성 그룹으로 묶어 한 번에 요약해
+  // 읽어주고, 실제 액션인 footer 버튼들(저장/구매예정/공유)은 지금처럼 개별로 남겨둔다.
+  const accessibilitySummary = buildGameAccessibilitySummary(game, badges, explanation);
   return (
     <View style={styles.card}>
-      <View style={styles.ballRow}>
-        {game.numbers.map((n) => (
-          <LottoBall key={n} number={n} />
-        ))}
-      </View>
-
-      {game.score ? (
-        <View style={styles.scoreBlock}>
-          <Text style={styles.score}>추천 적합도 {Math.round(game.score.totalScore)}점</Text>
-          <View style={styles.scoreTrack}>
-            <View
-              style={[
-                styles.scoreFill,
-                { width: `${Math.max(0, Math.min(100, Math.round(game.score.totalScore)))}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.scoreCaption}>{SCORE_EXPLANATION_NOTICE}</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.metaRow}>
-        <MetaChip styles={styles} label={`홀짝 ${game.metadata.oddCount}:${6 - game.metadata.oddCount}`} />
-        <MetaChip styles={styles} label={`합계 ${game.metadata.sum}`} />
-        <MetaChip
-          styles={styles}
-          label={game.metadata.maxConsecutiveLength >= 2 ? "연속번호 있음" : "연속번호 없음"}
-        />
-      </View>
-
-      {badges && badges.length > 0 ? (
-        <View style={styles.badgeRow}>
-          {badges.map((badge) => (
-            <View key={badge.key} style={styles.badgeChip}>
-              <Text style={styles.badgeChipText}>{badge.label}</Text>
-            </View>
+      <View accessible accessibilityLabel={accessibilitySummary}>
+        <View style={styles.ballRow}>
+          {game.numbers.map((n) => (
+            <LottoBall key={n} number={n} />
           ))}
         </View>
-      ) : null}
 
-      {explanation ? <Text style={styles.explanation}>{explanation}</Text> : null}
+        {game.score ? (
+          <View style={styles.scoreBlock}>
+            <Text style={styles.score}>추천 적합도 {Math.round(game.score.totalScore)}점</Text>
+            <View style={styles.scoreTrack}>
+              <View
+                style={[
+                  styles.scoreFill,
+                  { width: `${Math.max(0, Math.min(100, Math.round(game.score.totalScore)))}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.scoreCaption}>{SCORE_EXPLANATION_NOTICE}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.metaRow}>
+          <MetaChip styles={styles} label={`홀짝 ${game.metadata.oddCount}:${6 - game.metadata.oddCount}`} />
+          <MetaChip styles={styles} label={`합계 ${game.metadata.sum}`} />
+          <MetaChip
+            styles={styles}
+            label={game.metadata.maxConsecutiveLength >= 2 ? "연속번호 있음" : "연속번호 없음"}
+          />
+        </View>
+
+        {badges && badges.length > 0 ? (
+          <View style={styles.badgeRow}>
+            {badges.map((badge) => (
+              <View key={badge.key} style={styles.badgeChip}>
+                <Text style={styles.badgeChipText}>{badge.label}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {explanation ? <Text style={styles.explanation}>{explanation}</Text> : null}
+      </View>
       {footer}
     </View>
   );
