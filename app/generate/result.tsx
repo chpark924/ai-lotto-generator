@@ -10,8 +10,12 @@ import { buildPopularityHeuristic, getSakaiAverageFrequencyNumbers } from "../..
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
 import { getRecentDrawsSafe } from "../../src/lib/draws/drawCache";
 import { generateAiSearchGames, buildBasicGenerationResult } from "../../src/lib/lottery/generator";
-import { isLastDigitSpreadOptimizationActive } from "../../src/lib/lottery/scoring";
-import { computeResultBadges, type ResultBadge, type SakaiAnalysisInputs } from "../../src/lib/lottery/resultBadges";
+import {
+  computeBatchLevelBadges,
+  computeGameLevelBadges,
+  type ResultBadge,
+  type SakaiAnalysisInputs,
+} from "../../src/lib/lottery/resultBadges";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
 import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
@@ -57,31 +61,20 @@ export default function ResultScreen() {
         loadRecentWinningNumbers(),
         loadSakaiAnalysisInputs(),
       ]);
-      // "끝수 최적화" 노출 여부는 scoring.ts가 실제로 그 최적화를 적용했는지를 판단하는
-      // 기준과 동일한 함수(isLastDigitSpreadOptimizationActive)로 결정한다 — 설명 문구와
-      // 실제 생성 로직이 어긋날 일이 없다.
-      const lastDigitSpreadOptimized = lastRequest
-        ? isLastDigitSpreadOptimizationActive(lastRequest)
-        : false;
       const nextExplanations: Record<string, string> = {};
       const nextBadges: Record<string, ResultBadge[]> = {};
       for (const game of lastResult.games) {
-        const features = buildGameFeatures(
-          game,
-          popularity,
-          history,
-          recentWinningNumbers,
-          lastDigitSpreadOptimized
-        );
+        const features = buildGameFeatures(game, popularity, history, recentWinningNumbers);
         nextExplanations[game.id] = explainGameLocally(features);
-        nextBadges[game.id] = lastRequest ? computeResultBadges(game, lastRequest, sakaiInputs) : [];
+        // 사카이 분석 패턴만 게임마다 계산한다 — 몬테카를로/EV/휠링/끝수 스프레드는 탐색
+        // 조건(request)만으로 결정되는 배치 단위 사실이라 카드마다 반복하지 않고 화면
+        // 상단에 한 번만 보여준다(아래 batchBadges 참고).
+        nextBadges[game.id] = computeGameLevelBadges(game, sakaiInputs);
       }
       setExplanations(nextExplanations);
       setBadgesByGameId(nextBadges);
     })();
-    // lastRequest는 항상 lastResult와 함께 setResult()로 동시에 갱신되므로(generationStore.ts),
-    // 두 값을 별도 의존성으로 둬도 추가 재실행이 생기지 않는다.
-  }, [lastResult, lastRequest]);
+  }, [lastResult]);
 
   if (!lastResult || !lastRequest) {
     return (
@@ -98,6 +91,12 @@ export default function ResultScreen() {
       </View>
     );
   }
+
+  // 몬테카를로 탐색/EV 최적화/휠링 방식 분산/끝수 스프레드 최적화는 탐색 조건(request)만으로
+  // 정해지는 배치 단위 사실이라, 카드마다 반복하지 않고 화면 상단에 한 번만 계산해서
+  // 보여준다(resultBadges.ts 참고). lastRequest만으로 즉시 계산되는 순수 함수라 별도
+  // useEffect/state 없이 렌더링 시점에 바로 구한다.
+  const batchBadges = computeBatchLevelBadges(lastRequest);
 
   async function handleSave(game: GeneratedGame, status: "SAVED" | "PLANNED") {
     const nextDrawNumber = estimateLatestDrawNumber() + 1;
@@ -158,6 +157,20 @@ export default function ResultScreen() {
       ) : null}
 
       <ProbabilityCard probability={lastResult.probability} simulation={lastResult.simulation} />
+
+      {batchBadges.length > 0 ? (
+        <View
+          style={styles.batchBadgeRow}
+          accessible
+          accessibilityLabel={`이번 탐색에 적용된 방식: ${batchBadges.map((b) => b.label).join(", ")}`}
+        >
+          {batchBadges.map((badge) => (
+            <View key={badge.key} style={styles.batchBadgeChip}>
+              <Text style={styles.batchBadgeChipText}>{badge.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {lastResult.games.map((game) => (
         <GeneratedGameCard
@@ -231,6 +244,17 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 12,
     },
     noticeText: { color: tints.purple.fg, fontSize: 12, fontWeight: "600", lineHeight: 20 },
+    // GeneratedGameCard의 배지 칩과 같은 톤(초록)을 써서 "같은 종류의 정보"임을 시각적으로
+    // 연결한다 — 다만 여기는 카드 안이 아니라 화면 상단에 한 번만 뜬다(배치 단위 정보라
+    // 카드마다 반복하지 않기로 한 결정, QA_LOG 48번 참고).
+    batchBadgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+    batchBadgeChip: {
+      backgroundColor: tints.green.bg,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    batchBadgeChipText: { fontSize: 11, color: tints.green.fg, fontWeight: "600" },
     cardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
     footerButton: {
       backgroundColor: tints.indigo.bg,

@@ -15,9 +15,4 @@ export interface GameFeatures {
    * (이 경우 설명 문구는 popularNumberCount 기반 문장으로 대체된다).
    */
   recentWinningMatchCount: number | null;
-  /**
-   * "끝수 스프레드 최적화"가 적용된 조합인지(AI 조합 탐색의 3만 회/10만 회 탐색에서만
-   * 내부적으로 활성화됨 — scoring.ts의 isLastDigitSpreadOptimizationActive 참고).
-   */
-  lastDigitSpreadOptimized: boolean;
 }

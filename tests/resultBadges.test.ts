@@ -2,8 +2,10 @@ import {
   getMonteCarloBadge,
   getEvOptimizationBadge,
   getWheelingBadge,
+  getLastDigitSpreadBadge,
   getSakaiPatternBadge,
-  computeResultBadges,
+  computeBatchLevelBadges,
+  computeGameLevelBadges,
   type SakaiAnalysisInputs,
 } from "../src/lib/lottery/resultBadges";
 import type { GenerationRequest } from "../src/lib/lottery/types";
@@ -67,6 +69,27 @@ describe("getWheelingBadge", () => {
   });
 });
 
+describe("getLastDigitSpreadBadge", () => {
+  it("AI_SEARCH + 3만/10만 회 탐색이면 표시한다", () => {
+    expect(getLastDigitSpreadBadge(baseRequest({ searchCount: 30000 }))).toEqual({
+      key: "LAST_DIGIT_SPREAD",
+      label: "끝수 스프레드 최적화",
+    });
+    expect(getLastDigitSpreadBadge(baseRequest({ searchCount: 100000 }))).toEqual({
+      key: "LAST_DIGIT_SPREAD",
+      label: "끝수 스프레드 최적화",
+    });
+  });
+
+  it("그 외 반복 횟수나 다른 모드면 null", () => {
+    expect(getLastDigitSpreadBadge(baseRequest({ searchCount: 1000000 }))).toBeNull();
+    expect(getLastDigitSpreadBadge(baseRequest({ searchCount: 1 }))).toBeNull();
+    expect(
+      getLastDigitSpreadBadge(baseRequest({ mode: "EXCLUSION", searchCount: 30000 }))
+    ).toBeNull();
+  });
+});
+
 describe("getSakaiPatternBadge", () => {
   const inputs: SakaiAnalysisInputs = {
     averageFrequencyNumbers: [7, 14],
@@ -93,21 +116,32 @@ describe("getSakaiPatternBadge", () => {
   });
 });
 
-describe("computeResultBadges", () => {
-  it("조건에 맞는 배지만 모아서 반환한다", () => {
+describe("computeBatchLevelBadges", () => {
+  it("배치(요청) 조건에 맞는 배지만 모아서 반환한다 — 끝수 스프레드 포함, 사카이는 제외", () => {
     const request = baseRequest({ searchCount: 100000, avoidPopularNumbers: true, gameCount: 5 });
-    const sakaiInputs: SakaiAnalysisInputs = {
-      averageFrequencyNumbers: [1],
-      previousDrawNumbers: [2],
-    };
-    const badges = computeResultBadges({ numbers: [1, 2, 3, 4, 5, 6] }, request, sakaiInputs);
-    const keys = badges.map((b) => b.key);
-    expect(keys).toEqual(["MONTE_CARLO", "EV_OPTIMIZED", "WHEELING", "SAKAI_PATTERN"]);
+    const keys = computeBatchLevelBadges(request).map((b) => b.key);
+    expect(keys).toEqual(["MONTE_CARLO", "EV_OPTIMIZED", "WHEELING", "LAST_DIGIT_SPREAD"]);
   });
 
   it("아무 조건도 안 맞으면 빈 배열을 반환한다", () => {
     const request = baseRequest({ mode: "PURE_RANDOM", gameCount: 1 });
-    const badges = computeResultBadges({ numbers: [1, 2, 3, 4, 5, 6] }, request, null);
-    expect(badges).toEqual([]);
+    expect(computeBatchLevelBadges(request)).toEqual([]);
+  });
+});
+
+describe("computeGameLevelBadges", () => {
+  it("사카이 패턴 조건에 맞으면 게임 단위 배지를 반환한다", () => {
+    const sakaiInputs: SakaiAnalysisInputs = {
+      averageFrequencyNumbers: [1],
+      previousDrawNumbers: [2],
+    };
+    const keys = computeGameLevelBadges({ numbers: [1, 2, 3, 4, 5, 6] }, sakaiInputs).map(
+      (b) => b.key
+    );
+    expect(keys).toEqual(["SAKAI_PATTERN"]);
+  });
+
+  it("사카이 데이터가 없으면 빈 배열을 반환한다", () => {
+    expect(computeGameLevelBadges({ numbers: [1, 2, 3, 4, 5, 6] }, null)).toEqual([]);
   });
 });

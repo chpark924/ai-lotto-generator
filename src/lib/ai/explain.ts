@@ -19,12 +19,7 @@ export function buildGameFeatures(
   popularityByNumber: number[],
   savedCombinations: number[][],
   /** 최근 4주(회차) 실제 당첨번호(중복 제거)의 합집합. 못 불러왔으면 null. */
-  recentWinningNumbers: number[] | null = null,
-  /**
-   * "끝수 스프레드 최적화"가 적용된 조합인지(AI 조합 탐색의 3만 회/10만 회 탐색에서만
-   * 활성화 — scoring.ts의 isLastDigitSpreadOptimizationActive로 판단해서 넘겨받는다).
-   */
-  lastDigitSpreadOptimized = false
+  recentWinningNumbers: number[] | null = null
 ): GameFeatures {
   const oddCount = getOddCount(game.numbers);
   const evenCount = 6 - oddCount;
@@ -48,11 +43,20 @@ export function buildGameFeatures(
     birthdayRangeCount,
     similarityToSavedNumbers: Math.round((maxOverlap / 6) * 100) / 100,
     recentWinningMatchCount,
-    lastDigitSpreadOptimized,
   };
 }
 
-/** 비용 0원 — 서버/AI 호출 없이 규칙 기반으로 결과를 설명한다. 기본 동작. */
+/**
+ * 비용 0원 — 서버/AI 호출 없이 규칙 기반으로 결과를 설명한다. 기본 동작.
+ *
+ * 가독성 리뷰(QA_LOG 48번): 예전에는 "이 설명은 조합의 특징을 나타낼 뿐 당첨 가능성을
+ * 의미하지 않습니다."를 매 카드 끝에 반복했다. 결과 화면 맨 아래 DisclaimerCard가 같은
+ * 취지의 안내(모든 조합이 동일 확률이라는 점)를 화면당 한 번 이미 보여주고 있어서, 카드마다
+ * (최대 10번) 똑같은 문장을 반복하면 정보라기보다 "숙제 검사받는 느낌"에 가까워지고 정작
+ * 읽어야 할 특징 설명의 가독성만 떨어뜨린다고 판단해 뺐다 — 40번 항목에서 점수 설명 문구에
+ * 이미 적용했던 것과 같은 원칙("카드마다 반복 노출되면 기대감을 과도하게 꺾을 수 있다")을
+ * 여기에도 동일하게 적용한 것이다.
+ */
 export function explainGameLocally(features: GameFeatures): string {
   const parts: string[] = [];
 
@@ -84,10 +88,5 @@ export function explainGameLocally(features: GameFeatures): string {
     );
   }
 
-  if (features.lastDigitSpreadOptimized) {
-    parts.push("끝수 최적화가 포함되어 있습니다.");
-  }
-
-  parts.push("이 설명은 조합의 특징을 나타낼 뿐 당첨 가능성을 의미하지 않습니다.");
   return parts.join(" ");
 }
