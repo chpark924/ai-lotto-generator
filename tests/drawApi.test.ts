@@ -3,6 +3,7 @@ import {
   estimateDrawDate,
   isPlausibleWinningDraw,
   fetchWinningDrawWithStatus,
+  buildOfficialPurchasePageUrl,
   type RawDrawListItem,
 } from "../src/lib/draws/drawApi";
 
@@ -30,6 +31,12 @@ function mockFetchOnce(list: unknown, ok = true) {
     json: async () => ({ resultCode: null, resultMessage: null, data: { list } }),
   }) as unknown as typeof fetch;
 }
+
+describe("buildOfficialPurchasePageUrl", () => {
+  it("동행복권 공식 도메인(dhlottery.co.kr)의 로또6/45 소개 페이지를 가리킨다", () => {
+    expect(buildOfficialPurchasePageUrl()).toBe("https://www.dhlottery.co.kr/lt645/intro");
+  });
+});
 
 describe("estimateDrawDate / estimateLatestDrawNumber", () => {
   it("estimateDrawDate(1)은 실제 1회차 추첨일(2002-12-07)과 같다", () => {

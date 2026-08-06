@@ -178,6 +178,21 @@ export function buildOfficialResultPageUrl(drawNumber: number): string {
   return `https://www.dhlottery.co.kr/lt645/result?ltEpsd=${drawNumber}`;
 }
 
+/**
+ * 생성된 번호를 실제로 구매하러 갈 수 있는 동행복권 공식 로또6/45 페이지.
+ *
+ * 사용자의 실기기(한국 네트워크) Chrome으로 직접 열어 확인한 내용(2026-08-06): 이 페이지의
+ * "바로구매" 버튼은 별도 URL로 이동하는 게 아니라 같은 SPA 안에서 로그인 여부를 확인하는
+ * 자바스크립트 다이얼로그를 띄운다 — 즉 구매 페이지 자체를 가리키는 안정적인 URL이나, 특정
+ * 번호를 미리 채워 넣는 쿼리 파라미터는 이 사이트에 존재하지 않는다. 그래서 이 URL은 "구매
+ * 카트로 바로 이동"이 아니라 "실시간 예상 당첨금 + 바로구매 진입점이 있는 공식 소개 페이지"로
+ * 연결하는 것이 이 사이트 구조상 가능한 최선이며, 번호 자동 입력을 암시하는 문구는 UI에서
+ * 절대 쓰지 않는다(장식용/과장 문구 금지 원칙, 기획서 23장과 동일).
+ */
+export function buildOfficialPurchasePageUrl(): string {
+  return "https://www.dhlottery.co.kr/lt645/intro";
+}
+
 const FIRST_DRAW_DATE = new Date("2002-12-07T00:00:00+09:00");
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 

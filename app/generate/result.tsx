@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { DisclaimerCard, GeneratedGameCard, LottoBallLoader, ProbabilityCard } from "../../src/components";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { buildGameFeatures, explainGameLocally } from "../../src/lib/ai";
 import { getGenerationHistory, saveTicket } from "../../src/lib/storage";
 import { buildPopularityHeuristic, getSakaiAverageFrequencyNumbers } from "../../src/lib/draws/drawStats";
-import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
+import { buildOfficialPurchasePageUrl, estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
 import { getRecentDrawsSafe } from "../../src/lib/draws/drawCache";
 import { generateAiSearchGames, buildBasicGenerationResult } from "../../src/lib/lottery/generator";
 import {
@@ -111,6 +112,12 @@ export default function ResultScreen() {
     }
   }
 
+  function handleOpenPurchasePage() {
+    Linking.openURL(buildOfficialPurchasePageUrl()).catch(() => {
+      Alert.alert("페이지를 열 수 없습니다.");
+    });
+  }
+
   async function handleShare(game: GeneratedGame) {
     const numbersText = game.numbers.join(" · ");
     try {
@@ -211,6 +218,21 @@ export default function ResultScreen() {
 
       <DisclaimerCard text={lastResult.disclaimer} />
 
+      <View style={styles.purchaseSection}>
+        <Pressable
+          style={styles.purchaseButton}
+          onPress={handleOpenPurchasePage}
+          accessibilityRole="button"
+          accessibilityLabel="동행복권 공식 사이트에서 구매하기, 앱을 벗어나 외부 웹사이트로 이동합니다"
+        >
+          <Text style={styles.purchaseButtonText}>공식 사이트에서 구매하기</Text>
+          <Ionicons name="open-outline" size={16} color={colors.textPrimary} />
+        </Pressable>
+        <Text style={styles.purchaseCaption}>
+          동행복권 홈페이지로 이동해요. 번호는 자동으로 입력되지 않아 직접 선택해야 해요.
+        </Text>
+      </View>
+
       {canRegenerate ? (
         isRegenerating ? (
           <View style={styles.regenerateLoadingContainer}>
@@ -256,6 +278,29 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     batchBadgeChipText: { fontSize: 11, color: tints.green.fg, fontWeight: "600" },
     cardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+    // 저장/구매예정/공유(카드별 인디고 버튼)나 다시 생성(브랜드 다크 버튼)과는 일부러 다른
+    // 톤(테두리만 있는 아웃라인)을 써서 "이 버튼만 앱을 벗어나 외부 사이트로 이동한다"는 걸
+    // 시각적으로도 구분한다. 카드마다 반복하지 않고 화면당 한 번만 노출(QA_LOG 49번 참고).
+    purchaseSection: { marginTop: 4, marginBottom: 8 },
+    purchaseButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: 14,
+      paddingVertical: 14,
+      backgroundColor: colors.surface,
+    },
+    purchaseButtonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
+    purchaseCaption: {
+      color: colors.textMuted,
+      fontSize: 11,
+      textAlign: "center",
+      marginTop: 6,
+      lineHeight: 16,
+    },
     footerButton: {
       backgroundColor: tints.indigo.bg,
       paddingHorizontal: 12,
