@@ -6,10 +6,12 @@ import { DisclaimerCard, GeneratedGameCard, LottoBallLoader, ProbabilityCard } f
 import { useGenerationStore } from "../../src/state/generationStore";
 import { buildGameFeatures, explainGameLocally } from "../../src/lib/ai";
 import { getGenerationHistory, saveTicket } from "../../src/lib/storage";
-import { buildPopularityHeuristic } from "../../src/lib/draws/drawStats";
+import { buildPopularityHeuristic, getSakaiAverageFrequencyNumbers } from "../../src/lib/draws/drawStats";
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
 import { getRecentDrawsSafe } from "../../src/lib/draws/drawCache";
 import { generateAiSearchGames, buildBasicGenerationResult } from "../../src/lib/lottery/generator";
+import { isLastDigitSpreadOptimizationActive } from "../../src/lib/lottery/scoring";
+import { computeResultBadges, type ResultBadge, type SakaiAnalysisInputs } from "../../src/lib/lottery/resultBadges";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
 import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
@@ -21,6 +23,18 @@ async function loadRecentWinningNumbers(): Promise<number[] | null> {
   return [...new Set(draws.flatMap((d) => d.numbers))];
 }
 
+/** "사카이 분석 패턴" 배지에 쓰는 표본 크기 (최근 26주 ≈ 6개월). drawStats.ts 참고. */
+const SAKAI_ANALYSIS_WINDOW_WEEKS = 26;
+async function loadSakaiAnalysisInputs(): Promise<SakaiAnalysisInputs | null> {
+  const draws = await getRecentDrawsSafe(SAKAI_ANALYSIS_WINDOW_WEEKS);
+  if (draws.length === 0) return null;
+  return {
+    averageFrequencyNumbers: getSakaiAverageFrequencyNumbers(draws),
+    // draws는 최신순으로 반환되므로(drawCache.ts) draws[0]이 직전 회차("이월수" 후보)다.
+    previousDrawNumbers: draws[0].numbers,
+  };
+}
+
 export default function ResultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -28,6 +42,7 @@ export default function ResultScreen() {
   const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
   const { lastResult, lastRequest, setResult } = useGenerationStore();
   const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [badgesByGameId, setBadgesByGameId] = useState<Record<string, ResultBadge[]>>({});
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const canRegenerate =
@@ -36,19 +51,37 @@ export default function ResultScreen() {
   useEffect(() => {
     if (!lastResult) return;
     (async () => {
-      const [history, popularity, recentWinningNumbers] = await Promise.all([
+      const [history, popularity, recentWinningNumbers, sakaiInputs] = await Promise.all([
         getGenerationHistory(),
         Promise.resolve(buildPopularityHeuristic()),
         loadRecentWinningNumbers(),
+        loadSakaiAnalysisInputs(),
       ]);
-      const next: Record<string, string> = {};
+      // "끝수 최적화" 노출 여부는 scoring.ts가 실제로 그 최적화를 적용했는지를 판단하는
+      // 기준과 동일한 함수(isLastDigitSpreadOptimizationActive)로 결정한다 — 설명 문구와
+      // 실제 생성 로직이 어긋날 일이 없다.
+      const lastDigitSpreadOptimized = lastRequest
+        ? isLastDigitSpreadOptimizationActive(lastRequest)
+        : false;
+      const nextExplanations: Record<string, string> = {};
+      const nextBadges: Record<string, ResultBadge[]> = {};
       for (const game of lastResult.games) {
-        const features = buildGameFeatures(game, popularity, history, recentWinningNumbers);
-        next[game.id] = explainGameLocally(features);
+        const features = buildGameFeatures(
+          game,
+          popularity,
+          history,
+          recentWinningNumbers,
+          lastDigitSpreadOptimized
+        );
+        nextExplanations[game.id] = explainGameLocally(features);
+        nextBadges[game.id] = lastRequest ? computeResultBadges(game, lastRequest, sakaiInputs) : [];
       }
-      setExplanations(next);
+      setExplanations(nextExplanations);
+      setBadgesByGameId(nextBadges);
     })();
-  }, [lastResult]);
+    // lastRequest는 항상 lastResult와 함께 setResult()로 동시에 갱신되므로(generationStore.ts),
+    // 두 값을 별도 의존성으로 둬도 추가 재실행이 생기지 않는다.
+  }, [lastResult, lastRequest]);
 
   if (!lastResult || !lastRequest) {
     return (
@@ -131,6 +164,7 @@ export default function ResultScreen() {
           key={game.id}
           game={game}
           explanation={explanations[game.id]}
+          badges={badgesByGameId[game.id]}
           footer={
             <View style={styles.cardFooter}>
               <Pressable

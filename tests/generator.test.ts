@@ -56,6 +56,41 @@ describe("generatePureRandom", () => {
     expect(numbers).toContain(20);
     expect(numbers).not.toContain(1);
   });
+
+  // "고빈도 당첨번호 상위권 포함"/"장기 미출현번호 포함" 토글이 실제로 강제되는지 검증한다.
+  describe("mustIncludeOneOfSets (고빈도 당첨번호 상위권 포함 / 장기 미출현번호 포함)", () => {
+    it("세트 중 최소 1개를 항상 포함한다", () => {
+      const set = [3, 14, 27];
+      for (let i = 0; i < 100; i += 1) {
+        const numbers = generatePureRandom([], [], [set]);
+        expect(numbers.some((n) => set.includes(n))).toBe(true);
+      }
+    });
+
+    it("세트가 여러 개면 각각 최소 1개씩 동시에 포함한다", () => {
+      const highFreqSet = [1, 2, 3, 4, 5];
+      const absentSet = [41, 42, 43, 44, 45];
+      for (let i = 0; i < 100; i += 1) {
+        const numbers = generatePureRandom([], [], [highFreqSet, absentSet]);
+        expect(numbers.some((n) => highFreqSet.includes(n))).toBe(true);
+        expect(numbers.some((n) => absentSet.includes(n))).toBe(true);
+      }
+    });
+
+    it("필수번호가 이미 세트를 만족하면 추가로 강제하지 않는다(6개를 넘기지 않음)", () => {
+      const numbers = generatePureRandom([], [7], [[7, 8, 9]]);
+      expect(numbers).toHaveLength(6);
+      expect(numbers).toContain(7);
+    });
+
+    it("세트 전체가 제외번호와 겹치면 그 제약은 조용히 무시되고 생성은 실패하지 않는다", () => {
+      const numbers = generatePureRandom([1, 2, 3], [], [[1, 2, 3]]);
+      expect(numbers).toHaveLength(6);
+      expect(numbers).not.toContain(1);
+      expect(numbers).not.toContain(2);
+      expect(numbers).not.toContain(3);
+    });
+  });
 });
 
 describe("generateUniqueBasicGames", () => {
@@ -106,6 +141,56 @@ describe("generateAiSearchGames", () => {
         // 후보가 부족해 보충된 경우가 아니라면 4개 미만이어야 한다. 최소한 6개(완전 동일)는 아니어야 한다.
         expect(overlap).toBeLessThan(6);
       }
+    }
+  }, 20000);
+
+  // "끝수 스프레드 최적화"는 사용자가 켜고 끄는 옵션이 아니라(내재화), 3만 회/10만 회
+  // 탐색에서만 자동으로 점수 계산에 반영된다. generateAiSearchGames를 통해 실제로 그
+  // 조건에서만 game.score.lastDigitSpreadScore가 채워지는지 end-to-end로 검증한다.
+  describe("끝수 스프레드 최적화 (3만 회/10만 회 탐색에서만 내재화 적용)", () => {
+    it("3만 회 탐색 결과에는 lastDigitSpreadScore가 채워진다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 3, searchCount: 30000 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+      for (const game of result.games) {
+        expect(game.score?.lastDigitSpreadScore).toBeDefined();
+      }
+    }, 20000);
+
+    it("바로 생성(1)/100만 회 부스터 탐색 결과에는 lastDigitSpreadScore가 없다", async () => {
+      const instant = await generateAiSearchGames(
+        baseRequest({ mode: "AI_SEARCH", gameCount: 1, searchCount: 1 }),
+        { popularityByNumber: new Array(45).fill(0.3), savedCombinations: [], batchSize: 2000 }
+      );
+      for (const game of instant.games) {
+        expect(game.score?.lastDigitSpreadScore).toBeUndefined();
+      }
+    }, 20000);
+  });
+
+  // AI 조합탐색 화면의 "고빈도 당첨번호 상위권 포함"/"장기 미출현번호 포함" 토글이 실제
+  // 탐색 결과에도 반영되는지 검증한다(장식용 토글이 아니라 request.mustIncludeOneOfSets를
+  // 통해 매 후보 생성에 실제로 강제돼야 한다는 요구사항).
+  it("mustIncludeOneOfSets를 지정하면 모든 결과 조합이 세트 조건을 만족한다", async () => {
+    const highFreqTop10 = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39];
+    const request = baseRequest({
+      mode: "AI_SEARCH",
+      gameCount: 5,
+      searchCount: 10000,
+      mustIncludeOneOfSets: [highFreqTop10],
+    });
+    const result = await generateAiSearchGames(request, {
+      popularityByNumber: new Array(45).fill(0.3),
+      savedCombinations: [],
+      batchSize: 2000,
+    });
+
+    expect(result.games).toHaveLength(5);
+    for (const game of result.games) {
+      expect(game.numbers.some((n) => highFreqTop10.includes(n))).toBe(true);
     }
   }, 20000);
 

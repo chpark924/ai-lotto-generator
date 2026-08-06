@@ -19,7 +19,12 @@ export function buildGameFeatures(
   popularityByNumber: number[],
   savedCombinations: number[][],
   /** 최근 4주(회차) 실제 당첨번호(중복 제거)의 합집합. 못 불러왔으면 null. */
-  recentWinningNumbers: number[] | null = null
+  recentWinningNumbers: number[] | null = null,
+  /**
+   * "끝수 스프레드 최적화"가 적용된 조합인지(AI 조합 탐색의 3만 회/10만 회 탐색에서만
+   * 활성화 — scoring.ts의 isLastDigitSpreadOptimizationActive로 판단해서 넘겨받는다).
+   */
+  lastDigitSpreadOptimized = false
 ): GameFeatures {
   const oddCount = getOddCount(game.numbers);
   const evenCount = 6 - oddCount;
@@ -43,6 +48,7 @@ export function buildGameFeatures(
     birthdayRangeCount,
     similarityToSavedNumbers: Math.round((maxOverlap / 6) * 100) / 100,
     recentWinningMatchCount,
+    lastDigitSpreadOptimized,
   };
 }
 
@@ -76,6 +82,10 @@ export function explainGameLocally(features: GameFeatures): string {
     parts.push(
       `내 기존 저장번호와의 최대 유사도는 ${Math.round(features.similarityToSavedNumbers * 100)}%입니다.`
     );
+  }
+
+  if (features.lastDigitSpreadOptimized) {
+    parts.push("끝수 최적화가 포함되어 있습니다.");
   }
 
   parts.push("이 설명은 조합의 특징을 나타낼 뿐 당첨 가능성을 의미하지 않습니다.");

@@ -7,7 +7,7 @@
  *  - "AI 탐색/AI 정밀 탐색"이라는 이름은 사용자 경험상의 네이밍일 뿐,
  *    실제로는 로컬 난수 엔진 + 규칙 기반 점수 엔진이다.
  */
-import { randomInt, securePartialShuffle } from "./random";
+import { pickOne, randomInt, securePartialShuffle } from "./random";
 import { buildGameMetadata } from "./pattern";
 import { combinationKey, maxOverlapAgainstList } from "./similarity";
 import { calculateCoveragePercent, calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "./probability";
@@ -28,28 +28,49 @@ function nextGameId(): string {
 /**
  * 기획서 5.4 기본 무작위 추출 함수.
  * 제외/필수번호만 반영한, 조건 없는 순수 무작위 6개 추출.
+ *
+ * `mustIncludeOneOfSets`: 각 원소가 "이 집합 중 최소 1개는 반드시 포함" 제약이다. AI 조합
+ * 탐색의 "고빈도 당첨번호 상위권 포함" / "장기 미출현번호 포함" 토글이 이 파라미터를 통해
+ * 반영된다. required(필수번호)가 이미 그 세트를 만족하면 추가로 강제하지 않는다. 세트
+ * 전체가 제외번호/이미 강제된 번호와 겹쳐 고를 수 있는 후보가 없으면 그 세트의 제약은
+ * 조용히 건너뛴다(예: 사용자가 상위 10개 번호를 전부 제외번호로 지정한 극단적인 경우) —
+ * 생성 자체가 실패하지 않도록 하는 안전한 폴백이다.
  */
 export function generatePureRandom(
   excludedNumbers: number[] = [],
-  requiredNumbers: number[] = []
+  requiredNumbers: number[] = [],
+  mustIncludeOneOfSets: number[][] = []
 ): number[] {
   const excluded = new Set(excludedNumbers);
   const required = [...new Set(requiredNumbers)];
 
-  const available = Array.from({ length: 45 }, (_, index) => index + 1)
-    .filter((n) => !excluded.has(n))
-    .filter((n) => !required.includes(n));
-
   if (required.length > 6) {
     throw new Error("필수번호는 최대 6개까지 설정할 수 있습니다.");
   }
-  if (available.length + required.length < 6) {
+
+  const forced = [...required];
+  for (const set of mustIncludeOneOfSets) {
+    if (forced.some((n) => set.includes(n))) continue;
+    const candidates = set.filter((n) => !excluded.has(n) && !forced.includes(n));
+    if (candidates.length === 0) continue;
+    forced.push(pickOne(candidates));
+  }
+
+  if (forced.length > 6) {
+    throw new Error("필수번호와 포함 조건을 합쳐 6개를 초과합니다.");
+  }
+
+  const available = Array.from({ length: 45 }, (_, index) => index + 1)
+    .filter((n) => !excluded.has(n))
+    .filter((n) => !forced.includes(n));
+
+  if (available.length + forced.length < 6) {
     throw new Error("번호를 생성할 수 있는 후보가 부족합니다.");
   }
 
-  const remainingCount = 6 - required.length;
+  const remainingCount = 6 - forced.length;
   const selected = securePartialShuffle(available, remainingCount);
-  return [...required, ...selected].sort((a, b) => a - b);
+  return [...forced, ...selected].sort((a, b) => a - b);
 }
 
 function buildGeneratedGame(
@@ -75,7 +96,11 @@ export function generateUniqueBasicGames(request: GenerationRequest): GeneratedG
 
   while (games.length < request.gameCount && guard < request.gameCount * 200 + 1000) {
     guard += 1;
-    const numbers = generatePureRandom(request.excludedNumbers, request.requiredNumbers);
+    const numbers = generatePureRandom(
+      request.excludedNumbers,
+      request.requiredNumbers,
+      request.mustIncludeOneOfSets ?? []
+    );
     const key = combinationKey(numbers);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -128,7 +153,11 @@ export async function generateAiSearchGames(
   while (completed < requestedIterations) {
     const currentBatch = Math.min(batchSize, requestedIterations - completed);
     for (let i = 0; i < currentBatch; i += 1) {
-      const numbers = generatePureRandom(request.excludedNumbers, request.requiredNumbers);
+      const numbers = generatePureRandom(
+        request.excludedNumbers,
+        request.requiredNumbers,
+        request.mustIncludeOneOfSets ?? []
+      );
       const key = combinationKey(numbers);
       if (!uniqueCandidates.has(key)) {
         uniqueCandidates.set(key, numbers);

@@ -360,3 +360,52 @@
   - `overlapCount`는 `scoring.ts`/`destiny.ts`/`generator.ts`/`src/lib/ai/explain.ts` 전부에서 공유하는 함수라, 이 한 곳만 고쳐도 네 경로 전부에 동일하게 이득이 적용된다.
 - **검증**: `npx tsc --noEmit`, `npx eslint .` 클린. `tests/similarity.test.ts`가 블랙박스 동작 테스트(입출력만 검증, 내부 구현 방식에 의존하지 않음)라 별도 수정 없이 그대로 통과. 전체 `unit`/`components` 18개 스위트 123개 테스트 회귀 없이 통과 — 특히 40번 항목에서 추가한 UP/DOWN 통계 검증 테스트도 그대로 통과해, 순위/점수 계산 결과 자체는 변하지 않고 속도만 개선됐음을 재확인.
 - **점검했으나 즉시 조치하지 않은 낮은 우선순위 항목(태스크 목록에 등록)**: `assets/tab-icon-home.png`가 859×859px·204KB로 실제 표시 크기(~24~28dp) 대비 과도하게 커서 번들 용량 낭비 — 128~256px 수준으로 리사이즈 권장(시각 품질 영향 없음, 급하지 않음).
+
+## 2026-08-06
+
+### 43. AI 조합 탐색 — "고빈도 당첨번호 상위권 포함" / "장기 미출현번호 포함" 토글 2종 추가
+
+- **요청**: `ai-search.tsx`의 "연속번호 설정" 바로 아래, "인기번호 회피" 바로 위 자리(사용자가 스크린샷에 직접 화살표로 표시)에 토글 2개 추가.
+  1. **고빈도 당첨번호 상위권 포함**: 토글 + 설명("최근 1년간 고빈도 당첨번호 1~10위가 최소 한 개 이상 포함됩니다") + 실제 생성 로직 반영.
+  2. **장기 미출현번호 포함**: 토글만(설명 없음) + 실제 생성 로직 반영, 기준은 기본 12주·100만 회 부스터 탐색일 때만 8주.
+  두 토글 모두 40번 항목(UP/DOWN)과 동일한 원칙 — 장식용 UI 금지, 실제 생성되는 번호가 달라져야 함.
+- **구현 방향 판단**: 기존 `generatePureRandom(excludedNumbers, requiredNumbers)`는 "필수번호는 항상 전부 포함"만 지원했는데, 이번 요구는 "이 집합 중 최소 1개만 포함"이라 성격이 다르다(특정 번호 고정이 아니라 매번 그 집합 안에서 무작위로 달라져야 함). 그래서 `requiredNumbers`를 재활용하지 않고 `GenerationRequest`에 `mustIncludeOneOfSets?: number[][]`를 신설 — 두 토글이 각자 독립적인 세트를 넣고, 둘 다 켜지면 두 세트 모두 동시에 최소 1개씩 강제되도록 일반화했다(향후 비슷한 "최소 1개 포함" 조건이 추가돼도 재사용 가능).
+- **구현**:
+  1. `src/lib/draws/drawStats.ts`: 순수 함수 `getTopFrequentNumbers(draws, topN)`(표본 내 출현 빈도 상위 N, 동률은 번호 오름차순 안정 정렬), `getNumbersAbsentInLastDraws(draws)`(표본 안에서 한 번도 안 나온 번호) 추가. 둘 다 당첨 데이터 접근은 하지 않고 순수 계산만 담당(서버 없음 원칙 유지 — 실제 fetch는 호출부 책임).
+  2. `src/lib/lottery/types.ts`: `GenerationRequest.mustIncludeOneOfSets?: number[][]` 추가.
+  3. `src/lib/lottery/validators.ts`: 세트 안 번호도 1~45 범위 검증에 포함.
+  4. `src/lib/lottery/generator.ts`: `generatePureRandom`이 세 번째 인자로 `mustIncludeOneOfSets`를 받아, required가 이미 만족 못 시키는 세트마다 후보(제외번호·이미 강제된 번호 제외) 중 `pickOne`로 하나를 뽑아 강제 포함시키도록 확장(세트가 전부 제외번호와 겹치면 조용히 건너뜀 — 생성 실패로 이어지지 않음). `generateUniqueBasicGames`/`generateAiSearchGames` 양쪽 호출부에 그대로 연결(기본값 `[]`라 기존 동작·기존 테스트는 전부 그대로 유지됨).
+  5. `src/constants/lottery.ts`: `BOOSTER_SEARCH_COUNT = 1000000`을 명명된 상수로 분리(기존엔 `SEARCH_STRENGTH_OPTIONS`에 리터럴로만 존재) — "100만 회일 때만 8주 기준" 조건이 이 값과 정확히 일치해야 하므로, 매직 넘버 중복을 피하고 두 곳이 항상 같은 값을 참조하도록 함.
+  6. `src/constants/messages.ts`: `HIGH_FREQUENCY_TOP10_NOTICE` 추가.
+  7. `app/generate/ai-search.tsx`: 토글 2개를 요청 위치(연속번호 설정 아래, 인기번호 회피 위)에 배치. `handleGenerate()` 직전 `resolveMustIncludeOneOfSets()`에서 토글이 켜진 것만 골라 `getRecentDrawsSafe`로 실제 당첨 데이터를 가져오고(고빈도는 52주=1년 표본, 미출현은 12주 또는 8주), 위 두 순수 함수로 실제 번호 집합을 만들어 `request.mustIncludeOneOfSets`에 채운다. 데이터를 못 가져오면(네트워크 실패 등) 40번 항목과 동일하게 그 조건만 조용히 건너뛰고 `Alert`로 "이번 탐색에는 적용되지 않았다"고 안내(생성 자체를 막지 않음). 고빈도 토글의 설명 문구는 "인기번호 회피"와 동일하게 토글이 켜져 있을 때만 노출(꺼진 상태에서 화면이 번잡해지지 않도록); 미출현 토글은 요청대로 설명을 아예 넣지 않음.
+- **UI/UX 검토**: 두 토글 모두 기본값 OFF로 뒀다 — 기존 사용자의 기본 생성 결과 분포를 조용히 바꾸지 않기 위한 선택(반대로 "인기번호 회피"/"내 저장번호 회피"는 이미 켜진 상태가 검증된 UX라 그대로 유지). "인기번호 회피"(일반적인 번호 선택 편향 회피)와 "고빈도 당첨번호 포함"(실제 과거 출현 빈도가 높은 번호 포함)은 서로 다른 개념이라 동시에 켜도 논리적으로 충돌하지 않음(각각 다른 원천의 번호 집합을 다룸).
+- **검증**: `npx tsc --noEmit` 클린, 손댄 파일 전부 `npx eslint` 클린. `tests/drawStats.test.ts`에 `getTopFrequentNumbers`/`getNumbersAbsentInLastDraws` 단위 테스트 5개, `tests/generator.test.ts`에 `mustIncludeOneOfSets` 동작 테스트(단일 세트 강제 포함/세트 2개 동시 강제/required가 이미 만족하는 경우/세트 전체가 제외번호와 겹치는 극단 케이스) 4개 + `generateAiSearchGames`에 실제 탐색 결과 5게임 전부가 조건을 만족하는지 확인하는 테스트 1개 추가. `unit` 프로젝트 17개 스위트 132개 테스트 전부 회귀 없이 통과.
+- **알려진 한계**: 실기기에서의 시각 확인(토글 위치·설명 문구 줄바꿈 등)은 이번 세션에서 못 함 — 다음 실기기 테스트 때 함께 확인 필요.
+
+### 44. AI 조합 탐색 — "끝수 스프레드 최적화" 내재화 (3만 회/10만 회 탐색 전용, UI 토글 없음)
+
+- **요청**: 로또의 "끝수"(번호 1의 자리) 개념을 활용해, 3만 회/10만 회 탐색에서만 끝수가 고르게 퍼지도록 최적화를 적용해달라는 요청. 명시적으로 "외부에서 설정하는 게 아니라 내재화"라고 강조 — 즉 화면에 새 토글을 만들지 않고 해당 탐색 강도를 고를 때 자동으로 적용돼야 함. 결과 화면의 번호별 설명 문구에도 "끝수 최적화가 포함되어 있습니다."라고 표시.
+- **활성 조건 설계**: "바로 생성"(searchCount=1)은 후보가 1개뿐이라 점수 기반 선별이 무의미하고, "100만 회 부스터 탐색"(searchCount=1,000,000)은 이미 검증된 가중치·성능 특성을 유지하기 위해 제외 — 3만 회/10만 회 탐색에서만 적용하기로 했다(사용자가 "3만, 10만회 탐색 시 적용"이라고 명시한 그대로). `src/lib/lottery/scoring.ts`에 `isLastDigitSpreadOptimizationActive(request)` 단일 판단 함수를 두고, 점수 가중치 배분과 결과 화면 설명 문구 노출 여부가 모두 이 함수 하나만 기준으로 삼도록 해서 두 곳이 어긋날 여지를 없앴다.
+- **구현**:
+  1. `src/lib/lottery/pattern.ts`의 기존 `getSameEndingMaxCount`(GameMetadata 계산에 이미 쓰이던 "동일 끝수 최대 개수" 지표)를 그대로 재사용해 `scoring.ts`에 `lastDigitSpreadScore(numbers)` 추가 — 동일 끝수가 많이 몰릴수록 감점(끝수 6종류 전부 다르면 100점, 하나로 다 몰리면 0점).
+  2. `scoreCandidate()`가 `isLastDigitSpreadOptimizationActive(context.request)`가 true일 때만 이 점수를 계산해 `CandidateScore.lastDigitSpreadScore`(신규 optional 필드)에 채우고, 총점 가중치를 conditionMatch 0.35→0.30, userUniqueness 0.25→0.20로 각 0.05씩 덜어 새 항목에 0.1을 배정(비활성 시엔 기존 가중치 그대로 — 합은 항상 1.0 유지).
+  3. `app/generate/result.tsx`: 결과 설명 생성 시 `isLastDigitSpreadOptimizationActive(lastRequest)`로 판단한 값을 `buildGameFeatures()`(`src/lib/ai/explain.ts`)에 새 인자로 전달 → `GameFeatures.lastDigitSpreadOptimized`. `explainGameLocally()`가 이 값이 true면 "끝수 최적화가 포함되어 있습니다." 문장을 설명 끝부분(면책 문구 바로 앞)에 추가.
+- **UI 변경 없음(의도된 설계)**: `ai-search.tsx` 화면에는 새 토글이나 텍스트를 전혀 추가하지 않았다 — 요청대로 탐색 강도 선택만으로 자동 결정되는 "내재화된" 동작이기 때문.
+- **검증**: `npx tsc --noEmit`, `npx eslint .` 클린. `tests/scoring.test.ts`에 `isLastDigitSpreadOptimizationActive` 활성 조건 테스트 2개 + `scoreCandidate`가 조건별로 `lastDigitSpreadScore`를 채우는지/끝수가 고르게 퍼진 조합이 몰린 조합보다 실제로 더 높은 점수를 받는지 검증하는 테스트 2개(구간(섹션) 분포를 동일하게 맞춰 diversityScore 변수를 통제한 뒤 끝수 효과만 분리해서 확인 — 처음엔 섹션 분포가 다른 예시를 써서 실패했었고, 원인 파악 후 통제된 예시로 교체해 통과시킴) 추가. `tests/generator.test.ts`에 `generateAiSearchGames` end-to-end 테스트 2개(3만 회 결과엔 `lastDigitSpreadScore`가 있고 바로 생성 결과엔 없음) 추가. `tests/explain.test.ts` 신규 — 설명 문구 노출/비노출 3개 테스트. `unit` 프로젝트 18개 스위트 141개 테스트 전부 회귀 없이 통과.
+- **알려진 한계**: 43번 항목과 동일하게 실기기 시각 확인(설명 문구 길이·줄바꿈)은 미수행.
+
+### 45. 결과 카드 — "전문 분석 배지" 4종 추가 (몬테카를로 / EV 최적화 / 휠링 / 사카이 분석 패턴)
+
+- **요청**: 결과 화면에 나오는 각 조합이 실제로 어떤 방식/조건으로 만들어졌는지를 배지 형태로 짧게 보여줘서 전문성·신뢰도를 높여달라는 요청. 처음엔 "커버링 설계(covering design)"까지 포함해 4개 용어가 제시됐으나, 실제 로직(게임 간 4개 이상 중복만 배제하는 소프트한 휴리스틱)이 조합론적 t-디자인 보장을 전혀 하지 않는다는 점을 짚어 사용자와 확인 후 **커버링 설계는 제외**하기로 결정. 대신 "사카이 분석"(사용자가 추가로 요청)을 웹 검색으로 조사 — 일본 로또 명인 후나츠 사카이(ふなつ さかい)가 소개한 것으로 알려진 방법으로, 최근 26주(약 6개월) 표본에서 출현 3~4회(평균권)인 번호 + 직전 회차 번호("이월수") 조합을 쓰는 실제 통계 기법임을 확인하고 반영했다.
+- **정확성 판단(장식용 문구 금지 원칙 적용)**: 4개 배지 모두 "실제로 그런 조건에서 생성됐거나 실제로 그런 통계적 속성을 가진 경우"에만 뜨도록, 판정 함수 하나씩을 실제 로직/데이터에 직접 연결했다(장식용 라벨 아님).
+  - **몬테카를로 탐색**: AI 조합 탐색은 무작위 후보를 대량 생성→점수 평가→상위 채택하는 방식이라(`generator.ts`), 반복 횟수가 1보다 큰 3만/10만/100만 회 탐색에서 정확한 서술. "바로 생성"(반복 1회)은 반복 표본 자체가 없어 제외.
+  - **EV 최적화**: "인기번호 회피"가 켜져 있으면(scoring.ts의 userUniquenessScore) 실제로 흔한 번호를 피한다 — 당첨 확률은 그대로지만 당첨 시 상금을 나눌 가능성이 낮아져 기대값이 오르는 방향이라는 점에서 정확한 매칭.
+  - **휠링 방식 분산**: AI 조합 탐색이 여러 게임을 함께 만들 때만(`generateAiSearchGames`) 서로 4개 이상 겹치는 조합을 배제하며 채택하는 기존 로직을 그대로 서술. 정식 휠링 시스템의 수학적 보장은 없다는 걸 분명히 하기 위해 문구도 "분산"까지만("휠링 시스템"이라고 단정하지 않음), 게임 1개일 땐 의미가 없어 제외.
+  - **사카이 분석 패턴**: 생성된 조합에 (a) 최근 26주 평균권(3~4회 출현) 번호와 (b) 직전 회차 당첨번호가 각각 최소 1개씩 실제로 포함돼 있는지를 그대로 계산해서 판정 — 생성 방식과 무관하게 결과 번호 자체의 통계적 속성이라 모드 제한 없이 적용.
+- **구현**:
+  1. `src/lib/draws/drawStats.ts`: `getSakaiAverageFrequencyNumbers(draws, band=[3,4])` 추가(6/45 기준 26주 표본 이론적 평균 출현 횟수 6*26/45≈3.47회를 3~4회 구간이 감싼다는 근거를 주석에 명시).
+  2. `src/lib/lottery/resultBadges.ts` 신규 — `ResultBadge` 타입과 4개 판정 함수(`getMonteCarloBadge`/`getEvOptimizationBadge`/`getWheelingBadge`/`getSakaiPatternBadge`) + 전부 모아주는 `computeResultBadges()`. 순수 함수라 draws/네트워크에 직접 접근하지 않고 이미 계산된 값만 받는다(기존 아키텍처와 동일한 패턴).
+  3. `app/generate/result.tsx`: 결과 설명을 만드는 기존 `useEffect`에 `getRecentDrawsSafe(26)` 호출(`loadSakaiAnalysisInputs`)을 추가해 사카이 분석 입력값을 함께 계산하고, 게임별로 `computeResultBadges()`를 호출해 `badgesByGameId` state에 저장 후 `GeneratedGameCard`에 전달.
+  4. `src/components/GeneratedGameCard.tsx`: `badges` prop 추가, 기존 메타 칩(홀짝/합계/연속번호, 슬레이트 톤)과 시각적으로 구분되도록 보라색 톤(`tints.purple`)의 별도 칩 행으로 렌더링 — 헤더 텍스트 없이 색상만으로 "일반 정보 대비 전문 분석"을 구분해 UI를 번잡하게 만들지 않았다. 배지가 없으면(빈 배열/undefined) 아무것도 렌더링하지 않는다.
+- **검증**: `npx tsc --noEmit`, `npx eslint .` 클린. `tests/resultBadges.test.ts` 신규(4개 판정 함수 + `computeResultBadges` 조합 — 총 10개), `tests/drawStats.test.ts`에 `getSakaiAverageFrequencyNumbers` 테스트 3개 추가. `unit` 프로젝트 19개 스위트 155개 테스트 전부 통과. `components` 프로젝트에서 `lab.test.tsx` 타임아웃이 발생했으나, 이번에 수정한 파일을 전혀 참조하지 않는 무관한 화면이라 이 세션 환경(jest-expo 콜드스타트가 느림, 과거에도 기록된 전례) 이슈로 판단 — 회귀 아님.
+- **알려진 한계**: 사카이 분석의 "26주/3~4회" 기준과 "직전 회차 이월수" 정의는 일본 로또6(6/43)용 원 기법을 한국 로또 6/45에 맞춰 재해석한 근사치이며, 원저자가 명시적으로 검증한 공식 수치는 아니다(다만 이론적 평균 계산으로 타당성은 확인함). 실기기 시각 확인(배지 줄바꿈, 4개 전부 뜰 때 카드 높이)은 미수행.

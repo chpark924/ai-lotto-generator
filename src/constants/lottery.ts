@@ -20,11 +20,17 @@ export const CONSECUTIVE_RULE_LABELS: Record<string, string> = {
 
 export const EXCLUSION_PRESETS = [6, 10, 15, 20, 25, 30];
 
+/**
+ * "100만 회 부스터 탐색" 강도 값. 장기 미출현번호 포함 토글의 기준 주(週) 수를
+ * 12주(기본) → 8주로 좁히는 조건이 바로 이 값과의 일치 여부다(ai-search.tsx).
+ */
+export const BOOSTER_SEARCH_COUNT = 1000000;
+
 export const SEARCH_STRENGTH_OPTIONS: { label: string; value: 1 | 30000 | 100000 | 1000000 }[] = [
   { label: "바로 생성", value: 1 },
   { label: "3만 회 탐색", value: 30000 },
   { label: "10만 회 탐색", value: 100000 },
-  { label: "100만 회 부스터 탐색", value: 1000000 },
+  { label: "100만 회 부스터 탐색", value: BOOSTER_SEARCH_COUNT },
 ];
 
 export const SUM_AVERAGE_PREFERENCE_OPTIONS: { label: string; value: "NONE" | "UP" | "DOWN" }[] = [

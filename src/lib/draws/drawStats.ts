@@ -143,6 +143,54 @@ export function computeSumTrend(draws: WinningDraw[]): SumTrendPoint[] {
     });
 }
 
+/**
+ * 표본(`draws`) 내 출현 빈도 상위 N개 번호. AI 조합 탐색의 "고빈도 당첨번호 상위권 포함"
+ * 토글이 실제 생성 로직에 반영할 번호 집합을 여기서 산출한다(호출부가 최근 1년치 표본을
+ * 넘겨준다는 전제). 동률은 번호 오름차순으로 안정 정렬해 매번 결과가 흔들리지 않게 한다.
+ * 표본이 비어 있으면 빈 배열을 반환한다(호출부가 "데이터 없음"으로 처리).
+ */
+export function getTopFrequentNumbers(draws: WinningDraw[], topN = 10): number[] {
+  if (draws.length === 0) return [];
+  return [...computeNumberFrequencies(draws)]
+    .sort((a, b) => b.totalCount - a.totalCount || a.number - b.number)
+    .slice(0, topN)
+    .map((f) => f.number);
+}
+
+/**
+ * 표본(`draws`) 안에서 단 한 번도 나오지 않은 "장기 미출현" 번호 목록(1~45 중). AI 조합
+ * 탐색의 "장기 미출현번호 포함" 토글용 — 호출부가 기준 주(週) 수만큼의 최근 회차를 넘기면
+ * (기본 12주, 100만 회 부스터 탐색 시 8주), 그 기간 동안 등장하지 않은 번호를 반환한다.
+ * 표본이 비어 있으면 빈 배열을 반환한다(호출부가 "데이터 없음"으로 처리).
+ */
+export function getNumbersAbsentInLastDraws(draws: WinningDraw[]): number[] {
+  if (draws.length === 0) return [];
+  const appeared = new Set<number>();
+  for (const draw of draws) {
+    for (const n of draw.numbers) appeared.add(n);
+  }
+  return Array.from({ length: 45 }, (_, i) => i + 1).filter((n) => !appeared.has(n));
+}
+
+/**
+ * "사카이 분석법"(일본 로또 명인 후나츠 사카이가 소개한 방법으로 널리 알려진 기법)에서 쓰는
+ * "평균 빈도" 번호 집합. 최근 26주(약 6개월) 표본에서 출현 횟수가 지정한 구간(기본 3~4회)에
+ * 드는 번호를 고른다 — 너무 자주 나온 번호도, 전혀 안 나온 번호도 아닌 "통계적 평균에 가까운"
+ * 번호를 뜻한다. 6/45 기준 26주 표본의 이론적 평균 출현 횟수는 6*26/45 ≈ 3.47회로, 3~4회
+ * 구간이 이 평균을 자연스럽게 감싼다. 결과 화면의 "사카이 분석 패턴" 배지가 이 함수를 그대로
+ * 사용한다(장식용이 아니라 실제 계산 결과를 기준으로 배지 노출 여부를 판단한다).
+ */
+export function getSakaiAverageFrequencyNumbers(
+  draws: WinningDraw[],
+  band: readonly [number, number] = [3, 4]
+): number[] {
+  if (draws.length === 0) return [];
+  const [min, max] = band;
+  return computeNumberFrequencies(draws)
+    .filter((f) => f.totalCount >= min && f.totalCount <= max)
+    .map((f) => f.number);
+}
+
 /** 참고용: 과거 당첨 데이터 내 실제 출현 빈도(무작위 추첨 결과이므로 편향의 증거가 아니다). */
 export function buildHistoricalFrequencyRatio(draws: WinningDraw[]): number[] {
   const frequencies = computeNumberFrequencies(draws);

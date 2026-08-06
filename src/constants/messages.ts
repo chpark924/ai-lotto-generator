@@ -33,3 +33,11 @@ export const SUM_TREND_NOTICE =
  */
 export const SUM_AVERAGE_PREFERENCE_NOTICE =
   "최근 52주 당첨번호 합계의 실제 평균값을 기준으로, 그보다 합이 높은(UP) 또는 낮은(DOWN) 조합을 우선적으로 탐색합니다. 이 역시 서술적 통계이며 다음 회차의 당첨 확률과는 무관합니다.";
+
+/**
+ * AI 조합탐색의 "고빈도 당첨번호 상위권 포함" 토글 설명.
+ * 실제 생성 로직(generator.ts의 mustIncludeOneOfSets)이 하는 일을 그대로 서술한다 —
+ * 장식용 문구가 아니라 실제 동작과 항상 일치해야 한다.
+ */
+export const HIGH_FREQUENCY_TOP10_NOTICE =
+  "최근 1년간 고빈도 당첨번호 1~10위가 최소 한 개 이상 포함됩니다.";

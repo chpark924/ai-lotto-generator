@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { GeneratedGame } from "../lib/lottery/types";
+import type { ResultBadge } from "../lib/lottery/resultBadges";
 import { SCORE_EXPLANATION_NOTICE } from "../constants/messages";
 import { LottoBall } from "./LottoBall";
 import { useAppTheme, type AppColors, type AppTints } from "../theme";
@@ -8,10 +9,17 @@ import { useAppTheme, type AppColors, type AppTints } from "../theme";
 export function GeneratedGameCard({
   game,
   explanation,
+  badges,
   footer,
 }: {
   game: GeneratedGame;
   explanation?: string;
+  /**
+   * 몬테카를로 탐색/EV 최적화/휠링 방식 분산/사카이 분석 패턴처럼, 이 조합이 실제로 만들어진
+   * 방식·통계적 속성을 짧게 알려주는 배지(resultBadges.ts). 조건에 안 맞으면 빈 배열이거나
+   * undefined일 수 있고, 그런 경우 아무것도 렌더링하지 않는다.
+   */
+  badges?: ResultBadge[];
   footer?: React.ReactNode;
 }) {
   const { colors, tints } = useAppTheme();
@@ -47,6 +55,16 @@ export function GeneratedGameCard({
           label={game.metadata.maxConsecutiveLength >= 2 ? "연속번호 있음" : "연속번호 없음"}
         />
       </View>
+
+      {badges && badges.length > 0 ? (
+        <View style={styles.badgeRow}>
+          {badges.map((badge) => (
+            <View key={badge.key} style={styles.badgeChip}>
+              <Text style={styles.badgeChipText}>{badge.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {explanation ? <Text style={styles.explanation}>{explanation}</Text> : null}
       {footer}
@@ -102,6 +120,16 @@ function createStyles(colors: AppColors, tints: AppTints) {
       borderRadius: 8,
     },
     chipText: { fontSize: 11, color: tints.indigo.fg },
+    // 기본 메타 정보(홀짝/합계 등)와 구분되도록 보라색 톤을 써서 "전문 분석 배지"임을
+    // 은근히 표시한다(별도 헤더 텍스트 없이 색으로만 구분 — UI를 번잡하게 만들지 않기 위함).
+    badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+    badgeChip: {
+      backgroundColor: tints.purple.bg,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    badgeChipText: { fontSize: 11, color: tints.purple.fg, fontWeight: "600" },
     explanation: { marginTop: 10, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
   });
 }

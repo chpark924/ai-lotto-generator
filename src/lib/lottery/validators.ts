@@ -44,6 +44,16 @@ export function validateGenerationRequest(request: GenerationRequest): void {
   if (!Number.isInteger(gameCount) || gameCount < 1 || gameCount > 30) {
     throw new ValidationError("게임 수는 1~30 사이여야 합니다.");
   }
+
+  if (request.mustIncludeOneOfSets) {
+    for (const set of request.mustIncludeOneOfSets) {
+      for (const n of set) {
+        if (!Number.isInteger(n) || n < 1 || n > 45) {
+          throw new ValidationError("번호는 1~45 범위여야 합니다.");
+        }
+      }
+    }
+  }
 }
 
 export function isConsecutiveRuleSatisfied(

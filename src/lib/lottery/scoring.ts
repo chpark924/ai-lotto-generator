@@ -9,7 +9,13 @@
  * 번호 선택 패턴을 얼마나 피했는가"를 의미하는 근사치임을 UI 상에서 분명히 표기해야 한다.
  */
 import type { CandidateScore, ConsecutiveRule, GenerationRequest } from "./types";
-import { getMaxConsecutiveLength, getNumberSum, getOddCount, getSectionCounts } from "./pattern";
+import {
+  getMaxConsecutiveLength,
+  getNumberSum,
+  getOddCount,
+  getSameEndingMaxCount,
+  getSectionCounts,
+} from "./pattern";
 import { isConsecutiveRuleSatisfied } from "./validators";
 import { maxOverlapAgainstList } from "./similarity";
 
@@ -88,6 +94,36 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
+/**
+ * "끝수(번호의 1의 자리) 스프레드 최적화" 활성화 여부.
+ *
+ * 사용자가 화면에서 직접 켜고 끄는 옵션이 아니라(내재화됨), AI 조합 탐색의 3만 회/10만 회
+ * 탐색에서만 자동으로 적용된다.
+ *  - "바로 생성"(searchCount=1)은 후보가 1개뿐이라 점수 기반 선별 자체가 무의미해서 제외.
+ *  - "100만 회 부스터 탐색"(searchCount=1,000,000)은 이미 후보 수 자체가 매우 많아 상위
+ *    1~5% 선별 단계의 계산 비용이 크므로, 기존에 검증된 가중치 구성과 성능 특성을 그대로
+ *    유지하기 위해 제외한다(제품 결정 — 성능/회귀 리스크 최소화).
+ *
+ * scoreCandidate()의 가중치 배분과 결과 화면 설명 문구("끝수 최적화가 포함되어 있습니다")
+ * 노출 여부가 모두 이 함수 하나를 기준으로 판단하므로, 두 기준이 어긋날 일이 없다.
+ */
+export function isLastDigitSpreadOptimizationActive(
+  request: Pick<GenerationRequest, "mode" | "searchCount">
+): boolean {
+  return request.mode === "AI_SEARCH" && (request.searchCount === 30000 || request.searchCount === 100000);
+}
+
+/**
+ * 끝수(번호의 1의 자리) 분산 점수. 같은 끝수를 가진 번호가 많이 몰릴수록(예: 5, 15, 25,
+ * 35, 45처럼 끝수 5가 몰림) 감점하고, 6개 번호의 끝수가 최대한 서로 다를수록(완전 분산)
+ * 만점을 준다. `getSameEndingMaxCount`(pattern.ts)는 이미 GameMetadata 계산에도 쓰이는
+ * "동일 끝수 최대 개수" 지표라 그대로 재사용한다.
+ */
+function lastDigitSpreadScore(numbers: number[]): number {
+  const maxSameEnding = getSameEndingMaxCount(numbers);
+  return clamp(100 - (maxSameEnding - 1) * 25);
+}
+
 export function scoreCandidate(numbers: number[], context: ScoringContext): CandidateScore {
   const conditionMatch = conditionMatchScore(numbers, context.request);
   const diversity = diversityScore(numbers);
@@ -95,12 +131,23 @@ export function scoreCandidate(numbers: number[], context: ScoringContext): Cand
   const personalNovelty = personalNoveltyScore(numbers, context.savedCombinations);
   const balance = balanceScore(numbers);
 
-  const total =
-    conditionMatch * 0.35 +
-    userUniqueness * 0.25 +
-    personalNovelty * 0.15 +
-    diversity * 0.15 +
-    balance * 0.1;
+  const lastDigitSpreadActive = isLastDigitSpreadOptimizationActive(context.request);
+  const lastDigitSpread = lastDigitSpreadActive ? lastDigitSpreadScore(numbers) : undefined;
+
+  // 끝수 스프레드가 활성화된 경우에만 가중치를 재배분한다(conditionMatch/userUniqueness에서
+  // 각각 0.05씩 덜어 새 항목에 0.1을 배정) — 두 경우 모두 합은 항상 1.0으로 유지된다.
+  const total = lastDigitSpreadActive
+    ? conditionMatch * 0.3 +
+      userUniqueness * 0.2 +
+      personalNovelty * 0.15 +
+      diversity * 0.15 +
+      balance * 0.1 +
+      (lastDigitSpread ?? 0) * 0.1
+    : conditionMatch * 0.35 +
+      userUniqueness * 0.25 +
+      personalNovelty * 0.15 +
+      diversity * 0.15 +
+      balance * 0.1;
 
   return {
     totalScore: Math.round(total * 100) / 100,
@@ -109,6 +156,9 @@ export function scoreCandidate(numbers: number[], context: ScoringContext): Cand
     userUniquenessScore: Math.round(userUniqueness),
     personalNoveltyScore: Math.round(personalNovelty),
     balanceScore: Math.round(balance),
+    ...(lastDigitSpread !== undefined
+      ? { lastDigitSpreadScore: Math.round(lastDigitSpread) }
+      : {}),
   };
 }
 

@@ -1,4 +1,72 @@
-import { stretchScoresForDisplay } from "../src/lib/lottery/scoring";
+import {
+  stretchScoresForDisplay,
+  scoreCandidate,
+  isLastDigitSpreadOptimizationActive,
+  type ScoringContext,
+} from "../src/lib/lottery/scoring";
+import type { GenerationRequest } from "../src/lib/lottery/types";
+
+function baseRequest(overrides: Partial<GenerationRequest> = {}): GenerationRequest {
+  return {
+    mode: "AI_SEARCH",
+    gameCount: 5,
+    excludedNumbers: [],
+    requiredNumbers: [],
+    preferredNumbers: [],
+    consecutiveRule: "ANY",
+    ...overrides,
+  };
+}
+
+function baseContext(request: GenerationRequest): ScoringContext {
+  return {
+    request,
+    popularityByNumber: new Array(45).fill(0.3),
+    savedCombinations: [],
+    selectedSoFar: [],
+  };
+}
+
+describe("isLastDigitSpreadOptimizationActive (끝수 스프레드 최적화 — 내재화된 활성 조건)", () => {
+  it("AI_SEARCH 모드의 3만 회/10만 회 탐색에서만 true", () => {
+    expect(isLastDigitSpreadOptimizationActive(baseRequest({ searchCount: 30000 }))).toBe(true);
+    expect(isLastDigitSpreadOptimizationActive(baseRequest({ searchCount: 100000 }))).toBe(true);
+  });
+
+  it("바로 생성(1)/100만 회 부스터 탐색/AI_SEARCH가 아닌 모드는 false", () => {
+    expect(isLastDigitSpreadOptimizationActive(baseRequest({ searchCount: 1 }))).toBe(false);
+    expect(isLastDigitSpreadOptimizationActive(baseRequest({ searchCount: 1000000 }))).toBe(false);
+    expect(
+      isLastDigitSpreadOptimizationActive(baseRequest({ mode: "EXCLUSION", searchCount: 30000 }))
+    ).toBe(false);
+  });
+});
+
+describe("scoreCandidate — 끝수 스프레드 반영", () => {
+  it("활성화 조건(3만/10만 회)에서만 lastDigitSpreadScore가 채워진다", () => {
+    const active = scoreCandidate(
+      [1, 2, 3, 4, 5, 6],
+      baseContext(baseRequest({ searchCount: 30000 }))
+    );
+    const inactive = scoreCandidate(
+      [1, 2, 3, 4, 5, 6],
+      baseContext(baseRequest({ searchCount: 1000000 }))
+    );
+    expect(active.lastDigitSpreadScore).toBeDefined();
+    expect(inactive.lastDigitSpreadScore).toBeUndefined();
+  });
+
+  it("끝수가 완전히 분산된 조합이 한 끝수에 몰린 조합보다 더 높은 점수를 받는다", () => {
+    // 구간(섹션) 분포를 [2,1,1,1,1]로 동일하게 맞춰서 diversityScore가 두 조합에서
+    // 같아지도록 통제했다 — 그래야 총점 차이가 오직 끝수 스프레드 효과만을 반영한다.
+    const context = baseContext(baseRequest({ searchCount: 30000 }));
+    const spread = scoreCandidate([1, 6, 12, 23, 34, 45], context); // 끝수 1,6,2,3,4,5 전부 다름
+    const clustered = scoreCandidate([5, 6, 15, 25, 35, 45], context); // 끝수 5가 5개 몰림
+
+    expect(spread.lastDigitSpreadScore!).toBeGreaterThan(clustered.lastDigitSpreadScore!);
+    expect(spread.totalScore).toBeGreaterThan(clustered.totalScore);
+  });
+});
 
 describe("stretchScoresForDisplay (추천 적합도 표시용 재조정)", () => {
   it("빈 배열은 빈 배열을 반환한다", () => {

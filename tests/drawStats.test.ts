@@ -1,6 +1,9 @@
 import {
   computeNumberFrequencies,
   getLongestAbsentNumbers,
+  getTopFrequentNumbers,
+  getNumbersAbsentInLastDraws,
+  getSakaiAverageFrequencyNumbers,
   computeCombinationPatternStats,
   computeSumTrend,
   SUM_MIDPOINT,
@@ -85,6 +88,80 @@ describe("computeNumberFrequencies / getLongestAbsentNumbers", () => {
       expect(a.drawsSinceLastSeen).toBe(100);
       expect([1, 2, 3, 4, 5, 6]).not.toContain(a.number);
     }
+  });
+});
+
+describe("getTopFrequentNumbers (고빈도 당첨번호 상위권 포함 토글용)", () => {
+  it("출현 횟수 상위 N개 번호를 내림차순으로 반환한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 2, numbers: [1, 2, 3, 4, 5, 7] }),
+      draw({ drawNumber: 3, numbers: [1, 2, 3, 4, 8, 9] }),
+    ];
+    // 1,2,3,4는 3회, 5는 2회, 나머지는 1회씩.
+    const top4 = getTopFrequentNumbers(draws, 4);
+    expect(top4).toEqual([1, 2, 3, 4]);
+  });
+
+  it("동률이면 번호 오름차순으로 안정 정렬한다", () => {
+    const draws: WinningDraw[] = [draw({ drawNumber: 1, numbers: [10, 20, 30, 40, 41, 45] })];
+    const top3 = getTopFrequentNumbers(draws, 3);
+    expect(top3).toEqual([10, 20, 30]);
+  });
+
+  it("표본이 비어 있으면 빈 배열을 반환한다", () => {
+    expect(getTopFrequentNumbers([], 10)).toEqual([]);
+  });
+});
+
+describe("getNumbersAbsentInLastDraws (장기 미출현번호 포함 토글용)", () => {
+  it("주어진 표본 안에서 한 번도 나오지 않은 번호만 반환한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 2, numbers: [1, 2, 3, 4, 5, 7] }),
+    ];
+    const absent = getNumbersAbsentInLastDraws(draws);
+    expect(absent).not.toContain(1);
+    expect(absent).not.toContain(7);
+    expect(absent).toContain(8);
+    expect(absent).toContain(45);
+    expect(absent).toHaveLength(45 - 7); // 1,2,3,4,5,6,7 총 7개 번호만 출현
+  });
+
+  it("표본이 비어 있으면 빈 배열을 반환한다(전체 45개를 미출현으로 취급하지 않는다)", () => {
+    expect(getNumbersAbsentInLastDraws([])).toEqual([]);
+  });
+});
+
+describe("getSakaiAverageFrequencyNumbers (사카이 분석 패턴 배지용)", () => {
+  it("지정 구간(기본 3~4회) 안에 드는 번호만 반환한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 2, numbers: [1, 2, 3, 7, 8, 9] }),
+      draw({ drawNumber: 3, numbers: [1, 2, 10, 11, 12, 13] }),
+      draw({ drawNumber: 4, numbers: [1, 14, 15, 16, 17, 18] }),
+    ];
+    // 1번은 4회, 2번은 3회, 3번은 2회, 나머지는 1회씩 출현.
+    const result = getSakaiAverageFrequencyNumbers(draws);
+    expect(result).toContain(1); // 4회
+    expect(result).toContain(2); // 3회
+    expect(result).not.toContain(3); // 2회(구간 밖)
+    expect(result).not.toContain(6); // 1회(구간 밖)
+  });
+
+  it("표본이 비어 있으면 빈 배열을 반환한다", () => {
+    expect(getSakaiAverageFrequencyNumbers([])).toEqual([]);
+  });
+
+  it("band 인자로 구간을 바꿀 수 있다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6] }),
+      draw({ drawNumber: 2, numbers: [1, 2, 3, 4, 5, 6] }),
+    ];
+    expect(getSakaiAverageFrequencyNumbers(draws, [2, 2])).toEqual(
+      expect.arrayContaining([1, 2, 3, 4, 5, 6])
+    );
+    expect(getSakaiAverageFrequencyNumbers(draws, [1, 1])).toEqual([]);
   });
 });
 

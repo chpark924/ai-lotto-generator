@@ -45,6 +45,16 @@ export interface GenerationRequest {
   avoidPopularNumbers?: boolean;
   avoidMySavedNumbers?: boolean;
   popularityAvoidanceStrength?: number;
+
+  /**
+   * 각 원소는 "이 번호 집합 중 최소 1개는 반드시 포함" 제약이다(여러 개면 전부 동시에
+   * 만족해야 함). AI 조합 탐색의 "고빈도 당첨번호 상위권 포함" / "장기 미출현번호 포함"
+   * 토글이 이 필드를 통해 실제 생성 로직(generator.ts)에 반영된다. generator.ts 자체는
+   * 당첨 데이터에 접근하지 않으므로(서버 없음 원칙 유지), 호출부(ai-search.tsx)가 실제
+   * 번호 집합을 미리 계산해서 넘긴다. 세트가 전부 제외번호/이미 강제된 번호와 겹쳐 고를
+   * 후보가 하나도 없으면 그 세트의 제약은 조용히 건너뛴다(생성 실패로 이어지지 않음).
+   */
+  mustIncludeOneOfSets?: number[][];
 }
 
 export interface CandidateScore {
@@ -54,6 +64,11 @@ export interface CandidateScore {
   userUniquenessScore: number;
   personalNoveltyScore: number;
   balanceScore: number;
+  /**
+   * 끝수(번호의 1의 자리) 분산 점수. AI 조합 탐색의 3만 회/10만 회 탐색에서만 내부적으로
+   * 계산된다(scoring.ts의 isLastDigitSpreadOptimizationActive 참고) — 그 외에는 undefined.
+   */
+  lastDigitSpreadScore?: number;
 }
 
 export type NumberSource =
