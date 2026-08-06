@@ -118,16 +118,18 @@ export default function AiSearchScreen() {
   // 조건은 서로 독립적이라 둘 다 켜져 있으면 두 세트 모두 최소 1개씩 포함되도록 동시에
   // 반영된다(generator.ts 참고). 데이터를 불러오지 못하면 조합 자체가 실패하지 않도록
   // 그 조건만 조용히 건너뛰되, 토글을 켠 사용자가 "적용 안 됐다"는 걸 알 수 있게 안내한다.
-  async function resolveMustIncludeOneOfSets(): Promise<number[][]> {
+  async function resolveMustIncludeOneOfSets(): Promise<{
+    sets: number[][];
+    /** 데이터를 못 불러와 이번 탐색에 반영되지 못한 옵션 이름 목록 (호출부가 한 번에 안내한다). */
+    unavailableLabels: string[];
+  }> {
     const sets: number[][] = [];
+    const unavailableLabels: string[] = [];
 
     if (includeHighFreqTop10) {
       const draws = await getRecentDrawsSafe(HIGH_FREQ_SAMPLE_WEEKS);
       if (draws.length === 0) {
-        Alert.alert(
-          "고빈도 당첨번호를 불러오지 못했습니다",
-          "최근 당첨번호 데이터를 불러오지 못해 '고빈도 당첨번호 상위권 포함' 옵션이 이번 탐색에는 적용되지 않았습니다."
-        );
+        unavailableLabels.push("고빈도 당첨번호 상위권 포함");
       } else {
         sets.push(getTopFrequentNumbers(draws, HIGH_FREQ_TOP_N));
       }
@@ -141,17 +143,14 @@ export default function AiSearchScreen() {
           : LONG_TERM_ABSENT_WEEKS_DEFAULT;
       const draws = await getRecentDrawsSafe(weeks);
       if (draws.length === 0) {
-        Alert.alert(
-          "미출현번호를 불러오지 못했습니다",
-          "최근 당첨번호 데이터를 불러오지 못해 '장기 미출현번호 포함' 옵션이 이번 탐색에는 적용되지 않았습니다."
-        );
+        unavailableLabels.push("장기 미출현번호 포함");
       } else {
         const absent = getNumbersAbsentInLastDraws(draws);
         if (absent.length > 0) sets.push(absent);
       }
     }
 
-    return sets;
+    return { sets, unavailableLabels };
   }
 
   function toggleExcluded(n: number) {
@@ -162,25 +161,43 @@ export default function AiSearchScreen() {
   }
 
   async function handleGenerate() {
+    // 탐색 시작을 누르면 즉시 로딩 화면부터 보여준다 — 아래 UP/DOWN·고빈도·미출현번호 옵션의
+    // 사전 데이터 조회(getRecentDrawsSafe)가 끝나야 실제 후보 생성이 시작되는데, 이 조회를
+    // 먼저 마친 뒤에야 로딩 화면을 띄우면(과거 구현) 네트워크가 느릴 때 버튼을 눌러도 한동안
+    // 아무 반응이 없는 것처럼 보인다. "무작위 후보 생성 중"은 실제 생성이 시작될 때만 붙인다.
+    setIsRunning(true);
+    setProgressLabel("탐색 준비 중");
+    setProgressPercent(0);
+
     // "UP" 선택 시 minSum, "DOWN" 선택 시 maxSum을 최근 52주 실제 평균 합계로 설정한다.
     // scoring.ts의 conditionMatchScore()가 이미 minSum/maxSum을 소프트 페널티로 반영하므로,
     // 여기서 값만 정확히 넘겨주면 결과에 실제로 반영된다(하드 필터가 아니라 점수 가중치라
     // 조건이 안 맞는 조합이 완전히 배제되진 않지만, 상위로 랭크되는 조합들은 UP/DOWN 방향에
     // 뚜렷하게 치우치게 된다).
+    const unavailableOptionLabels: string[] = [];
+
     let sumBounds: Pick<GenerationRequest, "minSum" | "maxSum"> = {};
     if (sumAveragePreference !== "NONE") {
       const avg = await resolveRecentAverageSum();
       if (avg !== null) {
         sumBounds = sumAveragePreference === "UP" ? { minSum: avg } : { maxSum: avg };
       } else {
-        Alert.alert(
-          "평균값을 불러오지 못했습니다",
-          "최근 당첨번호 데이터를 불러오지 못해 UP/DOWN 옵션이 이번 탐색에는 적용되지 않았습니다."
-        );
+        unavailableOptionLabels.push("당첨숫자 총합 평균값 UP/DOWN 선택");
       }
     }
 
-    const mustIncludeOneOfSets = await resolveMustIncludeOneOfSets();
+    const { sets: mustIncludeOneOfSets, unavailableLabels } = await resolveMustIncludeOneOfSets();
+    unavailableOptionLabels.push(...unavailableLabels);
+
+    // 실패한 옵션이 여러 개여도 알림을 하나로 모아서 한 번만 띄운다 — 옵션마다 따로
+    // Alert.alert를 띄우면(과거 구현) 오프라인 등으로 여러 개가 한꺼번에 실패했을 때
+    // 확인 버튼을 2~3번 눌러야 하는 성가신 경험이 된다.
+    if (unavailableOptionLabels.length > 0) {
+      Alert.alert(
+        "일부 옵션을 적용하지 못했습니다",
+        `최근 당첨번호 데이터를 불러오지 못해 다음 옵션은 이번 탐색에 적용되지 않았습니다: ${unavailableOptionLabels.join(", ")}`
+      );
+    }
 
     const request: GenerationRequest = {
       mode: "AI_SEARCH",
@@ -196,9 +213,7 @@ export default function AiSearchScreen() {
       ...sumBounds,
     };
 
-    setIsRunning(true);
     setProgressLabel("무작위 후보 생성 중");
-    setProgressPercent(0);
 
     try {
       const [history, popularity] = await Promise.all([
