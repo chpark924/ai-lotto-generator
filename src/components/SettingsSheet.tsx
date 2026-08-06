@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Dimensions,
   Easing,
   Modal,
   Pressable,
@@ -10,6 +9,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,19 +20,22 @@ import { scheduleWeeklyDrawReminder, cancelWeeklyDrawReminder } from "../lib/not
 import { DisclaimerCard } from "./DisclaimerCard";
 import { useAppTheme, type AppColors, type AppTints } from "../theme";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 /**
  * 홈 화면에 직접 붙는 커스텀 바텀시트형 설정.
  * 별도 라우트(/settings) 대신 홈 화면 위에 떠서 열리고, 배경을 탭하거나
  * 안드로이드 뒤로가기를 누르면 닫힌다. 새 패키지 없이 RN 코어 Modal + Animated로 구현.
+ *
+ * 화면 높이는 `Dimensions.get("window")`(모듈 로드 시 1회성 스냅샷) 대신
+ * `useWindowDimensions()`(반응형 훅)로 읽는다 — 폴더블 기기에서 펼치고/접거나
+ * 화면을 회전하는 동안에도 시트 최대 높이·닫힘 위치가 최신 화면 크기를 따라간다.
  */
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const { height: screenHeight } = useWindowDimensions();
+  const styles = React.useMemo(() => createStyles(colors, tints, screenHeight), [colors, tints, screenHeight]);
+  const translateY = useRef(new Animated.Value(screenHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
   const [notifyDrawDay, setNotifyDrawDay] = useState(false);
@@ -41,7 +44,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
     if (visible) {
       getPreferences().then((prefs) => setNotifyDrawDay(prefs.notifyDrawDay));
       setMounted(true);
-      translateY.setValue(SCREEN_HEIGHT);
+      translateY.setValue(screenHeight);
       backdropOpacity.setValue(0);
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
@@ -56,7 +59,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 0, duration: 160, useNativeDriver: true }),
         Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
+          toValue: screenHeight,
           duration: 220,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
@@ -167,7 +170,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, screenHeight: number) {
   return StyleSheet.create({
     backdrop: {
       ...StyleSheet.absoluteFillObject,
@@ -178,7 +181,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
       left: 0,
       right: 0,
       bottom: 0,
-      maxHeight: SCREEN_HEIGHT * 0.8,
+      maxHeight: screenHeight * 0.8,
       backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,

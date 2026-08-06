@@ -67,7 +67,9 @@ export function GeneratedGameCard({
           <View style={styles.badgeRow}>
             {badges.map((badge) => (
               <View key={badge.key} style={styles.badgeChip}>
-                <Text style={styles.badgeChipText}>{badge.label}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={styles.badgeChipText}>
+                  {badge.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -83,7 +85,9 @@ export function GeneratedGameCard({
 function MetaChip({ label, styles }: { label: string; styles: ReturnType<typeof createStyles> }) {
   return (
     <View style={styles.chip}>
-      <Text style={styles.chipText}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={styles.chipText}>
+        {label}
+      </Text>
     </View>
   );
 }

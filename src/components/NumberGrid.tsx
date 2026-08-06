@@ -1,7 +1,17 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { getBallColor } from "../constants/lottery";
 import { useAppTheme, type AppColors } from "../theme";
+
+const GAP = 6;
+/** 이 화면들의 실제 컨테이너 패딩(좌우 16px씩)과 일치시켜, 화면 폭에서 뺄 값을 정확히 맞춘다. */
+const HORIZONTAL_PADDING = 32;
+/** 전화기 기준 화면(약 360~414px 폭)에서 기존 44px 셀과 거의 같은 결과가 나오도록 잡은 기준 열 수. */
+const REFERENCE_COLUMNS = 7;
+/** 기존에 이미 44pt로 확보돼 있던 최소 터치 타겟을 그대로 하한선으로 유지한다. */
+const MIN_CELL_SIZE = 44;
+/** 태블릿처럼 폭이 아주 넓어도 공이 지나치게 커지지 않도록 상한선을 둔다. */
+const MAX_CELL_SIZE = 60;
 
 export function NumberGrid({
   selected,
@@ -13,7 +23,13 @@ export function NumberGrid({
   onToggle: (n: number) => void;
 }) {
   const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { width: screenWidth } = useWindowDimensions();
+  const cellSize = React.useMemo(() => {
+    const containerWidth = screenWidth - HORIZONTAL_PADDING;
+    const rawSize = (containerWidth - GAP * (REFERENCE_COLUMNS - 1)) / REFERENCE_COLUMNS;
+    return Math.floor(Math.min(MAX_CELL_SIZE, Math.max(MIN_CELL_SIZE, rawSize)));
+  }, [screenWidth]);
+  const styles = React.useMemo(() => createStyles(colors, cellSize), [colors, cellSize]);
   const selectedSet = new Set(selected);
   const disabledSet = new Set(disabled);
 
@@ -37,6 +53,7 @@ export function NumberGrid({
             accessibilityState={{ selected: isSelected, disabled: isDisabled }}
           >
             <Text
+              maxFontSizeMultiplier={1.3}
               style={[
                 styles.cellText,
                 isSelected && styles.cellTextSelected,
@@ -52,19 +69,21 @@ export function NumberGrid({
   );
 }
 
-const CELL_SIZE = 44;
-
-function createStyles(colors: AppColors) {
+// 화면 폭 기반으로 계산된 셀 크기(useWindowDimensions, 위 참고)를 그대로 받아 스타일을 만든다.
+// 고정 44px이었을 때는 좁은 화면에선 문제없었지만 태블릿에서는 같은 크기의 작은 그리드가
+// 넓은 여백 한가운데 떠 있는 것처럼 보였다 — 화면이 넓을수록 셀도 함께(다만 60px까지만) 커지도록
+// 해서 화면을 더 알차게 채운다. 회전/폴더블 접힘·펼침에도 즉시 재계산된다.
+function createStyles(colors: AppColors, cellSize: number) {
   return StyleSheet.create({
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 6,
+      gap: GAP,
     },
     cell: {
-      width: CELL_SIZE,
-      height: CELL_SIZE,
-      borderRadius: CELL_SIZE / 2,
+      width: cellSize,
+      height: cellSize,
+      borderRadius: cellSize / 2,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.surfaceAlt,

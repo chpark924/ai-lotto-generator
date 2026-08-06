@@ -308,7 +308,10 @@ export default function TicketsScreen() {
               accessibilityRole="button"
               accessibilityLabel={`상태: ${STATUS_LABELS[item.status]}. 탭하면 다음 상태로 변경`}
             >
-              <Text style={[styles.statusBadgeText, { color: getStatusBadgeStyle(tints, item.status).color }]}>
+              <Text
+                maxFontSizeMultiplier={1.3}
+                style={[styles.statusBadgeText, { color: getStatusBadgeStyle(tints, item.status).color }]}
+              >
                 {STATUS_LABELS[item.status]}
               </Text>
             </Pressable>

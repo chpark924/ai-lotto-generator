@@ -173,7 +173,9 @@ export default function ResultScreen() {
         >
           {batchBadges.map((badge) => (
             <View key={badge.key} style={styles.batchBadgeChip}>
-              <Text style={styles.batchBadgeChipText}>{badge.label}</Text>
+              <Text maxFontSizeMultiplier={1.3} style={styles.batchBadgeChipText}>
+                {badge.label}
+              </Text>
             </View>
           ))}
         </View>

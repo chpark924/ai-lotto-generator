@@ -134,7 +134,10 @@ export function Dice45({
         ))}
 
         <View style={styles.centerFace}>
-          <Text style={styles.centerNumber}>{displayNumber ?? 45}</Text>
+          {/* 132px 원 안에 고정 배치되는 숫자라, 큰 글씨 설정에서도 원 밖으로 잘리지 않게 제한한다. */}
+          <Text maxFontSizeMultiplier={1.3} style={styles.centerNumber}>
+            {displayNumber ?? 45}
+          </Text>
         </View>
       </Animated.View>
 

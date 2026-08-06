@@ -25,7 +25,14 @@ export function LottoBall({
       accessible={!hideNumber}
       accessibilityLabel={hideNumber ? undefined : `로또 번호 ${number}`}
     >
-      {hideNumber ? null : <Text style={[styles.text, { fontSize: size * 0.42 }]}>{number}</Text>}
+      {hideNumber ? null : (
+        // 시스템 큰 글씨 설정이 아주 높아도(예: 200%) 원형 공 밖으로 숫자가 잘리지 않도록
+        // 배율을 제한한다 — 공 자체가 이미 색으로 번호를 구분해주므로, 숫자가 다소 작게
+        // 보여도 읽는 데 지장이 없는 선에서 잘림 방지를 우선한다.
+        <Text maxFontSizeMultiplier={1.3} style={[styles.text, { fontSize: size * 0.42 }]}>
+          {number}
+        </Text>
+      )}
     </View>
   );
 }
