@@ -1,34 +1,47 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAppTheme, type AppColors } from "../../src/theme";
 
-const MENU_ITEMS: { title: string; description: string; path: string; recommended?: boolean; hot?: boolean }[] = [
+const MENU_ITEMS: {
+  title: string;
+  description: string;
+  path: string;
+  icon: number;
+  recommended?: boolean;
+  hot?: boolean;
+}[] = [
   {
     title: "제외하고 생성",
     description: "나오지 않을 것 같은 번호를 제외한 뒤 무작위로 생성합니다.",
     path: "/generate/exclusion",
+    icon: require("../../assets/quick-menu-icons/exclusion.png"),
   },
   {
     title: "AI 조합 탐색",
     description: "기기 안에서 최대 100만 개의 후보를 비교해 조건에 맞는 조합을 찾습니다.",
     path: "/generate/ai-search",
+    icon: require("../../assets/quick-menu-icons/ai-search.png"),
     recommended: true,
   },
   {
     title: "나의 행운번호",
     description: "생년월일과 선호번호로 나만의 번호를 만듭니다.",
     path: "/generate/lucky",
+    icon: require("../../assets/quick-menu-icons/lucky.png"),
   },
   {
     title: "45면체 주사위",
     description: "가상의 45면체 주사위를 굴려 번호를 정합니다.",
     path: "/generate/dice",
+    icon: require("../../assets/quick-menu-icons/dice.png"),
   },
   {
     title: "운명의 신",
     description: "목표 당첨자 수와 번호 성격을 설정하는 게임형 생성입니다.",
     path: "/generate/destiny",
+    icon: require("../../assets/quick-menu-icons/destiny.png"),
     hot: true,
   },
 ];
@@ -56,20 +69,24 @@ export default function GenerateHubScreen() {
                 : `${item.title}. ${item.description}`
           }
         >
-          <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            {item.recommended ? (
-              <View style={styles.recommendedBadge}>
-                <Text style={styles.recommendedBadgeText}>추천</Text>
-              </View>
-            ) : null}
-            {item.hot ? (
-              <View style={styles.hotBadge}>
-                <Text style={styles.hotBadgeText}>HOT</Text>
-              </View>
-            ) : null}
+          <Image source={item.icon} style={styles.cardIcon} resizeMode="contain" />
+          <View style={styles.cardBody}>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              {item.recommended ? (
+                <View style={styles.recommendedBadge}>
+                  <Text style={styles.recommendedBadgeText}>추천</Text>
+                </View>
+              ) : null}
+              {item.hot ? (
+                <View style={styles.hotBadge}>
+                  <Text style={styles.hotBadgeText}>HOT</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.cardDesc}>{item.description}</Text>
           </View>
-          <Text style={styles.cardDesc}>{item.description}</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
         </Pressable>
       ))}
     </ScrollView>
@@ -82,19 +99,31 @@ function createStyles(colors: AppColors) {
     header: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, marginBottom: 4 },
     subHeader: { fontSize: 13, color: colors.textMuted, marginBottom: 16 },
     card: {
+      flexDirection: "row",
+      alignItems: "center",
       backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 14,
       borderWidth: 1,
       borderColor: colors.border,
+      // 입체감: 은은한 그림자로 카드가 배경 위에 살짝 떠 있는 느낌을 준다.
+      shadowColor: "#0F172A",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 2,
     },
     cardPressed: {
       backgroundColor: colors.surfaceAlt,
       borderColor: colors.border,
       transform: [{ scale: 0.98 }],
+      shadowOpacity: 0.03,
+      elevation: 1,
     },
-    cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+    cardIcon: { width: 56, height: 56, marginRight: 14 },
+    cardBody: { flex: 1, marginRight: 8 },
+    cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" },
     cardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
     cardDesc: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
     recommendedBadge: {

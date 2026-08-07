@@ -1,20 +1,19 @@
 import { Image } from "react-native";
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "../../src/theme";
 
 /**
- * "홈" 탭만 기본 집 아이콘 대신 브랜드 로고(집+G)를 쓴다 — 브랜드 인지도를 위해서다.
- * 다른 탭 아이콘(Ionicons)과 톤을 맞추려고 tintColor로 활성/비활성 색을 그대로 입힌다.
- * PNG는 투명 배경 + 단색 실루엣에 가까운 형태로 미리 다듬어 둔 것이라(assets/tab-icon-home.png),
- * tintColor를 입혀도 로고 형태(집+G)가 뭉개지지 않고 또렷하게 보인다.
+ * 하단 탭 아이콘 전부 입체(글로시) 스타일 풀컬러 PNG로 통일했다(assets/tab-icons/).
+ * 토스/카카오뱅크/네이버 등 주요 앱들처럼, 아이콘 자체는 항상 고유 색을 유지하고
+ * 선택 상태는 라벨 텍스트 색(tabBarActiveTintColor/InactiveTintColor)만으로 구분한다 —
+ * 그래서 여기서는 tintColor를 입히지 않고 원본 색 그대로 렌더링한다.
  */
-function HomeTabIcon({ color, size }: { color: string; size: number }) {
+function TabIcon({ source, size }: { source: number; size: number }) {
   return (
     <Image
-      source={require("../../assets/tab-icon-home.png")}
+      source={source}
       resizeMode="contain"
-      style={{ width: size, height: size, tintColor: color }}
+      style={{ width: size + 6, height: size + 6 }}
     />
   );
 }
@@ -35,15 +34,17 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "홈",
-          tabBarIcon: ({ color, size }) => <HomeTabIcon color={color} size={size} />,
+          tabBarIcon: ({ size }) => (
+            <TabIcon source={require("../../assets/tab-icons/home.png")} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="generate"
         options={{
           title: "번호 만들기",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shuffle" color={color} size={size} />
+          tabBarIcon: ({ size }) => (
+            <TabIcon source={require("../../assets/tab-icons/generate.png")} size={size} />
           ),
         }}
       />
@@ -51,8 +52,8 @@ export default function TabsLayout() {
         name="lab"
         options={{
           title: "로또 연구소",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" color={color} size={size} />
+          tabBarIcon: ({ size }) => (
+            <TabIcon source={require("../../assets/tab-icons/lab.png")} size={size} />
           ),
         }}
       />
@@ -60,8 +61,8 @@ export default function TabsLayout() {
         name="tickets"
         options={{
           title: "내 번호",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ticket" color={color} size={size} />
+          tabBarIcon: ({ size }) => (
+            <TabIcon source={require("../../assets/tab-icons/tickets.png")} size={size} />
           ),
         }}
       />
