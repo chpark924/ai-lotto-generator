@@ -18,8 +18,14 @@ function TabIcon({ source, size }: { source: number; size: number }) {
   );
 }
 
+// 홈 브랜드 로고는 원래 진한 차콜 색이라, 다크모드의 어두운 탭바 배경(#161F32)
+// 위에서는 거의 안 보일 만큼 대비가 낮다. 그래서 다크모드 전용으로 톤을 밝게 뒤집은
+// 버전을 따로 준비해 스킴에 따라 골라 쓴다(형태·오렌지 포인트는 동일, 명암만 반전).
+const homeIconLight = require("../../assets/tab-icons/home.png");
+const homeIconDark = require("../../assets/tab-icons/home-dark.png");
+
 export default function TabsLayout() {
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
   return (
     <Tabs
       screenOptions={{
@@ -35,7 +41,7 @@ export default function TabsLayout() {
         options={{
           title: "홈",
           tabBarIcon: ({ size }) => (
-            <TabIcon source={require("../../assets/tab-icons/home.png")} size={size} />
+            <TabIcon source={scheme === "dark" ? homeIconDark : homeIconLight} size={size} />
           ),
         }}
       />
