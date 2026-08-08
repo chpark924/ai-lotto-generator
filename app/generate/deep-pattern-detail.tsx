@@ -9,7 +9,7 @@ import { saveTicket } from "../../src/lib/storage";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternLevel } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
 const LEVEL_LABEL: Record<DeepPatternLevel, string> = { LOW: "낮음", MID: "보통", HIGH: "높음" };
 const LEVEL_DOT_COUNT: Record<DeepPatternLevel, number> = { LOW: 1, MID: 2, HIGH: 3 };
@@ -29,7 +29,11 @@ function validationLevel(percentile: number): DeepPatternLevel {
 function LevelRow({ label, level, colors }: { label: string; level: DeepPatternLevel; colors: AppColors }) {
   const filled = LEVEL_DOT_COUNT[level];
   return (
-    <View style={styles(colors).metricRow}>
+    // 접근성 점검(2026-08-08 종합 재점검): 스크린리더가 라벨/값/점 개수를 3개 별도 요소로 따로
+    // 읽어 "구조적 공백... 높음... 점..."처럼 끊겨 들리던 문제. 행 전체를 하나의 접근성 요소로
+    // 묶어 "구조적 공백: 높음"으로 한 번에 읽히게 했다(점 3개는 값의 시각적 보조 표현이라 값 자체
+    // 텍스트만으로 충분 — 별도로 다시 읽을 필요 없음).
+    <View style={styles(colors).metricRow} accessible accessibilityLabel={`${label}: ${LEVEL_LABEL[level]}`}>
       <Text style={styles(colors).metricLabel}>{label}</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Text style={styles(colors).metricVal}>{LEVEL_LABEL[level]}</Text>
@@ -51,8 +55,8 @@ function LevelRow({ label, level, colors }: { label: string; level: DeepPatternL
 
 export default function DeepPatternDetailScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const s = styles(colors);
+  const { colors, tints } = useAppTheme();
+  const s = styles(colors, tints);
   const { batch, selectedIndex } = useDeepPatternStore();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -108,7 +112,7 @@ export default function DeepPatternDetailScreen() {
 
         <View style={s.vizCard}>
           <LevelRow label="구조적 공백" level={rec.structuralVoidLevel} colors={colors} />
-          <View style={s.metricRow}>
+          <View style={s.metricRow} accessible accessibilityLabel={`패턴 독창성: 상위 ${rec.noveltyPercentile}%`}>
             <Text style={s.metricLabel}>패턴 독창성</Text>
             <Text style={s.metricVal}>상위 {rec.noveltyPercentile}%</Text>
           </View>
@@ -174,7 +178,7 @@ export default function DeepPatternDetailScreen() {
   );
 }
 
-function styles(colors: AppColors) {
+function styles(colors: AppColors, tints?: AppTints) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     vizCard: {
@@ -184,7 +188,11 @@ function styles(colors: AppColors) {
       marginBottom: 14,
     },
     vizTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-    vizTitle: { fontSize: 13, fontWeight: "800", color: "#5847D6" },
+    // 다크모드 대비 점검(2026-08-08 종합 재점검) — 고정값 "#5847D6"는 다크 배경(surface)
+    // 위에서 대비비 약 2.6:1로 WCAG AA(4.5:1) 미달이었다. tints.purple은 라이트/다크 각각에
+    // 맞게 이미 검증된 값(라이트 #5B21B6, 다크 #DDD6FE)이라 이걸로 교체한다. LevelRow처럼
+    // 이 스타일을 쓰지 않는 호출부는 tints 없이도(undefined) 그대로 동작하도록 optional로 뒀다.
+    vizTitle: { fontSize: 13, fontWeight: "800", color: tints ? tints.purple.fg : "#5847D6" },
     vizSub: { fontSize: 10.5, color: colors.textMuted },
     metricRow: {
       flexDirection: "row",

@@ -10,7 +10,7 @@ import { recommendDeepPatterns } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternRecommendation } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 
@@ -25,8 +25,8 @@ function toGeneratedGame(rec: DeepPatternRecommendation): GeneratedGame {
 
 export default function DeepPatternResultScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
   const { batch, setBatch, selectIndex } = useDeepPatternStore();
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -114,9 +114,14 @@ export default function DeepPatternResultScreen() {
         ))
       )}
 
+      {/* 2026-08-08 종합 재점검: 이전엔 engineVersion/atlasVersion("DPE-1.1-v3approx" 등) 내부
+          식별자를 그대로 노출했다 — src/lib/deepPattern/types.ts의 설계 원칙("Basin/DeepVoid
+          같은 엔진 내부 개념은 이 타입 밖으로 나가지 않는다") 및 이 앱의 다른 화면 어디에도
+          이런 버전 문자열을 보여주는 곳이 없다는 점과 맞지 않아, 일반 사용자가 이해할 수 있는
+          문구로 교체했다. */}
       <Text style={styles.footNote}>
-        engine {batch.recommendations[0]?.engineVersion} · atlas {batch.recommendations[0]?.atlasVersion} · 제
-        {batch.recommendations[0]?.historyThroughDrawNumber}회 기준
+        제{batch.recommendations[0]?.historyThroughDrawNumber}회까지의 당첨 이력을 반영한
+        결과예요.
       </Text>
 
       <View style={styles.btnRow}>
@@ -143,7 +148,7 @@ export default function DeepPatternResultScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, tints?: AppTints) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     sub: { fontSize: 12.5, color: colors.textMuted, marginBottom: 14 },
@@ -159,7 +164,10 @@ function createStyles(colors: AppColors) {
     cardLead: { borderWidth: 1.5, borderColor: "#6C5CE7" },
     cardPressed: { opacity: 0.85 },
     cardBody: { flex: 1, minWidth: 0 },
-    basinTag: { fontSize: 11, fontWeight: "700", color: "#5847D6", marginBottom: 4 },
+    // 다크모드 대비 점검(2026-08-08 종합 재점검) — deep-pattern-detail.tsx의 vizTitle과 동일한
+    // 문제: 고정값 "#5847D6"는 다크 배경 위에서 대비비 약 2.6:1로 WCAG AA(4.5:1) 미달이었다.
+    // tints.purple(라이트 #5B21B6, 다크 #DDD6FE)로 교체한다.
+    basinTag: { fontSize: 11, fontWeight: "700", color: tints ? tints.purple.fg : "#5847D6", marginBottom: 4 },
     ballsRow: { flexDirection: "row", gap: 4, marginBottom: 6, flexWrap: "wrap" },
     metricChip: {
       alignSelf: "flex-start",
