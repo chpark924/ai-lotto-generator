@@ -40,7 +40,12 @@ module.exports = {
       moduleNameMapper: {
         "^@react-native-async-storage/async-storage$":
           "<rootDir>/node_modules/@react-native-async-storage/async-storage/jest/async-storage-mock",
+        // react-native-svg는 네이티브 뷰에 의존한다 — tests/mocks/react-native-svg.tsx 참고.
+        "^react-native-svg$": "<rootDir>/tests/mocks/react-native-svg.tsx",
       },
+      // react-native-safe-area-context는 moduleNameMapper가 아니라 setupFiles의 jest.mock()으로
+      // 등록한다 — tests/mocks/safe-area-context.tsx의 상단 주석에 이유를 자세히 적어뒀다.
+      setupFiles: ["<rootDir>/tests/mocks/safe-area-context.tsx"],
       setupFilesAfterEnv: ["@testing-library/react-native/extend-expect"],
     },
   ],
