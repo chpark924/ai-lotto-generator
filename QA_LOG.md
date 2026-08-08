@@ -478,3 +478,87 @@
   - **위치/크기 — 주요 앱 관행 확인**: `expo-splash-screen` 플러그인 자체가 이미지를 항상 화면 정중앙(수평·수직 모두)에 배치하는 것 외에 별도 위치 옵션을 제공하지 않는다는 걸 공식 SDK 문서에서 확인했다 — 이는 토스·카카오·인스타그램 등 대다수 앱이 쓰는 "화면 정중앙에 심플한 로고 한 개"라는 관행과 정확히 일치해, 별도로 손댈 게 없었다(플랫폼 표준 자체가 이미 그렇게 되어 있음). 크기는 `imageWidth: 120`(기본값 100에서 소폭 키움)으로 설정 — 실측 목업(390pt 폭 캔버스에 로고 120px 배치)으로 과하지 않게 존재감 있는 크기인지 육안 확인 후 결정.
   - **`app.json` 수정**: `expo-splash-screen` 플러그인 설정에 `image: "./assets/splash-icon.png"`, `imageWidth: 120`, `resizeMode: "contain"` 추가.
   - **검증**: `python3 -c "import json..."`로 `app.json` 유효성 확인, `npx tsc --noEmit`·`npx eslint .` 클린. 실측 대비비 계산(흰색 1.38→해당없음, 흰 선 vs 네이비 배경은 밝기 차이가 커서 육안 확인으로 충분히 뚜렷함을 목업 이미지로 확인) 및 목업 렌더로 최종 배치를 직접 눈으로 확인했다. **실제 네이티브 빌드(로고가 다음 `npm install` 이후의 `eas build`/`expo prebuild`에 반영됨)에서의 최종 확인은 여전히 남아있다.**
+
+## 2026-08-08
+
+### 52. "딥 패턴 탐색" 신규 메뉴 — UI 목업 승인 후 화면·네비게이션·저장 연동 (엔진은 mock, Phase 2~4 미착수)
+
+- **배경**: 별도 명세 문서(`Deep Pattern Engine Master Spec v2.0`, Android/Kotlin 전제로 작성)를 기준으로, Claude(Cowork)에서 먼저 목업 HTML을 만들어 화면·사용자 플로우를 승인받은 뒤, 이 저장소에 실제로 붙이는 작업을 진행했다. 명세 §42가 "바로 코딩하지 말 것"을 명시하고 있어, Phase 0(기존 구조 audit) → 이번 세션 범위 확정(화면+네비게이션+저장까지만, 엔진은 다음 단계) 순으로 진행했다.
+- **Phase 0 audit 결과 요약**: 명세는 Kotlin/JNI/Room/WorkManager를 전제로 하지만 이 프로젝트는 Expo/RN/TypeScript라 해당 사항 없음 — 엔진을 TS로 재설계. `app/(tabs)/generate.tsx`의 `MENU_ITEMS` + `app/_layout.tsx`의 `Stack.Screen`만 건드리면 네비게이션 추가가 가능하고, 저장은 기존 `saveTicket()`을 그대로 재사용 가능함을 확인(`GeneratedGame.mode`는 exhaustive switch 없이 동등 비교로만 쓰여 새 리터럴 추가가 안전함을 grep으로 확인). `data/lotto-draws.json`에 전체 당첨 이력이 이미 번들돼 있어 향후 Atlas Builder가 별도 데이터 수집 없이 이 파일을 바로 쓸 수 있다.
+- **신규 격리 모듈**(기존 파일은 아래 "건드린 파일" 항목 외 전혀 수정하지 않음):
+  - `src/lib/deepPattern/coordinates.ts` — 실제 로또 마킹 용지 배열(7열×7행, 43~45는 마지막 줄 3칸만 사용)을 그대로 재현하는 좌표 매핑 + canonical path(번호 오름차순 연결) 계산. 순수 함수, RN 의존성 없음.
+  - `src/lib/deepPattern/types.ts` — `DeepPatternRecommendation`(명세 §43 Kotlin `DeepPatternFeature` 경계를 TS로 옮김). Basin/DeepVoid 같은 내부 개념은 이 타입 밖으로 노출하지 않고, `patternIndex`("N번 패턴")처럼 이미 사용자 언어로 번역된 필드만 둔다.
+  - `src/lib/deepPattern/mockEngine.ts` — **⚠️ 실제 엔진 아님.** `generatePureRandom()`(기존 CSPRNG)으로 진짜 유효한 조합은 뽑지만, 패턴 독창성/구조적 공백/공백 지속성/시간 안정성/가장 가까운 과거 당첨 지표는 전부 그럴듯한 무작위값이다. 파일 최상단 주석에 명시. 명세 §43 `recommend(count)`/`status()` 시그니처와 대응시켜, 실제 엔진(Research+Atlas Builder 완료 후)이 이 파일 하나만 교체하면 되도록 경계를 맞춰뒀다.
+  - `src/state/deepPatternStore.ts` — 기존 `generationStore.ts`와 동일한 패턴(zustand, 화면 간 결과 전달 전용, 영구 저장은 여전히 `saveTicket()`).
+  - `src/components/deepPattern/{DeepPatternIcon, PatternThumb, PatternBoard, DeepPatternLoadingBoard}.tsx` — 새 이미지 에셋 없이 기존 의존성(`react-native-svg`)만으로 그린 벡터 아이콘/패턴 시각화/로딩 애니메이션(점을 순서대로 이으며 선이 그려지는 연출, `Animated` + `strokeDashoffset`).
+  - `app/generate/deep-pattern.tsx`(소개+생성 중), `deep-pattern-result.tsx`(5게임 결과 리스트, "1번 패턴~5번 패턴" 표기), `deep-pattern-detail.tsx`(패턴 시각화+지표+저장) — 목업 승인 화면을 그대로 구현하되, "저장 완료" 별도 화면 대신 기존 `result.tsx`의 `Alert.alert` 저장 확인 관행을 그대로 따랐다(이 앱의 다른 생성 플로우 어디에도 저장 확인 전용 화면이 없어, 새로 하나 만들기보다 기존 패턴과 일관되게 맞췄다).
+- **건드린 기존 파일 (딱 3곳, 전부 additive)**:
+  1. `src/lib/lottery/types.ts` — `GenerationMode`에 `"DEEP_PATTERN"` 리터럴 1개 추가.
+  2. `app/(tabs)/generate.tsx` — `MENU_ITEMS`에 6번째 카드 추가(보라 테두리 + NEW 배지), 아이콘을 PNG 대신 컴포넌트로 받을 수 있게 `iconNode?` 필드 추가(기존 5개 카드의 동작·마크업은 변경 없음).
+  3. `app/_layout.tsx` — `Stack.Screen` 3개(`generate/deep-pattern`, `-result`, `-detail`) 등록.
+- **문구**: 명세 §39 금지 표현(당첨확률 상승, AI 예측 등) 없이 전부 권장 표현만 사용. 소개 화면 경고문구 + 상세 화면 하단 안내문 2곳에 "확률과 무관함"을 명시.
+- **검증**: `npx tsc --noEmit` 클린, `npx eslint .` 클린(irregular whitespace 1건 수정 후). `npx jest --selectProjects unit` — 기존 20개 스위트 169개 테스트 전원 회귀 없이 통과 + 신규 `tests/deepPatternCoordinates.test.ts`/`tests/deepPatternMockEngine.test.ts` 2개 스위트 11개 테스트 추가, 총 22개 스위트 180개 테스트 전부 통과.
+- **의도적으로 하지 않은 것**:
+  - **실제 Deep Pattern Engine(Research/Atlas Builder/Void·Basin 계산)은 미구현이다.** 814만 조합 전수 분석, Null 시뮬레이션, kNN 보정 등은 명세 §41 Phase 2~5에 해당하는 별도 리서치 작업으로, 이번 세션 범위(화면+네비게이션+저장)에서 의도적으로 제외했다 — `mockEngine.ts`가 그 자리를 표시한다.
+  - `components`(jest-expo) 테스트 프로젝트는 이 세션 환경에서 콜드스타트가 매우 느려(과거 세션들에서 반복 확인된 한계) 새 화면에 대한 렌더링 테스트는 추가하지 않았다 — `unit` 프로젝트의 순수 로직 테스트로만 검증했다. **사용자 로컬에서 실제 화면 렌더링(카드 탭 → 결과 → 상세 → 저장 Alert까지 실제 동작) 확인이 필요하다.**
+  - 로딩 애니메이션(`DeepPatternLoadingBoard`)의 실기기 성능/발열, 다크모드에서의 최종 배색은 코드 리뷰 수준까지만 확인했고 실기기 확인은 하지 않았다.
+
+### 53. "딥 패턴 탐색" — mock 엔진을 실제 Atlas 기반 v1 엔진으로 교체
+
+- **배경**: 52번 항목에서 화면·네비게이션·저장까지 mock 데이터로 붙인 뒤, "정직한 v1 근사치로 우선 가고 정식 버전(kNN 보정/Null 시뮬레이션/다중검정 보정)은 하나씩 붙여나가자"는 방향을 사용자가 확정했다.
+- **Atlas Builder 신규**: `scripts/build-deep-pattern-atlas.mjs` — 로또 6/45 **8,145,060개 조합을 실제로 전수 순회**(6중 for문, `a<=40,b<=41,...,f<=45` 표준 조합 생성 경계)하며 조합별 Geometry Feature(용지 좌표 기준 중심 행/열, 산포도)와 홀짝 개수를 계산한다. 경험적 tercile(§6)로 3단계씩 양자화해 **3×3×3×3 = 81개 fine basin**을 정의하고, `data/lotto-draws.json`(전체 역대 이력, 이미 리포에 있음)과 대조해 basin별 밀도비(관측/기대, "구조적 공백")를 계산한다.
+  - **Multi-scale(§11)**: 81개 fine basin과 dispersion·홀짝을 뺀 9개 coarse basin(행×열만) 양쪽에서 밀도비를 계산해 두 해상도 모두 결손이면 `scalePersistenceLevel: HIGH`.
+  - **Temporal(§13)**: 전체 역사 vs 최근 300회 window 양쪽에서 밀도비를 계산해 `temporalPersistenceLevel`을 정한다.
+  - **정직하게 아직 안 한 것**: kNN 보정(§8), Null 시뮬레이션/Skeptic Engine(§14), 다중검정 보정(§14) — Atlas JSON의 `methodology` 필드에 그대로 문자열로 박아뒀다.
+  - **전수 검증(§34)**: 처리한 조합 수(8,145,060)와 81개 basin population 합계가 정확히 일치하지 않으면 스크립트가 즉시 throw한다. 실행 결과: **2.5초**, `data/deep-pattern-atlas.json` **약 85.6KB**, 역대 1235회(최근 300회 window) 기준, 구조적 공백 HIGH basin 11개.
+  - Atlas에는 basin 통계뿐 아니라 **역대 당첨 이력 번호 전체도 함께 담아**(그래봐야 수십 KB) 앱이 런타임에 네트워크 없이도 "가장 가까운 과거 당첨"을 스스로 계산할 수 있게 했다(§30 오프라인 원칙).
+- **`src/lib/deepPattern/engine.ts` 신규**: `mockEngine.ts`와 정확히 같은 시그니처(`recommendDeepPatterns`/`deepPatternEngineStatus`)로, Atlas를 정적 import(`import atlasData from "../../../data/deep-pattern-atlas.json"`, Metro가 JSON을 그대로 번들)해서 쓴다. 런타임에는 814만 개를 순회하지 않는다(§18) — 구조적 공백이 큰 순서로 정렬된 81개 basin 중 상위 몇 개에서만 `generatePureRandom()`(기존 CSPRNG)으로 rejection sampling해 조건에 맞는 조합을 뽑는다. 가장 가까운 과거 당첨은 기존 `combinationSimilarity()`(이미 있는, 이미 검증된 함수)를 그대로 재사용해 계산한다 — 새 유사도 수식을 만들지 않았다.
+- **화면 연동**: `app/generate/deep-pattern.tsx`/`deep-pattern-result.tsx`의 import를 `mockEngine` → `engine`으로 교체한 것 외에는 화면 코드 변경이 전혀 없다(시그니처를 맞춰둔 목적 그대로). `mockEngine.ts`는 삭제하지 않고 남겨뒀다 — 향후 Atlas 로드 실패 시 Graceful Degradation(§32 Level 1/2) fallback 후보로 재활용할 수 있다.
+- **검증**: `npx tsc --noEmit`·`npx eslint .` 클린(스크립트의 `Buffer` no-undef 1건은 Buffer 대신 문자열 길이로 대체해 해결). `npx jest --selectProjects unit` — 신규 `tests/deepPatternAtlas.test.ts`(Atlas 무결성: population 합계, basin key 공식, 역사 배열 정합성 등 7개)와 `tests/deepPatternEngine.test.ts`(실제 엔진 recommend() 결과 유효성 3개) 추가, 기존 mock 엔진 테스트는 그대로 유지(파일이 남아있으므로), 총 **24개 스위트 192개 테스트 전부 통과**(회귀 없음).
+- **의도적으로 안 한 것 / 다음 단계 후보**:
+  - kNN 보정, Null 시뮬레이션, 다중검정 보정(§14) — 통계적 엄밀성의 핵심이지만 그 자체로 별도 세션 분량.
+  - 실기기 latency 실측 및 Anytime/progressive refinement(§22, 시간 budget 기반 탐색) — `MAX_SAMPLING_ATTEMPTS_PER_BASIN=3000`은 근거 있는 실측치가 아니라 보수적으로 잡은 값이다.
+  - Basin 해상도를 지금의 4차원×3단계보다 세분화하는 것(Exact→Fine→Mid→Macro, §7) — 지금은 Macro 수준 1개 해상도(coarse/fine 2단만)뿐이다.
+  - Combinadic rank/unrank(§19) — v1은 basin을 population/observed 집계로만 쓰고 조합 목록을 저장하지 않아 필요 없었지만, 향후 "이 basin의 대표 후보 목록"을 미리 캐시하려면 필요해질 수 있다.
+
+### 54. "딥 패턴 탐색" — kNN Geometric Void 보정 + Null 시뮬레이션/다중검정 보정(§8, §14) 추가
+
+- **배경**: 53번 항목에서 정한 "정직한 v1 근사치 → 정식 항목을 하나씩 붙여나가기" 순서의 1번째 항목. 사용자가 "kNN 보정 / Null 시뮬레이션 / 다중검정 보정"을 한 묶음으로 지정해 이번 세션에서 함께 처리했다.
+- **kNN Geometric Void 보정(§8)**: `src/lib/deepPattern/geometricVoid.ts` 신규.
+  - `patternDistance(a, b)`: 두 조합을 각각 오름차순 정렬한 뒤, 같은 순번의 용지 좌표(행/열) 유클리드 거리 제곱을 6개 합산 — canonical path 대응 지점끼리 비교하므로 정렬 순서와 무관하게 결정적이다.
+  - `kNearestVoidScore(candidate, history, k=10)`: 후보와 역대 모든 당첨 이력 사이의 `patternDistance`를 계산해 오름차순 정렬 후 상위 k개의 **중앙값**을 반환한다(평균 대신 중앙값을 쓴 이유: 이력 안에 우연히 아주 가까운 이상치 1개가 있어도 흔들리지 않게 하기 위함). 값이 클수록 "역대 당첨과 기하학적으로 더 멀리 떨어진, 더 탐색되지 않은 패턴"이라는 뜻이다.
+  - **적용 지점**: `engine.ts`의 `sampleFromBasin()`을 "첫 rejection-sampling 성공을 그대로 채택"하던 기존 방식에서, **동일 basin 안에서 최대 20개 후보 풀을 모은 뒤 그중 `kNearestVoidScore`가 가장 높은 후보를 선택**하는 방식으로 교체(`CANDIDATE_POOL_SIZE=20`, `K_NEAREST_FOR_VOID=10`). 같은 basin(밀도비 기준 공백)이라도 그 안에서 실제로 역대 당첨과 기하학적으로 가장 먼 조합을 우선하게 됐다.
+- **Null 시뮬레이션 + 다중검정 보정(§14 Skeptic Engine)**: `scripts/build-deep-pattern-atlas.mjs`에 `[5/5]` 단계로 추가.
+  - 결정적 PRNG(`mulberry32`, 고정 시드 `20260808`)로 **실제 역사와 같은 길이(1235회)의 "가짜 무작위 역사" 500개**를 생성하고, 매 시뮬레이션마다 81개 basin 전체의 관측/기대 밀도비를 다시 계산한다.
+  - basin별 p-value 대신, **81개 basin을 동시에 봤다는 사실 자체를 보정하는 family-wise(최선-대-최선) p-value**를 계산한다: 각 시뮬레이션에서 "81개 basin 중 가장 극단적인(밀도비가 가장 낮은) basin"의 값만 모아 500개 null 분포를 만들고, 실제 관측된 basin의 밀도비가 이 null 분포에서 몇 번째로 극단적인지로 `validationPercentile`(0~100)을 산출한다. 단순 Bonferroni(81로 나누기)보다 basin 간 실제 상관관계를 그대로 반영해 더 정확하다.
+  - **정직한 결과 — 임의로 조정하지 않고 그대로 반영**: 53번 항목에서 "구조적 공백 HIGH"로 나온 81개 basin 중 11개 중, family-wise 보정을 거치고 나면 **`validationPercentile ≥ 90`(통계적 유의성 "높음")인 basin은 단 1개, `≥ 50`(통계적 유의성 "보통" 이상)인 basin도 3개뿐**이었다. 즉 겉으로 "공백"처럼 보이는 대부분의 basin은 81개를 동시에 검정했다는 점까지 감안하면 무작위 변동과 통계적으로 뚜렷이 구분되지 않는다 — 이는 명세 §17이 정확히 예견한 상황("무작위 범위 안이라면 그대로 보여준다")이라 임계값을 조정해 "더 그럴듯한" 결과를 만들지 않고 그대로 반영했다.
+- **타입/엔진/화면 연동**:
+  - `src/lib/deepPattern/types.ts`의 `DeepPatternRecommendation`에 `validationPercentile: number` 필드 추가(0~100, family-wise 보정된 p-value 기반).
+  - `engine.ts`가 basin의 `validationPercentile`을 그대로 추천 결과에 실어 보낸다. `mockEngine.ts`도 동일 인터페이스를 구현해야 하므로 mock 값(`randomInt(10, 100)`)으로 채워 타입 일관성을 유지했다(주석으로 "mock — 실제 Null 시뮬레이션 아님" 명시).
+  - `app/generate/deep-pattern-detail.tsx`에 **"통계적 유의성"** 지표 행 추가(`validationLevel()`로 0~100 percentile을 기존 LOW/MID/HIGH 3단계 표시 체계에 매핑, 임계값은 90/50). 바로 아래에 "낮음이면 무작위 변동과 구분되지 않는다는 뜻이며 이 역시 정상적인 결과"라는 캡션을 달아, 대부분의 basin이 여기서 LOW로 뜨더라도 사용자가 "버그"나 "실패"로 오해하지 않도록 했다.
+- **Atlas 메타데이터**: `engineVersion`/`atlasVersion`을 `DPE-1.0-v2approx`/`ATLAS-1.0-v2approx`로 올리고, `nullModelVersion: "NULL-1.0-familywise"`/`numNullSimulations: 500` 필드를 추가. `methodology` 설명 문자열도 이번에 구현된 항목(Multi-scale/Temporal/kNN/Null+다중검정)과 여전히 남은 항목을 갱신했다.
+- **검증**: Atlas 재빌드 총 2.7초(Null 시뮬레이션 자체는 0.2초), 산출물 약 85.6KB. `npx tsc --noEmit` 클린, `npx eslint .` 클린. `npx jest --selectProjects unit` — 신규 `tests/deepPatternGeometricVoid.test.ts`(patternDistance/kNearestVoidScore 성질 검증 5개) 추가 + 기존 `deepPatternAtlas.test.ts`/`deepPatternEngine.test.ts`/`deepPatternMockEngine.test.ts`에 `validationPercentile` 범위(0~100)·population 0인 basin은 0이어야 한다는 등의 검증 추가, **총 25개 스위트 201개 테스트 전부 통과**(회귀 없음).
+- **의도적으로 안 한 것 / 다음 단계 후보**:
+  - 실기기 latency 실측 및 Anytime/progressive refinement(§22) — 후보 풀을 20개로 늘리고 kNN 계산까지 추가돼 basin당 연산량이 늘었지만, 이 세션에서는 실기기 실측을 하지 못했다.
+  - Basin 해상도 세분화(Exact→Fine→Mid→Macro, §7) — 여전히 fine/coarse 2단만 존재한다.
+  - `components`(jest-expo) 렌더링 테스트 — 여전히 미착수(과거 세션들에서 반복 확인된 콜드스타트 제약과 동일한 이유).
+
+### 55. "딥 패턴 탐색" — basin 해상도 세분화(§7 Mid 계층) + 추천 생성 latency 대폭 개선
+
+- **배경**: 사용자가 다음 두 가지를 함께 요청했다 — (1) 54번 항목 이후 다음 순서였던 "basin 해상도 세분화"(§7 Exact→Fine→Mid→Macro), (2) 번호 추천이 나오기까지 체감 대기 시간이 길어 사용자 이탈이 우려된다는 지적, 파일 손상 여부를 반드시 확인해달라는 당부. 원인을 분석해보니 이 둘이 실제로 같은 근본 원인(런타임 rejection sampling)에서 나온 문제라 한 번에 같이 처리했다.
+- **latency 원인 진단**: `engine.ts`의 기존 `sampleFromBasin()`은 basin 1개마다 "CSPRNG로 무작위 조합을 뽑고 → 그 조합이 목표 basin에 속하는지 좌표를 다시 계산해서 확인 → 아니면 버림"을 반복하는 rejection sampling이었다. 81개 basin 중 특정 하나에 우연히 들어맞을 확률은 약 1/81(1.2%)이라, 후보 풀 20개를 채우려면 평균 약 1,600회, 상한(`MAX_SAMPLING_ATTEMPTS_PER_BASIN`)까지 가면 최대 3,000회의 CSPRNG 호출이 필요했다. 5개 추천이면 최악의 경우 basin당 3,000 × 5 = 15,000회에 달하는 `expo-crypto` 브릿지 기반 난수 호출이 발생할 수 있는 구조였다 — 실기기에서 체감되는 지연의 핵심 원인으로 추정된다(이 세션 환경엔 실기기가 없어 정확한 ms 실측은 못 했지만, 구조적으로 명백한 병목이었다).
+- **해결(§18 "Precompute globally, evaluate locally"를 한 단계 더 밀어붙임)**: `scripts/build-deep-pattern-atlas.mjs`가 어차피 814만 개 전수 순회를 하는 김에, basin마다 **결정론적 reservoir sampling(Algorithm R, 고정 seed)으로 대표 후보 최대 150개를 미리 뽑아 Atlas JSON에 `sampleCombos`로 함께 저장**하도록 바꿨다. 이제 런타임(`engine.ts`)은 이 150개짜리 목록에서 `securePartialShuffle`(CSPRNG 사용, 20개만 부분셔플)로 가볍게 고르기만 한다 — **basin당 CSPRNG 호출이 최대 3,000회에서 20회 안팎으로 감소**했다. 통계적 성질은 그대로다: reservoir sampling 자체가 그 basin 전체 인구에서의 균등 무작위 표본이므로, "basin 내부에서 무작위로 고른다"는 원래 의도와 결과 분포는 동일하다.
+  - 이 리팩터로 `engine.ts`에서 `computeBasinKeyFor`/`paperRow`/`paperCol`/`zone3`/`oddZoneOf`/`fineBasinKey`(빌드 스크립트와 별도로 유지하던 좌표 계산 중복 구현)를 전부 삭제할 수 있었다 — 부수적으로, 두 구현이 미묘하게 어긋날 위험(예: 아래에서 발견한 Float32 정밀도 문제)도 함께 없앴다.
+  - `generatePureRandom()` 의존성도 `engine.ts`에서 완전히 제거됐다(더 이상 무작위 조합을 새로 만들 필요가 없다).
+- **basin 해상도 세분화(§7)**: `finePopulation`(81개, 행×열×산포도×홀짝)과 `coarsePopulation`(9개, 행×열)에 더해 **`midPopulation`(27개, 행×열×산포도 — 홀짝만 뺌)을 새로 추가**해 3단계 Multi-scale을 구성했다. `scalePersistenceLevel`은 이제 "fine·mid·coarse 3단계 모두 결손일 때만 HIGH, fine이 결손이면서 mid나 coarse 중 하나라도 결손이면 MID, 그 외 LOW"로 재정의했다(기존 fine/coarse 2단계보다 "우연히 fine 한 곳만 결손인" 경우를 더 잘 걸러낸다). basin 객체에 `midDensityRatio` 필드를 추가했다.
+- **파일 무결성 검증(사용자가 특별히 당부한 부분)**: Atlas를 재생성한 뒤 다음을 직접 실행해 확인했다.
+  1. `JSON.parse()`로 파일 전체가 깨지지 않고 정상 로드되는지 확인 (312.3KB, 기존 85.6KB에서 `sampleCombos` 추가로 커짐 — 여전히 명세 §20이 경고하는 1.3GB와는 비교가 안 되는 크기).
+  2. 81개 basin 전부 `sampleCombos` 150개씩 채워짐(총 12,150개), 각 조합이 "6개 서로 다른 1~45 오름차순 정렬" 계약을 만족하는지 전수 검증 — 이상 없음.
+  3. **12,150개 대표 후보 전부가 실제로 자신이 속한다고 표시된 basin에 맞는지 좌표를 재계산해 교차검증** — 첫 시도에서 1,935개 불일치가 나와 진짜 버그인 줄 알았으나, 원인을 추적해보니 빌드 스크립트가 `Float32Array`로 좌표를 저장해(메모리 절약 목적) zone 판정을 float32 정밀도로 하는데, 검증 스크립트는 float64로 재계산해서 생긴 **정밀도 차이로 인한 오탐**이었다(`Math.fround()`로 float32 반올림을 재현하니 불일치 0건으로 전부 통과). 이 과정에서 오히려 "기존 `engine.ts`의 `computeBasinKeyFor`도 float64로 계산해 빌드 스크립트(float32)와 미묘하게 어긋날 수 있었다"는, 이번 리팩터로 우연히 해소된 잠재 버그를 하나 더 찾아냈다.
+  4. 위 교차검증 로직을 `tests/deepPatternAtlas.test.ts`에 정식 테스트로 남겨(basin마다 대표로 10개씩, 총 810개 표본 검사) 앞으로도 자동으로 회귀를 잡을 수 있게 했다.
+- **버전**: `engineVersion`/`atlasVersion`을 `DPE-1.1-v3approx`/`ATLAS-1.1-v3approx`로 올렸다. Atlas 메타데이터에 `basinSampleSize: 150` 필드 추가.
+- **검증**: Atlas 재빌드 2.9초(전수 순회 0.8s + reservoir sampling 포함 population 집계 단계 + Null 시뮬레이션 0.1s). `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest --selectProjects unit` — `deepPatternAtlas.test.ts`에 basin.sampleCombos 유효성/basin 소속 교차검증/scalePersistenceLevel 3단계 로직 검증 테스트 3개 추가, `deepPatternEngine.test.ts`에 `recommend(5)`가 3초 안에 끝나는지 확인하는 latency 가드레일 테스트 1개 추가(참고: 이 세션 환경은 Jest/Node라 실기기 성능을 대변하진 않지만, v2 방식으로 되돌아가는 회귀가 생기면 이 임계값을 훨씬 넘기므로 가드레일로는 유효하다) — **총 25개 스위트 205개 테스트 전부 통과**(회귀 없음).
+- **의도적으로 안 한 것 / 다음 단계 후보**:
+  - §7의 "Exact"(개별 조합 단위) 해상도는 여전히 별도 basin 계층으로 만들지 않았다 — kNN Geometric Void(§8)가 basin 내부 선택 단계에서 이미 근사적으로 그 역할을 하고 있어, 우선순위가 낮다고 판단했다.
+  - 실기기 latency 실측(§22) — 이번 변경으로 구조적으로는 크게 개선됐을 것으로 기대하지만, 정확한 ms 단위 체감 개선치는 실기기에서만 확인 가능하다. **사용자 로컬/실기기에서 "패턴 분석 시작하기" 버튼을 눌렀을 때 체감 대기 시간이 실제로 줄었는지 확인이 필요하다.**
+  - `sampleCombos` 150개라는 값은 Atlas 크기와 다양성 사이의 근거 있는 실측치가 아니라 보수적으로 잡은 값이다 — 실기기 확인 후 늘리거나 줄일 수 있다.

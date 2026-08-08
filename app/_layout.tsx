@@ -17,6 +17,9 @@ export default function RootLayout() {
             <Stack.Screen name="generate/lucky" options={{ title: "나의 행운번호" }} />
             <Stack.Screen name="generate/dice" options={{ title: "45면체 주사위" }} />
             <Stack.Screen name="generate/destiny" options={{ title: "운명의 신" }} />
+            <Stack.Screen name="generate/deep-pattern" options={{ title: "딥 패턴 탐색" }} />
+            <Stack.Screen name="generate/deep-pattern-result" options={{ title: "딥 패턴 탐색 결과" }} />
+            <Stack.Screen name="generate/deep-pattern-detail" options={{ title: "패턴 상세" }} />
             <Stack.Screen name="generate/result" options={{ title: "생성 결과" }} />
             <Stack.Screen name="preferences" options={{ title: "선호번호 · 제외번호 세트" }} />
             <Stack.Screen name="privacy" options={{ title: "개인정보처리방침" }} />

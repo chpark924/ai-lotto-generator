@@ -2,15 +2,19 @@ import React from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { DeepPatternIcon } from "../../src/components/deepPattern";
 import { useAppTheme, type AppColors } from "../../src/theme";
 
 const MENU_ITEMS: {
   title: string;
   description: string;
   path: string;
-  icon: number;
+  /** 기존 5개는 PNG 에셋(require) 아이콘. 딥 패턴만 새 이미지 에셋 없이 SVG 컴포넌트로 그린다. */
+  icon?: number;
+  iconNode?: React.ReactNode;
   recommended?: boolean;
   hot?: boolean;
+  isNew?: boolean;
 }[] = [
   {
     title: "제외하고 생성",
@@ -44,6 +48,13 @@ const MENU_ITEMS: {
     icon: require("../../assets/quick-menu-icons/destiny.png"),
     hot: true,
   },
+  {
+    title: "딥 패턴 탐색",
+    description: "역사적으로 덜 관측된 패턴 영역의 번호를 찾아드립니다.",
+    path: "/generate/deep-pattern",
+    iconNode: <DeepPatternIcon />,
+    isNew: true,
+  },
 ];
 
 export default function GenerateHubScreen() {
@@ -57,7 +68,7 @@ export default function GenerateHubScreen() {
       {MENU_ITEMS.map((item) => (
         <Pressable
           key={item.path}
-          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+          style={({ pressed }) => [styles.card, item.isNew && styles.cardNew, pressed && styles.cardPressed]}
           android_ripple={{ color: "#E2E8F0" }}
           onPress={() => router.push(item.path as never)}
           accessibilityRole="button"
@@ -66,10 +77,16 @@ export default function GenerateHubScreen() {
               ? `추천. ${item.title}. ${item.description}`
               : item.hot
                 ? `HOT. ${item.title}. ${item.description}`
-                : `${item.title}. ${item.description}`
+                : item.isNew
+                  ? `신규. ${item.title}. ${item.description}`
+                  : `${item.title}. ${item.description}`
           }
         >
-          <Image source={item.icon} style={styles.cardIcon} resizeMode="contain" />
+          {item.iconNode ? (
+            <View style={styles.cardIconWrap}>{item.iconNode}</View>
+          ) : (
+            <Image source={item.icon} style={styles.cardIcon} resizeMode="contain" />
+          )}
           <View style={styles.cardBody}>
             <View style={styles.cardTitleRow}>
               <Text style={styles.cardTitle}>{item.title}</Text>
@@ -81,6 +98,11 @@ export default function GenerateHubScreen() {
               {item.hot ? (
                 <View style={styles.hotBadge}>
                   <Text style={styles.hotBadgeText}>HOT</Text>
+                </View>
+              ) : null}
+              {item.isNew ? (
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>NEW</Text>
                 </View>
               ) : null}
             </View>
@@ -121,7 +143,12 @@ function createStyles(colors: AppColors) {
       shadowOpacity: 0.03,
       elevation: 1,
     },
+    cardNew: {
+      borderColor: "#6C5CE7",
+      borderWidth: 1.5,
+    },
     cardIcon: { width: 56, height: 56, marginRight: 14 },
+    cardIconWrap: { marginRight: 14 },
     cardBody: { flex: 1, marginRight: 8 },
     cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" },
     cardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
@@ -140,5 +167,12 @@ function createStyles(colors: AppColors) {
       paddingVertical: 2,
     },
     hotBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    newBadge: {
+      backgroundColor: "#6C5CE7",
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    newBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   });
 }

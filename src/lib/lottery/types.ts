@@ -10,7 +10,15 @@ export type GenerationMode =
   | "AI_SEARCH"
   | "LUCKY_PROFILE"
   | "DICE"
-  | "DESTINY_GOD";
+  | "DESTINY_GOD"
+  /**
+   * 딥 패턴 탐색(src/lib/deepPattern/). 이 모드로 생성된 GeneratedGame은 기존
+   * generator.ts를 거치지 않고, saveTicket() 저장 시점에만 이 리터럴로 태그된다 —
+   * 내 번호 탭에서 "어떤 방식으로 만든 번호인지" 구분하기 위한 용도일 뿐, 이 값 자체가
+   * 다른 모드의 exhaustive switch를 깨지 않는다(grep으로 전수 확인 — mode는 어디서도
+   * switch 없이 `=== "AI_SEARCH"` 식 동등 비교로만 쓰인다).
+   */
+  | "DEEP_PATTERN";
 
 export type ConsecutiveRule =
   | "ANY"
