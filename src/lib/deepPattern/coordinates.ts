@@ -22,16 +22,32 @@ export interface PaperCell extends PaperPosition {
   number: number;
 }
 
-/** 번호 n(1~45)의 용지 좌표를 계산한다. 왼쪽 위부터 가로로 채워나가는 배치. */
-export function getPaperPosition(n: number): PaperPosition {
-  if (!Number.isInteger(n) || n < 1 || n > PAPER_TOTAL_NUMBERS) {
-    throw new Error(`번호는 1~${PAPER_TOTAL_NUMBERS} 사이의 정수여야 합니다: ${n}`);
-  }
+function computePaperPosition(n: number): PaperPosition {
   const zeroBased = n - 1;
   return {
     col: (zeroBased % PAPER_COLUMNS) + 1,
     row: Math.floor(zeroBased / PAPER_COLUMNS) + 1,
   };
+}
+
+/**
+ * 1~45 좌표를 모듈 로드 시 한 번만 계산해두는 조회 테이블(index 0은 안 씀). §8 kNN
+ * Geometric Void처럼 짧은 시간에 getPaperPosition을 수만 번 호출하는 경로(engine.ts의
+ * kNearestVoidScore가 추천 5개당 최대 12만 회 이상 호출)에서, 매번 나눗셈·나머지 연산과
+ * 객체 할당을 반복하는 대신 이미 계산해둔 값(같은 객체 참조)을 그대로 돌려준다 — 읽기
+ * 전용으로만 쓰이므로(호출부가 반환값을 변형하지 않음) 참조를 공유해도 안전하다.
+ */
+const PAPER_POSITION_TABLE: PaperPosition[] = [
+  { row: 0, col: 0 }, // index 0 자리채움(사용 안 함, n은 1부터 시작)
+  ...Array.from({ length: PAPER_TOTAL_NUMBERS }, (_, i) => computePaperPosition(i + 1)),
+];
+
+/** 번호 n(1~45)의 용지 좌표를 반환한다. 왼쪽 위부터 가로로 채워나가는 배치. */
+export function getPaperPosition(n: number): PaperPosition {
+  if (!Number.isInteger(n) || n < 1 || n > PAPER_TOTAL_NUMBERS) {
+    throw new Error(`번호는 1~${PAPER_TOTAL_NUMBERS} 사이의 정수여야 합니다: ${n}`);
+  }
+  return PAPER_POSITION_TABLE[n];
 }
 
 /** 1~45 전체 번호의 좌표 목록 (시각화에서 빈 칸 없이 그리드를 그릴 때 사용). */
