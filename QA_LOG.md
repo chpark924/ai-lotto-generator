@@ -599,3 +599,29 @@
 - **정직하게 밝혀야 할 부분**: 이번 재검증 중 `tests/components/lab.test.tsx`가 "5000ms 테스트 타임아웃 초과"로 실패하는 것을 다시 관찰했다(딥 패턴과 무관한 기존 테스트) — 57번 항목에서 이미 유사한 현상이 기록됐고 그때 사용자 로컬 `npm test`에서는 전부 통과가 확인된 바 있다. 이번엔 원인 규명보다 "내가 수정한 두 화면이 회귀를 일으켰는지"만 개별 실행으로 확인(둘 다 정상)했고, `lab.test.tsx` 자체의 재확인은 다시 한번 사용자 로컬 실행에 맡겼다 — 100% 확신할 수 없는 부분을 리포트에도 명시했다.
 - **점수**: `APP_REVIEW_2026-08-08.md`에 8/6 대비 종합 88→91로 상세 근거와 함께 기록. 상세 내용(5개 관점, 경쟁 앱 대비 포지션, 우선순위별 개선 제안)은 리포트 파일 참고.
 - **검증**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest --selectProjects unit` 25개 스위트 205개 테스트 전부 통과(회귀 없음). `components` 프로젝트는 수정한 두 화면만 개별 실행해 통과 확인(전체 5개 파일 동시 실행은 이번에도 샌드박스 시간 제한으로 하지 못함).
+
+### 59. Combinadic rank/unrank 사전 작업(§19) 신규 구현
+
+- **배경**: 58번 종합 재점검 리포트가 "다음 단계 후보"로 정리해둔 것 중, 실기기 테스트 전에 진행할 수 있는 항목으로 사용자가 "Combinadic rank/unrank(§19)"를 1순위로 지정했다. 지금(v3, #55)은 basin마다 빌드타임에 reservoir sampling으로 뽑아둔 최대 150개 대표 후보(`sampleCombos`)만 쓰고 있는데, 앞으로 §7의 "Exact"(개별 조합) 해상도 계층을 만들거나 basin 표본을 더 정교하게(예: 결정론적 균등 간격 표본, 특정 순위 구간 추출) 다루려면 "이 조합이 전체 8,145,060개 중 몇 번째인가"/"몇 번째 조합이 무엇인가"를 즉시 계산할 수 있어야 한다 — 그 기반을 미리 준비하는 사전 작업이다.
+- **구현**: `src/lib/deepPattern/combinadic.ts` 신규.
+  - `rankCombination(numbers)`: 조합(1~45, 순서 무관 6개) → `scripts/build-deep-pattern-atlas.mjs`의 6중 for문(a<=40,b<=41,...,f<=45, 표준 사전순)이 매기는 것과 정확히 같은 순위(0~8,145,059)를, 8,145,060개를 실제로 순회하지 않고 이항계수 합만으로 O(45) 시간에 계산한다. 각 자리마다 "실제보다 더 작은 값이 왔다면 나머지 자리를 채우는 방법의 수"를 더하는 표준 조합론 공식을 그대로 구현했다.
+  - `unrankCombination(rank)`: 순위 → 조합(1~45 오름차순 6개), `rankCombination`의 정확한 역함수. 각 자리 후보값을 0부터 올려가며 남은 순위에서 뺄 수 있는 만큼 빼는 방식.
+  - 둘 다 입력 검증(개수 6개, 범위 1~45, 중복 없음, 순위 범위)을 갖췄고, 정렬 안 된 입력도 내부에서 정렬해 처리한다.
+  - **정직한 현재 상태**: 이 모듈은 아직 엔진(`engine.ts`)이나 Atlas 빌더 어디에서도 실제로 호출되지 않는다 — 지금의 reservoir sampling 방식이 이미 latency 문제를 해결했기 때문에 당장 급하게 필요한 것은 아니고, 다음 단계(basin 표본 정교화, Exact 해상도 계층)를 위한 준비 작업이라는 점을 코드 docblock에도 명시했다.
+- **검증(§34 Exhaustive/Golden/Property Test 원칙)**: `tests/deepPatternCombinadic.test.ts` 신규, 18개 테스트.
+  - **golden value**: 사전순 첫/마지막 조합(순위 0, 8,145,059), 자릿수 캐리(carry) 경계값을 손으로 미리 계산해 하드코딩 — 예를 들어 a=1로 시작하는 조합 개수는 C(44,5)=1,086,008개이므로 `(1,41,42,43,44,45)`는 순위 1,086,007, `(2,3,4,5,6,7)`은 1,086,008이어야 한다는 걸 직접 검증. a=1,b=2 구간(C(43,4)=123,410개)의 경계도 동일하게 확인.
+  - **사전순 순차 일치**: Atlas 빌더와 정확히 같은 6중 for문을 테스트 안에서도 재현해 처음 12,000개 조합을 직접 생성하고, 전부 `rank(combo)===idx`/`unrank(idx)===combo`를 전수 확인(자릿수 캐리가 여러 번 발생하는 구간까지 커버). 전체 8,145,060개를 다 도는 것은 테스트 비용상 비현실적이라 이 방식으로 대체했다.
+  - **property 기반 round-trip**: 결정론적 PRNG(mulberry32, 고정 seed)로 무작위 순위 2,000개(unrank→rank)와 무작위 조합 2,000개(rank→unrank) round-trip을 확인.
+  - **실제 Atlas 데이터 교차검증**: `data/deep-pattern-atlas.json`의 실제 `sampleCombos`(처음/중간/마지막 basin에서 일부)를 가져와 rank→unrank round-trip을 재확인 — 파일 무결성까지 이 신규 유틸 관점에서 다시 짚었다.
+  - 입력 검증(잘못된 개수/범위/중복/순위) 오류 처리 테스트도 포함.
+- **검증**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest --selectProjects unit` — 신규 스위트 포함 **26개 스위트 223개 테스트 전부 통과**(회귀 없음, 신규 18개 테스트 전부 통과).
+- **다음 단계**: 아직 실제로 쓰이는 곳이 없다 — basin 표본을 결정론적 균등 간격으로 뽑거나 §7 Exact 해상도 계층을 만들 때 이 유틸을 가져다 쓰면 된다.
+
+### 60. `npm audit` 취약점 체인 실제 조사 — 안전하게 고칠 수 있는 부분만 반영
+
+- **배경**: 58번 종합 재점검이 "8/6 15건 → 8/8 25건으로 늘어난 `npm audit` 건수를 다음 사이클에 한 번 확인"이라고 남긴 제안 항목을, 사용자가 Combinadic 작업(59번) 다음 순서로 지정해 실제로 조사했다.
+- **조사 방법**: `npm audit --omit=dev --json`으로 전체 취약점 목록과 각 항목의 `fixAvailable` 정보를 직접 파싱했다. 결과: 대부분(`@expo/cli`, `@expo/config`, `@expo/config-plugins`, `expo`, `expo-router`, `expo-notifications`, `expo-constants`, `expo-linking`, `expo-splash-screen`, `react-native`, `metro` 계열, `postcss`, `uuid`, `xcode`, `image-size` 등)의 `fixAvailable`이 `{"name":"expo","version":"57.0.11","isSemVerMajor":true}` 또는 이에 준하는 **메이저 버전 상승**으로만 표시됐다 — 즉 지금 앱이 쓰는 Expo SDK 54(`expo: ~54.0.36`)를 SDK 57로 올려야만 해소되는 취약점들이고, 이는 8/6 리포트가 지적한 New Architecture 전환 이슈와 맞물린 훨씬 큰 작업이라 이번 세션에서 다룰 범위가 아니라고 판단했다. `npm audit fix --dry-run`으로도 재확인 — 이 항목들은 전부 `--force`(브레이킹 체인지 감수) 없이는 고칠 수 없음을 명시하고 있었다.
+- **안전하게 고칠 수 있는 부분은 실제로 있었다**: `brace-expansion`(고, 취약 범위 `4.0.0-5.0.8`)이 `@expo/cli`/`@expo/config` 내부의 `glob`→`minimatch` 체인에 **패치 버전(5.0.9)으로 이미 게시돼 있었고**, `package.json`의 top-level 버전 제약(`expo: ~54.0.36` 등)을 전혀 건드리지 않고도 npm 리졸버가 그 안에서 고를 수 있는 범위였다. `npm audit fix`(force 아님)를 실행해 `package-lock.json`만 갱신했다(`package.json`은 diff 없음 — 커밋 전 `git diff package.json`으로 직접 확인).
+- **결과**: `npm audit --omit=dev` 기준 **25건 → 23건(moderate 11/high 12, 기존 high 14)**으로 감소. brace-expansion 관련 high 취약점 2건이 해소됐다.
+- **검증(회귀 없음 확인)**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest --selectProjects unit` **26개 스위트 223개 테스트 전부 통과**. `components` 프로젝트도 딥 패턴 소개 화면(`deepPatternIntro.test.tsx`, 2/2)을 재실행해 jest-expo 프리셋이 lockfile 갱신 후에도 정상 동작함을 확인했다.
+- **정직한 한계**: 남은 23건은 전부 Expo SDK 메이저 업그레이드(54→57)가 필요한 항목들이라 이번 세션에서는 손대지 않았다 — 8/6 리포트가 이미 지적한 New Architecture 전환 계획과 함께 묶어서 별도 세션으로 계획하는 게 맞다고 판단했다. 이 취약점들은 기존 리포트들이 반복 확인해온 대로 EAS 빌드/prebuild 툴체인 전용이며 `app/`·`src/` 런타임 코드에서 직접 import하는 곳이 없어(재확인 완료), 지금 당장 앱 런타임 보안에 영향을 주지 않는다는 결론은 이번에도 유효하다.
