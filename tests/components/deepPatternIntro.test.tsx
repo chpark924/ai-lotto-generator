@@ -28,6 +28,12 @@ jest.mock("expo-router", () => ({
 
 jest.mock("../../src/lib/deepPattern/engine", () => ({
   recommendDeepPatterns: jest.fn(),
+  // deep-pattern.tsx가 마운트될 때(useEffect)와 "패턴 분석 시작하기"를 누를 때 각각
+  // refreshAtlasIfStale()/snapFrequentPatternRatio()도 실제로 호출한다(QA_LOG 77~79번,
+  // 72번) — 이 화면 전체를 모킹하는 이상 엔진 모듈에서 실제로 export되는 함수는 전부 같이
+  // 모킹해줘야 "is not a function" TypeError 없이 렌더링/버튼 클릭이 끝까지 진행된다.
+  refreshAtlasIfStale: jest.fn(() => Promise.resolve()),
+  snapFrequentPatternRatio: jest.fn((value: number) => value),
 }));
 
 function makeFixtureBatch(): DeepPatternBatch {
@@ -59,10 +65,12 @@ describe("DeepPatternIntroScreen (딥 패턴 탐색 소개)", () => {
     useDeepPatternStore.setState({ batch: null, selectedIndex: 0 });
   });
 
-  it("소개 문구와 확률 무관 경고 문구가 화면에 나타난다", () => {
+  it("소개 문구가 화면에 나타난다", () => {
     render(<DeepPatternIntroScreen />);
     expect(screen.getByText(/814만 개 조합/)).toBeTruthy();
-    expect(screen.getByText(/실제 당첨확률을 높이지 않습니다/)).toBeTruthy();
+    // 예전에는 이 화면에도 별도 확률 무관 경고 박스가 있었지만, QA_LOG.md 71번 항목에서
+    // deep-pattern-detail.tsx(상세 화면)에 동일 취지의 안내가 이미 있어 중복이라는 피드백에
+    // 따라 의도적으로 제거됐다 — 여기서 그 문구를 다시 기대하면 안 된다.
   });
 
   it("'패턴 분석 시작하기'를 누르면 엔진 결과가 스토어에 저장되고 결과 화면으로 이동한다", async () => {
