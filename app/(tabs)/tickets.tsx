@@ -43,6 +43,19 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 
 const STATUS_ORDER: TicketStatus[] = ["SAVED", "PLANNED", "PURCHASED", "CHECKED"];
 
+/**
+ * 당첨 확인 결과 알림을 사람 말투로 보여준다. 예전엔 rank(0=낙첨, 1~5=등수)를
+ * `결과: ${RANK_LABELS[rank]}`로만 기계적으로 표시했는데(예: "결과: 낙첨"), 감정이 실린
+ * 순간(당첨/낙첨 확인)일수록 문구가 딱딱하면 안 좋은 인상을 준다는 QA 피드백(2026-08-13)에
+ * 따라 낙첨/당첨을 구분해 각각 위로·축하 문구로 바꾼다.
+ */
+function buildResultAlert(rank: 0 | 1 | 2 | 3 | 4 | 5): { title: string; message: string } {
+  if (rank === 0) {
+    return { title: "낙첨", message: "안타깝게도 낙첨되었습니다." };
+  }
+  return { title: "당첨을 축하드려요!", message: `${RANK_LABELS[rank]}에 당첨되셨습니다!` };
+}
+
 /** 상태별로 배지 색을 다르게 줘서 한눈에 구분되게 한다 (저장함/구매 예정이 같은 색이라 헷갈린다는 피드백 반영). */
 function getStatusBadgeStyle(tints: AppTints, status: TicketStatus): { backgroundColor: string; color: string } {
   const byStatus: Record<TicketStatus, { backgroundColor: string; color: string }> = {
@@ -113,11 +126,13 @@ export default function TicketsScreen() {
 
       if (newlyChecked.length > 0) {
         const winners = newlyChecked.filter((r) => r.rank > 0);
+        // 개별 확인(위 buildResultAlert)과 같은 톤을 유지 — 당첨된 회차가 있으면 축하 문구로,
+        // 없으면 "아쉽게도"처럼 부드러운 문구로 감싼다("제 1235회: 낙첨"처럼 기계적으로 나열하지 않음).
         const summary =
           winners.length > 0
-            ? winners.map((w) => `제 ${w.drawNumber}회: ${RANK_LABELS[w.rank]}`).join("\n")
+            ? winners.map((w) => `제 ${w.drawNumber}회 조합이 ${RANK_LABELS[w.rank]}에 당첨됐어요!`).join("\n")
             : `${newlyChecked.length}건의 결과를 확인했어요. 아쉽게도 당첨은 없었습니다.`;
-        Alert.alert("당첨 결과 자동 확인", summary);
+        Alert.alert(winners.length > 0 ? "당첨을 축하드려요!" : "당첨 결과 자동 확인", summary);
         await load();
       }
     } finally {
@@ -230,7 +245,8 @@ export default function TicketsScreen() {
     const rank = computeRank(ticket.game.numbers, result.draw);
     try {
       await updateTicketMatchedRank(ticket.id, rank);
-      Alert.alert(`결과: ${RANK_LABELS[rank]}`);
+      const { title, message } = buildResultAlert(rank);
+      Alert.alert(title, message);
       load();
     } catch {
       Alert.alert("저장 실패", "확인 결과를 저장하지 못했어요. 다시 시도해주세요.");
