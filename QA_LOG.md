@@ -805,3 +805,11 @@
   - `<ScrollView>`를 새 `chartPanel` 스타일(`colors.surfaceAlt` 배경, 둥근 모서리)로 감싸서 카드 흰 배경과 명확히 구분되는 별도 패널처럼 보이게 함. `showsHorizontalScrollIndicator`도 다시 켜서 네이티브 스크롤바 힌트까지 함께 제공(색상 구분 + 스크롤바 두 가지 신호).
   - `useRef<ScrollView>`로 참조를 잡고, `onContentSizeChange`(그래프 폭이 실제로 확정되는 시점 — 표본이 바뀌어 폭이 달라질 때도 다시 호출됨)에서 `scrollToEnd({ animated: false })`를 호출해 항상 맨 오른쪽(최신 회차)이 기본으로 보이게 함.
 - **검증**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest tests/components/lab.test.tsx` 통과(이 화면이 `SumTrendChart`를 렌더링하는 유일한 컴포넌트 테스트 — jest 테스트 렌더러에는 실제 레이아웃 엔진이 없어 `onContentSizeChange`가 테스트 중에는 호출되지 않으므로 `scrollToEnd` 관련 회귀 위험 없음을 확인). 실기기에서 그래프 영역이 시각적으로 구분되는지, 진입 시 최신 회차(1236회)가 바로 보이는지는 육안 확인 필요.
+
+### 84. "내 번호" 화면 — 저장한 카드들이 너무 촘촘해서 가독성 저하
+- **피드백**: [스크린샷 2장, 동일] 내 번호 화면에서 저장한 조합 카드들의 영역이 다 똑같이 나열돼 있어 눈에 잘 안 들어오고 피곤하다 — 각 카드 영역을 좀 줄이고, 카드 사이 간격을 늘려서 가독성을 개선해달라는 요청.
+- **수정**: `app/(tabs)/tickets.tsx`
+  - `card`: 안쪽 여백 `padding` 16→14로 살짝 축소, 카드 사이 간격 `marginBottom` 12→20으로 확대(카드 자체는 컴팩트하게, 카드 간 구분은 뚜렷하게).
+  - 카드 내부 요소 간격도 같이 좁혀서 카드 자체의 세로 길이를 줄임: `cardHeader.marginBottom` 10→8, `ballRow.marginBottom` 10→8, `bottomRow.marginTop` 8→6.
+  - 로또볼 크기·카드 테두리·상태 배지 등 다른 요소는 변경하지 않음 — 요청 범위(영역 크기·간격)에만 한정.
+- **검증**: `npx tsc --noEmit`·`npx eslint .` 클린(이 화면은 별도 컴포넌트 테스트가 없어 스타일 숫자만 바뀐 이번 변경은 타입/린트 확인만으로 충분하다고 판단). 실기기에서 카드들이 실제로 더 편하게 구분되는지는 육안 확인 필요.
