@@ -462,19 +462,23 @@ function createStyles(colors: AppColors) {
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
     emptyText: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: colors.textMuted },
+    // 저장한 카드마다 똑같은 흰 사각형이 촘촘히 붙어 있어서 눈에 잘 안 들어오고 피곤하다는
+    // QA 피드백(2026-08-13) — 카드 하나하나는 조금 더 컴팩트하게(padding·내부 여백 축소),
+    // 카드와 카드 사이 간격은 넉넉하게 벌려서(marginBottom 확대) 목록을 훑어볼 때 각 카드가
+    // 독립된 항목으로 눈에 띄게 한다.
     card: {
       backgroundColor: colors.surface,
       borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
+      padding: 14,
+      marginBottom: 20,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+    cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     statusBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
     statusBadgeText: { fontSize: 11, fontWeight: "700" },
     rankText: { fontSize: 13, fontWeight: "800", color: "#DC2626" },
-    ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+    ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
     drawRow: { flexDirection: "row", gap: 6, alignItems: "center" },
     drawInput: {
       flex: 1,
@@ -512,7 +516,7 @@ function createStyles(colors: AppColors) {
       paddingVertical: 8,
     },
     quickPickButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-    bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+    bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
     // paddingVertical만으로는 44pt 최소 터치 타겟에 못 미쳐(텍스트 링크라 실제 박스가 작음),
     // 실제 박스는 그대로 작게 유지하고 hitSlop으로 터치 영역만 넓힌다(위 JSX 참고).
     shareButton: { paddingVertical: 6, paddingHorizontal: 2 },
