@@ -89,6 +89,28 @@ describe("computeNumberFrequencies / getLongestAbsentNumbers", () => {
       expect([1, 2, 3, 4, 5, 6]).not.toContain(a.number);
     }
   });
+
+  it("보너스 번호로만 나온 경우도 lastDrawNumber가 갱신되어 '장기 미출현'에서 즉시 빠진다 (QA_LOG 81번 후속)", () => {
+    const draws: WinningDraw[] = [
+      // 44번은 이 표본 내내 본번호로는 한 번도 안 나오고, 최신 회차(102)에서 보너스로만 나온다.
+      draw({ drawNumber: 100, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 7 }),
+      draw({ drawNumber: 101, numbers: [8, 9, 10, 11, 12, 13], bonusNumber: 14 }),
+      draw({ drawNumber: 102, numbers: [15, 16, 17, 18, 19, 20], bonusNumber: 44 }),
+    ];
+    const freq = computeNumberFrequencies(draws);
+    const byNumber = new Map(freq.map((f) => [f.number, f]));
+
+    // totalCount(본번호 출현 빈도)는 여전히 0 — 보너스는 별도 개념이라 여기 안 섞인다.
+    expect(byNumber.get(44)?.totalCount).toBe(0);
+    expect(byNumber.get(44)?.bonusCount).toBe(1);
+    // 반면 lastDrawNumber는 보너스로 나온 102회로 갱신된다.
+    expect(byNumber.get(44)?.lastDrawNumber).toBe(102);
+
+    const absent = getLongestAbsentNumbers(freq, 102, 6);
+    // 방금(102회) 보너스로 나왔으므로 drawsSinceLastSeen === 0이 되어 "장기 미출현" 상위 6개에
+    // 들어가면 안 된다.
+    expect(absent.map((a) => a.number)).not.toContain(44);
+  });
 });
 
 describe("getTopFrequentNumbers (고빈도 당첨번호 상위권 포함 토글용)", () => {

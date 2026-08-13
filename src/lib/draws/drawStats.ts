@@ -17,14 +17,25 @@ export function computeNumberFrequencies(draws: WinningDraw[]): NumberFrequency[
   const bonuses = new Map<number, number>();
   const lastSeen = new Map<number, number>();
 
+  const markSeen = (n: number, drawNumber: number) => {
+    if (!lastSeen.has(n) || drawNumber > (lastSeen.get(n) ?? 0)) {
+      lastSeen.set(n, drawNumber);
+    }
+  };
+
   for (const draw of draws) {
     for (const n of draw.numbers) {
       totals.set(n, (totals.get(n) ?? 0) + 1);
-      if (!lastSeen.has(n) || draw.drawNumber > (lastSeen.get(n) ?? 0)) {
-        lastSeen.set(n, draw.drawNumber);
-      }
+      markSeen(n, draw.drawNumber);
     }
     bonuses.set(draw.bonusNumber, (bonuses.get(draw.bonusNumber) ?? 0) + 1);
+    // lastSeen(=lastDrawNumber)은 getLongestAbsentNumbers()의 "장기 미출현" 판정에 쓰인다.
+    // 유저 입장에서는 본번호든 보너스 번호든 화면에 뜬 번호는 "이번에 나온 번호"로 인식하므로
+    // (QA_LOG 81번 후속 피드백), 보너스로 나온 회차도 마지막 출현 회차로 반영한다. 다만
+    // totalCount(출현 빈도 Top6·사카이 분석 등에서 쓰는 "당첨번호 출현 빈도"의 의미)는 계속
+    // 본번호만 센다 — 보너스는 별도로 bonusCount에서 이미 집계하고 있고, "빈도" 자체의 정의를
+    // 바꾸는 건 이번 요청 범위가 아니다.
+    markSeen(draw.bonusNumber, draw.drawNumber);
   }
 
   return Array.from({ length: 45 }, (_, i) => i + 1).map((number) => ({
