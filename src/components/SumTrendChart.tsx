@@ -27,6 +27,7 @@ export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; m
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const reveal = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
 
   const pointsKey = points.map((p) => p.drawNumber).join(",");
   useEffect(() => {
@@ -73,41 +74,58 @@ export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; m
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={{ width: chartWidth, height: CHART_HEIGHT }}>
-          <Animated.View style={[styles.revealMask, { width: revealWidth, height: CHART_HEIGHT }]}>
-            <Svg width={chartWidth} height={CHART_HEIGHT}>
-              <SvgLine
-                x1={0}
-                y1={midY}
-                x2={chartWidth}
-                y2={midY}
-                stroke={colors.border}
-                strokeWidth={1}
-                strokeDasharray="4,4"
-              />
-              <Path
-                d={linePath}
-                stroke={tints.indigo.fg}
-                strokeWidth={2}
-                fill="none"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              {points.map((p, i) => (
-                <Circle
-                  key={p.drawNumber}
-                  cx={xFor(i)}
-                  cy={yFor(p.sum)}
-                  r={i === points.length - 1 ? 4 : 2.5}
-                  fill={p.isHigh ? tints.red.fg : tints.indigo.fg}
+      {/* 회차가 52개라 그래프 전체 폭(chartWidth)이 화면보다 훨씬 넓어서 원래도 가로 스크롤이
+          가능했는데, 흰 카드 배경과 구분이 안 되고 스크롤 인디케이터도 꺼둬서(showsHorizontal
+          ScrollIndicator=false) "스크롤할 수 있다"는 걸 알아채기 어려웠다는 QA 피드백. 이 패널만
+          카드와 다른 배경(colors.surfaceAlt)을 줘서 "여기는 별도의 스크롤 가능 영역"이라는 걸
+          시각적으로 구분하고, 스크롤 인디케이터도 다시 켜서 네이티브 스크롤 힌트까지 함께 준다. */}
+      <View style={styles.chartPanel}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator
+          contentContainerStyle={styles.scrollContent}
+          // 기본으로는 가장 오래된 회차(왼쪽)부터 보여서, 정작 가장 궁금해할 최신 회차는
+          // 매번 오른쪽으로 스크롤해야 보였다는 QA 피드백 — 그래프 폭이 확정되는 시점
+          // (onContentSizeChange, points가 바뀌어 폭이 달라질 때도 다시 호출됨)마다 끝까지
+          // 스크롤해서 최신 회차가 기본으로 보이게 한다.
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+        >
+          <View style={{ width: chartWidth, height: CHART_HEIGHT }}>
+            <Animated.View style={[styles.revealMask, { width: revealWidth, height: CHART_HEIGHT }]}>
+              <Svg width={chartWidth} height={CHART_HEIGHT}>
+                <SvgLine
+                  x1={0}
+                  y1={midY}
+                  x2={chartWidth}
+                  y2={midY}
+                  stroke={colors.border}
+                  strokeWidth={1}
+                  strokeDasharray="4,4"
                 />
-              ))}
-            </Svg>
-          </Animated.View>
-          <Text style={[styles.midLineLabel, { top: midY - 14 }]}>{midpoint}</Text>
-        </View>
-      </ScrollView>
+                <Path
+                  d={linePath}
+                  stroke={tints.indigo.fg}
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {points.map((p, i) => (
+                  <Circle
+                    key={p.drawNumber}
+                    cx={xFor(i)}
+                    cy={yFor(p.sum)}
+                    r={i === points.length - 1 ? 4 : 2.5}
+                    fill={p.isHigh ? tints.red.fg : tints.indigo.fg}
+                  />
+                ))}
+              </Svg>
+            </Animated.View>
+            <Text style={[styles.midLineLabel, { top: midY - 14 }]}>{midpoint}</Text>
+          </View>
+        </ScrollView>
+      </View>
 
       <View style={styles.axisRow}>
         <Text style={styles.axisText}>{points[0].drawNumber}회</Text>
@@ -135,6 +153,14 @@ const legendStyles = StyleSheet.create({
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     legendRow: { flexDirection: "row", gap: 16, marginBottom: 10 },
+    // 흰 카드 배경(colors.surface)과 구분되도록 이 스크롤 영역만 한 단계 다른 배경을 준다 —
+    // "여기는 (카드 전체가 아니라) 이 안쪽만 좌우로 스크롤된다"는 걸 시각적으로 알려준다.
+    chartPanel: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 6,
+    },
     scrollContent: { paddingRight: 4 },
     revealMask: {
       overflow: "hidden",
