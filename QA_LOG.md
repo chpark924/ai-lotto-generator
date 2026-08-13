@@ -625,3 +625,149 @@
 - **결과**: `npm audit --omit=dev` 기준 **25건 → 23건(moderate 11/high 12, 기존 high 14)**으로 감소. brace-expansion 관련 high 취약점 2건이 해소됐다.
 - **검증(회귀 없음 확인)**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest --selectProjects unit` **26개 스위트 223개 테스트 전부 통과**. `components` 프로젝트도 딥 패턴 소개 화면(`deepPatternIntro.test.tsx`, 2/2)을 재실행해 jest-expo 프리셋이 lockfile 갱신 후에도 정상 동작함을 확인했다.
 - **정직한 한계**: 남은 23건은 전부 Expo SDK 메이저 업그레이드(54→57)가 필요한 항목들이라 이번 세션에서는 손대지 않았다 — 8/6 리포트가 이미 지적한 New Architecture 전환 계획과 함께 묶어서 별도 세션으로 계획하는 게 맞다고 판단했다. 이 취약점들은 기존 리포트들이 반복 확인해온 대로 EAS 빌드/prebuild 툴체인 전용이며 `app/`·`src/` 런타임 코드에서 직접 import하는 곳이 없어(재확인 완료), 지금 당장 앱 런타임 보안에 영향을 주지 않는다는 결론은 이번에도 유효하다.
+
+## 2026-08-12
+
+### 61. 실기기 QA — 앱 실행 시 스플래시(로고) 노출 시간이 너무 짧음
+- **증상**: 앱 최초 실행 시 로고가 나오긴 하지만 인지하기 어려울 정도로 순식간에 사라짐. 타사 앱들과 비슷한 수준으로 로고를 잠깐 더 보여줄 필요가 있음.
+- **원인**: `app/_layout.tsx`에 `expo-splash-screen`의 `preventAutoHideAsync`/`hideAsync` 호출이 전혀 없었음(grep으로 프로젝트 전체 재확인, `SplashScreen` 참조가 이 파일 추가 전엔 0건). 이 프로젝트는 폰트 로딩(`useFonts`) 등 별도의 비동기 초기화 단계도 없어서, 네이티브 스플래시가 JS 번들 초기화가 끝나자마자(거의 즉시) 자동으로 사라지는 expo-splash-screen 기본 동작을 그대로 타고 있었던 것.
+- **수정**: `app/_layout.tsx` 모듈 최상단에서 `SplashScreen.preventAutoHideAsync()`로 자동 숨김을 막고, `RootLayout`의 `useEffect`에서 `setTimeout(1500ms)` 후 `SplashScreen.hideAsync()`를 호출하도록 변경 — 최소 1.5초는 로고가 화면에 유지되게 함(값은 `MIN_SPLASH_DURATION_MS` 상수로 분리해 조정 쉽게 해둠). 스플래시 이미지/배경색 자체(`app.json`의 `expo-splash-screen` 플러그인 설정)는 기존 그대로 유지.
+- **검증**: `npx tsc --noEmit`·`npx eslint app/_layout.tsx` 클린. (실기기 체감 시간은 EAS 빌드 후 재확인 필요 — 이 세션 환경엔 실기기가 없음.)
+
+### 62. 홈 화면 — 전체 간격이 조밀함, 상단 "홈" 헤더 글자 크기·영역 축소
+- **피드백**: 홈 화면 전반적으로 요소 간 간격이 좁아 답답해 보임. 최상단 네비게이션 헤더의 "홈" 타이틀 글자 크기를 줄이고 헤더 영역 자체도 축소해서 더 시원시원하고 가독성 좋게 만들어달라는 요청(중요도 높음으로 표시).
+- **수정 1 — 상단 헤더**: `app/(tabs)/_layout.tsx`의 "index"(홈) 탭 화면에 한해 `headerTitleStyle`(fontSize 15, fontWeight 600 — 기존 라이브러리 기본값보다 작게)과 `headerStyle`(height 40 — 기존 기본 높이보다 낮게)을 개별 지정. 다른 3개 탭(번호 만들기/로또 연구소/내 번호)의 헤더는 요청 범위 밖이라 기존 그대로 유지(탭 전환 시 헤더 높이가 달라 보일 수 있는 점은 알아둘 것 — 다른 탭도 동일하게 줄이고 싶다면 후속 요청 필요).
+- **수정 2 — 전체 여백**: `app/(tabs)/index.tsx` — 스크롤 컨테이너 패딩(16→20), 히어로 카드 padding/marginBottom(20→22 / 16→20), 퀵메뉴 행 gap/marginBottom(8→10 / 16→22), 퀵메뉴 버튼 세로 패딩(10→14), 카드(내가 자주 선택한 번호/최근 오래 나오지 않은 번호) padding/marginBottom(16→18 / 16→20)·제목 여백(10→12)·번호 공 gap(8→10), 하단 안내 문구 여백(marginTop 8→16, marginBottom 24→28) 등 화면 전반의 여백을 소폭씩 늘려 답답한 느낌을 완화.
+- **검증**: `npx tsc --noEmit`·`npx eslint` 두 파일 클린. 레이아웃 수치 변경뿐이라 로직 회귀 위험은 낮다고 판단했지만, 실기기(또는 Expo Go)에서 실제 여백 체감과 헤더 높이 축소가 노치/상태바와 자연스럽게 어우러지는지는 이 세션에서 시각적으로 확인하지 못했으므로 실기기 재확인 필요.
+
+### 63. 62번 후속 — 헤더 축소를 홈 탭 한정에서 4개 탭 전체로 확장(통일성)
+- **피드백**: 62번에서 홈 탭에만 적용했던 헤더 글자 크기·높이 축소를, 나머지 3개 탭(번호 만들기/로또 연구소/내 번호)에도 동일하게 적용해 탭 전환 시 UI가 통일되게 해달라는 요청.
+- **수정**: `app/(tabs)/_layout.tsx` — 홈 탭 `Tabs.Screen`에 개별로 넣어뒀던 `headerTitleStyle`(fontSize 15, fontWeight 600)·`headerStyle`(height 40, backgroundColor #0F172A)를 상위 `Tabs`의 공통 `screenOptions`로 옮겨 4개 탭 전부에 일괄 적용. 홈 탭의 개별 override는 이제 중복이라 제거(공통값과 동일).
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린.
+
+### 64. 홈 화면 — "최근 오래 나오지 않은 번호" 카드에 안내문구 + 바로가기 버튼 추가
+- **피드백**: "내가 자주 선택한 번호" 카드처럼, "최근 오래 나오지 않은 번호" 카드도 번호만 보여주고 끝나면 의미가 없다 — "이번엔 나올지 모르니 선택할까요?" 같은 안내문구와 [바로가기] 버튼을 추가해 실제로 쓸 수 있게 해달라는 요청.
+- **연결 화면 선정**: "자주 선택한 번호" 카드는 그 번호들을 **제외**하는 쪽(`/generate/exclusion`)으로 연결돼 있는 것과 대칭되게, "오래 나오지 않은 번호"는 그 번호들을 **포함(선호)** 하는 쪽이 자연스럽다고 판단. `/generate/ai-search`(AI 조합 탐색) 화면에 이미 "선호번호" 선택 UI(`NumberGrid`)가 있어서 이걸 그대로 활용.
+- **수정 1 — 홈 화면**: `app/(tabs)/index.tsx` — "최근 오래 나오지 않은 번호" 카드 하단에 "이번엔 나올지도 모르니 포함해서 만들어볼까요?" 캡션 + "바로가기" 버튼 추가, 누르면 `/generate/ai-search`로 `preferred=1,7,23...` 파라미터와 함께 이동. "자주 선택한 번호" 카드가 쓰던 `frequentFooterRow` 스타일을 두 카드가 공용으로 쓰도록 `cardFooterRow`로 이름 정리(이름만 변경, 스타일 값은 그대로).
+- **수정 2 — AI 조합 탐색 화면**: `app/generate/ai-search.tsx` — `exclusion.tsx`의 `parseExcludeParam`과 동일한 패턴으로 `parsePreferredParam` 신규 추가, `useLocalSearchParams<{ preferred?: string }>()`로 받은 값을 `preferred` state 초기값으로 반영(선호번호 그리드에 미리 체크된 상태로 진입). 홈 화면 바로가기로 들어온 경우(`cameFromShortcut`)에만 `exclusion.tsx`와 동일한 스타일의 안내 배너("홈 화면에서 오래 나오지 않은 번호가 자동으로 선호번호에 추가됐어요. 아래에서 직접 조정할 수 있어요.")를 화면 상단에 표시.
+- **검증**: `npx tsc --noEmit`·`npx eslint` (수정한 두 파일) 클린. 순수 로직(`src/lib`) 변경은 없고 화면 배선만 추가한 거라 기존 자동 테스트에 영향 없음(해당 화면들은 원래도 `components` 렌더링 테스트가 없었음). 실기기에서 카드 → 바로가기 → AI 조합 탐색 화면 진입 시 선호번호가 실제로 체크돼 보이는지 최종 확인 필요.
+
+### 65. 62번 후속 — "내가 자주 선택한 번호"/"최근 오래 나오지 않은 번호" 카드가 너무 커진 느낌
+- **피드백**: 62번에서 화면 전체 여백을 넓힌 이후, 스크린샷으로 확인해보니 이 두 카드(공용 `card` 스타일)는 오히려 과하게 커진 느낌이라는 지적. 실기기 스크린샷 첨부로 확인됨.
+- **수정**: `app/(tabs)/index.tsx`의 `card`/`cardTitle`/`ballRow`/`cardFooterRow` 스타일만 다시 촘촘하게 조정 — padding 18→14, marginBottom 20→16, 제목 하단 여백 12→8, 번호 공 gap 10→8, 하단 캡션+버튼 행 상단 여백 14→10. 62번에서 함께 넓혔던 히어로 카드·퀵메뉴·화면 전체 패딩 등 다른 영역은 이번 피드백 대상이 아니라 그대로 유지.
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린. 레이아웃 수치만 조정.
+
+### 66. "번호 만들기" 화면 — 최하단 "딥 패턴 탐색" 카드가 스크롤 없이는 존재를 모를 수 있음
+- **피드백**: 화면 스크린샷 확인 결과, 6번째 카드 "딥 패턴 탐색"이 화면 맨 아래(탭바 바로 위)에 거의 붙어 있어 이게 스크롤로 더 볼 수 있는 항목인지 애매하게 보임 — 유저가 아예 존재를 모르고 지나칠 수 있음. 텍스트·간격·크기를 조정해서 "스크롤하면 하나 더 있다"는 걸 느끼게 해달라는 요청.
+- **원인 분석**: 화면 로드 직후 스크롤 없이 보이는 영역만으로는 "지금 보이는 5개가 전부"인지 "더 있는데 살짝 잘린 건지" 판단할 단서가 전혀 없었음(카운트 안내, 스크롤 힌트 등 전무). 실기기 화면 크기에 따라 6번째 카드가 거의 다 보이거나(스크린샷 사례) 아예 안 보일 수도 있어, 특정 기기 크기에 의존하지 않는 안내가 필요하다고 판단.
+- **수정**: `app/(tabs)/generate.tsx`
+  - **텍스트**: subHeader 바로 아래(스크롤 없이 항상 보이는 위치)에 아래방향 화살표 아이콘 + "아래로 스크롤하면 총 {N}가지 방법을 모두 볼 수 있어요" 문구 신규 추가. 개수(N)는 `MENU_ITEMS.length`를 그대로 참조해서, 나중에 방법이 추가/제거돼도 문구가 자동으로 맞음(하드코딩 안 함).
+  - **간격**: 카드 사이 여백 14→10, 카드 내부 패딩 14→12, subHeader 하단 여백 16→6(대신 새 스크롤 힌트 문구가 그 자리에서 14 여백을 가짐)으로 소폭 촘촘하게 조정 — 같은 화면 안에 더 많은 카드가 들어오게 해서 6번째 카드가 스크롤 없이도 일부 보일 가능성을 높임.
+  - **크기**: 카드 아이콘 56→48(딥 패턴 탐색의 SVG 아이콘 `DeepPatternIcon`도 `size={48}`로 맞춰서 다른 5개 PNG 아이콘과 크기 통일 유지).
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린. 실제로 6번째 카드가 어느 정도까지 보이는지는 기기 화면 크기마다 다를 수 있어 실기기에서 최종 확인 필요 — 다만 이번에 추가한 "총 N가지" 텍스트 힌트는 화면 크기와 무관하게 항상 스크롤 없이 보이는 위치에 있어서, 실기기에서도 이 부분만은 확실히 효과가 있을 것으로 판단.
+
+### 67. 66번 후속 — 안내 문구 대신 자연스러운 하단 페이드(그러데이션)로 교체
+- **피드백**: "아래로 스크롤하면 총 6가지 방법을 모두 볼 수 있어요" 같은 안내 문구는 본 적 없는 방식이라 어색하다 — 문구로 알려주지 말고 스크롤할 게 더 있다는 것만 자연스럽게(시각적으로) 느껴지게 해달라는 요청.
+- **수정**: `app/(tabs)/generate.tsx`
+  - 텍스트 힌트(아이콘+문구) 완전히 제거, `subHeader` 하단 여백도 원래 톤으로 복원(14).
+  - 대신 `expo-linear-gradient`로 리스트 하단에 36px 높이의 페이드(투명 → 배경색) 오버레이를 얹어서, 마지막 카드가 화면 아래로 자연스럽게 흐려지며 "아직 안 끝났다"는 걸 암시하도록 함(`pointerEvents="none"`이라 터치는 그대로 카드에 전달됨).
+  - 이 페이드는 **항상 떠 있는 장식이 아니라 실제 스크롤 상태를 반영**하도록 배선함 — `onLayout`으로 화면에 보이는 높이(viewport), `onContentSizeChange`로 전체 콘텐츠 높이, `onScroll`로 현재 스크롤 위치를 추적해서 "아직 스크롤할 내용이 16px 넘게 남아있을 때만" 보여주고, 맨 아래까지 스크롤하면 자동으로 사라짐(끝까지 스크롤했는데도 페이드가 계속 떠 있으면 오히려 버그처럼 보일 수 있어서 신경 씀).
+  - 카드 패딩/간격/아이콘 크기를 줄인 66번 변경은 유지(더 많은 카드가 화면에 들어오는 건 여전히 유효한 개선이라 그대로 둠).
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린. 페이드가 실기기에서 자연스러운 두께·색상으로 보이는지, 스크롤 끝에서 정확히 사라지는지는 이 세션에서 시각적으로 확인 못 해 실기기 확인 필요.
+
+### 68. AI 조합 탐색 — "100만 회 부스터 탐색" 로딩 화면에 소요시간 안내 없음
+- **피드백**: 100만 회 부스터 탐색을 선택하면 다른 옵션보다 훨씬 오래 걸리는데, 로딩 화면(스피너+퍼센트) 어디에도 "시간이 걸릴 수 있다"는 사전 안내가 없어서 로딩 화면이 뜨자마자(맨 처음에) 미리 알려줘야 할 것 같다는 요청. 스크린샷으로 "100만 회 부스터 탐색" 선택 화면과 6% 진행 중인 로딩 화면을 첨부해 확인됨.
+- **수정**: `app/generate/ai-search.tsx` — 로딩 화면에서 `searchCount === BOOSTER_SEARCH_COUNT`(100만)일 때만 `LottoBallLoader` 스피너보다 먼저(화면 위쪽) "100만 회 부스터 탐색은 계산에 시간이 다소 걸릴 수 있어요." 문구를 추가. 로딩 화면이 뜨는 즉시(0%부터) 보이고, 초반에만 반짝 보이고 사라지면 의미가 없어서 탐색이 끝날 때까지 계속 노출. 색상은 이 화면이 이미 쓰고 있던 하드코딩 다크 팔레트에 맞춰 `theme/colors.ts`의 다크모드 orange 틴트와 동일한 `#FDBA74`를 그대로 사용(테마 토큰이 아니라 직접 값 — 이 진행 화면 전체가 라이트/다크 무관하게 항상 고정 다크 톤이라 기존 코드 관례를 따름).
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린. 문구가 로딩 화면에서 시각적으로 눈에 잘 띄는지, 다른 3개 탐색 강도(바로 생성/3만/10만)에서는 안 뜨는 게 맞는지 실기기 확인 필요.
+
+### 69. 45면체 주사위 — 구슬 아래 "탭해서 굴려보세요" 문구가 오해를 유발
+- **피드백**: 화면 상단에서 계속 자전하는 45면체 주사위 구슬 아래에 "탭해서 굴려보세요"라고 적혀 있는데, 실제로 그 구슬을 탭해도 아무 반응이 없다(진짜 굴리기는 화면 하단의 "한 번 굴리기"/"자동 6회 굴리기" 버튼으로만 동작) — 문구 삭제 요청.
+- **원인**: `src/components/Dice45.tsx`의 구슬 자체는 애초에 `Pressable`이 아니라 순수 장식용 `Animated.View`라 탭 핸들러가 없는데도, 캡션 텍스트와 접근성 라벨(`statusLabel`) 둘 다 "탭해서 굴려보세요"라고 안내하고 있었음 — 시각적으로도, 스크린리더로도 똑같이 잘못된 안내였음.
+- **수정**: `src/components/Dice45.tsx` — 초기 상태(아직 한 번도 안 굴렸을 때)의 캡션 텍스트를 아예 렌더링하지 않도록 변경(`isSpinning || number !== null`일 때만 캡션 표시). 접근성 라벨도 동일하게 "탭해서 굴려보세요" 대신 그냥 "45면체 주사위"로 정리해 시각/스크린리더 양쪽 다 오해 소지를 없앰. 굴리는 중/방금 확정 상태의 문구는 그대로 유지(이건 실제로 일어나는 일을 정확히 설명하므로 문제없음). `dice.tsx`에는 이미 "가상의 45면체 주사위를 굴려보세요"라는 별도 안내 문구가 있어서, 이 캡션을 완전히 빼도 안내가 아예 없어지는 건 아님.
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린.
+
+### 70. 45면체 주사위 — "한 번 굴리기"/"자동 6회 굴리기" 버튼이 미리 선택된 것처럼 정적으로 보임
+- **피드백**: 두 버튼(과 "초기화")을 눌러도 스타일이 전혀 안 바뀌어서, 뭔가를 "눌렀다"는 느낌이 없고 오히려 원래부터 고정된 선택 상태처럼 보인다는 지적. 다른 앱들이 일반적으로 쓰는 방식대로 눌렀을 때 체감되게 해달라는 요청.
+- **원인**: `app/generate/dice.tsx`의 버튼 3개(`Pressable`)가 `style` prop을 고정 배열로만 넘기고 있어서 눌림(pressed) 상태에 따른 스타일 변화가 전혀 없었고, `android_ripple`도 설정돼 있지 않았음. 반면 이 앱의 다른 화면들(홈 화면 CTA 버튼, 번호 만들기 카드, 퀵메뉴 등)은 전부 `({pressed}) => [...]` 패턴 + 눌림 시 배경 어둡게/살짝 축소(`scale: 0.97~0.98`) + 안드로이드 리플을 공통으로 쓰고 있어서, 이 화면만 그 관례에서 빠져 있었던 것.
+- **수정**: `app/generate/dice.tsx` — 세 버튼(한 번 굴리기/자동 6회 굴리기/초기화) 전부 `pressed` 상태를 받아 각 버튼 톤에 맞는 눌림 스타일(`buttonPrimaryPressed`/`buttonOutlinePressed`/`buttonSecondaryPressed` — 배경을 한 단계 진하게+`scale:0.97`)을 적용하고, `android_ripple` 색상도 각 버튼 톤에 맞게 추가. 앱 다른 화면과 동일한 "누르는 순간 살짝 어두워지고 축소" 패턴이라 통일성도 유지됨. 이전(13번 항목) 도입한 Primary/Secondary/Tertiary 색상 위계 자체는 그대로 유지(원인이 색상 구분이 아니라 프레스 피드백 부재였음).
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린.
+
+### 71. 딥 패턴 탐색 인트로 화면 — 긴 설명 대신 시각 효과 우선 배치 + 중복 경고 문구 삭제
+- **피드백 1**: 처음 진입 화면의 설명 문단이 길어서 안 읽고 넘어가게 된다 — 설명보다 시각적 효과(점을 선으로 잇는 연출)를 먼저 체감할 수 있도록 상단에 배치하고 문구는 간소화해달라는 요청.
+- **피드백 2**: 그 아래 경고 박스("이 분석은 각 번호 조합의 실제 당첨확률을 높이지 않습니다...")가 결과 화면 쪽에서도 이미 안내되고 있고 바로 위 설명과도 내용이 겹쳐서 중복으로 느껴진다 — 삭제 요청.
+- **확인**: 실제로 `app/generate/deep-pattern-detail.tsx`(패턴 카드를 탭해 들어가는 상세 화면)에 "당첨확률과는 무관합니다. 모든 조합은 추첨에서 동일한 확률을 가집니다"라는 동일 취지의 안내가 이미 있음을 코드로 재확인 — 삭제해도 정직한 확률 안내 자체가 앱에서 완전히 사라지는 건 아니고, 오히려 결과를 실제로 해석하는 시점(상세 화면)에 더 가깝게 남아있는 구조.
+- **수정**: `app/generate/deep-pattern.tsx`
+  - 로딩 화면에서 이미 쓰고 있던 점-선 연결 애니메이션 컴포넌트(`DeepPatternLoadingBoard` — "점을 순서대로 이으며 선이 그려지는" 연출)를 인트로 화면 최상단에도 그대로 재사용해 배치.
+  - 설명 문단을 "로또 용지의 1~45 번호를 좌표로 보고, 당첨번호 6개를 선으로 이으면...(2문장)" → "814만 개 조합과 역대 당첨 기록을 비교해, 상대적으로 덜 관측된 패턴 영역을 찾아드려요."(1문장)로 축약 — 좌표/선잇기 설명은 이제 위 애니메이션이 시각적으로 보여주므로 텍스트에서 뺐고, "이 기능이 뭘 해주는지"만 남김. 시각 요소 아래 캡션처럼 보이도록 가운데 정렬로 변경.
+  - 경고 박스(`notice`/`noticeText` 스타일 포함) 완전히 제거. 더 이상 안 쓰는 `tints`(AppTints) 관련 import·변수도 함께 정리.
+- **검증**: `npx tsc --noEmit`·`npx eslint` 클린. 애니메이션이 인트로 화면에서도 로딩 화면과 동일하게 자연스럽게 반복 재생되는지, 레이아웃이 실기기에서 어색하지 않은지 최종 확인 필요.
+
+### 72. 딥 패턴 탐색 인트로 화면 — "덜 관측된 패턴 ↔ 다빈도 패턴" 혼합 슬라이더 추가
+- **피드백**: 인트로 화면 애니메이션 아래 빈 공간에, 결과가 "덜 관측된 패턴"만 나오면 이미 자주 나온 패턴도 섞고 싶은 유저 니즈를 못 채운다 — 음량 조절 바처럼 가로로 긴 막대를 손으로 드래그해서 "다빈도 패턴 0%~100%"를 고를 수 있게 해달라는 요청. 단, 몇 %인지는 화면에 보여주지 말고, 내부 계산에서는 사용자가 놓은 지점을 0/10/15/25/50/75/100 중 가장 가까운 값으로 스냅해서 처리할 것. "패턴 분석 시작하기" 버튼이 기기 내비게이션 바와 겹치지 않는 상태는 계속 유지되어야 함.
+- **수정**:
+  - `src/components/deepPattern/PatternMixSlider.tsx`(신규): RN 코어 `PanResponder` 기반 커스텀 가로 슬라이더. 별도 슬라이더 라이브러리를 추가하면 네이티브 모듈이 생겨 EAS 재빌드가 필요해지므로, 기존 의존성만으로 구현. 트랙을 손으로 누르거나 드래그하면 채움 길이와 손잡이(thumb) 위치만 바뀌고 숫자(%)는 어디에도 표시하지 않음 — 양 끝에 "덜 관측된 패턴"/"다빈도 패턴" 라벨만 작게 표기. `accessibilityRole="adjustable"` + `accessibilityValue`로 스크린리더 접근성 확보.
+  - `src/components/deepPattern/index.ts`: `PatternMixSlider` export 추가.
+  - `app/generate/deep-pattern.tsx`: `DeepPatternLoadingBoard` 애니메이션 바로 아래에 슬라이더 배치. 슬라이더는 연속값(0~100) `frequentMixRatio` 상태를 그대로 들고 있다가(부드러운 드래그 체감을 위해), "패턴 분석 시작하기"를 누르는 순간(`handleStart`)에만 `snapFrequentPatternRatio()`로 스냅한 값을 `recommendDeepPatterns(count, snappedRatio)`에 넘김 — 화면에는 끝까지 % 노출 없음. 슬라이더는 스크롤 영역 안에 있고 `BottomActionBar`(하단 고정, `useSafeAreaInsets()`로 기기 내비게이션 바 높이만큼 자동 여백 확보)는 기존 그대로라 버튼 위치·겹침 방지 로직은 변경 없음.
+  - `src/lib/deepPattern/engine.ts`: `recommendDeepPatterns(count, frequentPatternRatio = 0)`에 두 번째 파라미터 추가. 기존 `rankedBasinsByDeficit()`(밀도비 낮은 순 = 덜 관측된 basin부터)는 그대로 두고, 새 `buildBasinTraversalOrder(frequentPatternRatio)`가 그 결과를 감싸서: ratio=0이면 기존 순서를 100% 그대로 반환(슬라이더를 안 건드리면 이전과 완전히 동일한 동작 보장), ratio=100이면 반대 순서(밀도비 높은 순 = 다빈도 basin부터), 그 사이 값이면 두 순서를 ratio 비율로 인터리빙해서 섞은 순서를 반환 — basin 하나가 중복으로 뽑히지 않도록 dedupe. `FREQUENT_PATTERN_RATIO_STEPS`(0/10/15/25/50/75/100)와 `snapFrequentPatternRatio()`를 새로 export.
+  - `DeepPatternRecommendation` 타입(`types.ts`)에는 손대지 않음 — "Basin 같은 엔진 내부 개념을 이 타입 밖으로 노출하지 않는다"는 기존 설계 원칙을 그대로 지킴(슬라이더 비율은 요청 파라미터일 뿐, 결과 데이터에 새 필드로 남기지 않음).
+- **검증**: `npx tsc --noEmit` 클린(2회, 커밋 전/후 모두 확인). `npx eslint`는 커밋 직후 세션 안에서는 기기 쪽 디스크 I/O가 유독 느려서(파일 하나만 린트해도 40초 안팎 소요) 시간 내 확인을 못 했었는데, 이후 사용자가 실기기 터미널에서 직접 `npm run lint` 실행 — 에러/경고 없이 클린 확인됨. `npx jest tests/deepPatternEngine.test.ts`도 실기기 터미널에서 실행 — 5개 테스트 전부 통과(특히 "structuralVoidLevel이 HIGH면 0번 인덱스" 순서 테스트 포함, `frequentPatternRatio` 기본값 0이 이전과 동일한 코드 경로를 타는 것도 실증됨). 남은 것은 슬라이더 드래그 체감·양 끝 라벨 배치·결과 조합이 실제로 다빈도 쪽으로도 섞이는지에 대한 육안 확인뿐.
+
+### 73. 딥 패턴 슬라이더 — 부담스럽지 않게 얇고 좁게 조정
+- **피드백**: 72번에서 추가한 혼합 슬라이더가 양쪽으로 너무 넓고(화면 폭 꽉 채움) 두께도 두꺼워서 부담스럽다 — 유저가 "내가 선택했다"는 느낌은 적당히 주되, UI 자체는 가볍고 부담 없는 수준이어야 한다는 요청.
+- **수정**: `src/components/deepPattern/PatternMixSlider.tsx`
+  - 트랙에 좌우 인셋(`TRACK_HORIZONTAL_INSET = 22`)을 줘서 화면 폭 끝까지 안 닿고 살짝 안쪽으로 모이게 배치.
+  - 두께 축소: 트랙 높이 8→4, 손잡이(thumb) 크기 22→15, 트랙을 감싸는 영역 높이 32→24.
+  - 손잡이 테두리 2→1.5, 그림자 옅게(shadowOpacity 0.2→0.12, elevation 2→1)로 시각적 무게 감소. 손잡이 자체(흰 배경+보라 테두리)는 그대로 남겨서 "지금 여기를 선택했다"는 느낌은 유지.
+  - 양 끝 라벨도 살짝 축소(11.5→10.5, 굵기 600→500)해서 슬라이더 전체가 더 가벼워 보이게 함.
+  - 터치 판정 영역(`hitSlop`)은 그대로 top/bottom 16 유지 — 시각적으로는 얇아졌지만 실제로 누르기 어려워지진 않음.
+- **검증**: 사용자가 실기기 터미널에서 `npm run lint` 실행 — 에러/경고 없이 클린. `npx jest tests/deepPatternEngine.test.ts`도 5개 전부 통과. `npx tsc --noEmit`는 별도로 재실행하진 않았으나, 이번 변경이 `PatternMixSlider.tsx`의 스타일 숫자 상수(트랙 높이·손잡이 크기·인셋 등)만 바꾼 것이라 타입 오류 여지가 사실상 없어 위험 낮음으로 판단. 실제 화면에서 두께/폭이 원하는 만큼 가벼워졌는지는 육안 확인 필요.
+
+### 74. 딥 패턴 탐색 로딩 화면 — 점-선 애니메이션이 다 그려지기 전에 결과로 넘어가던 문제
+- **피드백**: [스크린샷 2장] "패턴을 분석하고 있어요" 로딩 화면에서 점을 선으로 잇는 애니메이션이 끝까지 다 그려지는 걸 못 보고 결과 화면으로 넘어가버려서 어색하다 — 선이 다 이어지는 걸 보여준 뒤에 결과가 나오게 해달라는 요청.
+- **원인**: `app/generate/deep-pattern.tsx`의 `MOCK_LOADING_MS`(로딩 화면을 최소 이만큼은 보여주는 인위적 지연)가 900ms였는데, `DeepPatternLoadingBoard`의 애니메이션 주기(`CYCLE_MS` 1800ms) 기준으로 선 자체는 progress 0.65(=1170ms)에 다 이어지고, 마지막(5번째) 점이 완전히 나타나는 시점은 0.8(=1440ms)로 그보다 더 늦음 — 즉 애니메이션이 눈에 "다 그려졌다"고 보이려면 최소 1440ms가 필요한데, 로딩 화면이 900ms 만에 끝나버려서 매번 애니메이션이 끊긴 채로 결과 화면으로 넘어갔던 것.
+- **수정**: `app/generate/deep-pattern.tsx`의 `MOCK_LOADING_MS`를 900 → 1600으로 늘려서, 실제 계산이 그보다 먼저 끝나더라도(`Promise.all`로 최소 지연과 함께 대기) 애니메이션이 마지막 점까지 완전히 나타난 뒤(1440ms) 여유 있게 결과로 넘어가도록 함. `DeepPatternLoadingBoard.tsx` 자체(애니메이션 로직)는 변경하지 않음 — 인트로 화면 상단에서도 같은 컴포넌트를 계속 반복 재생 중이라 그쪽 연출과의 통일성을 그대로 유지.
+- **검증**: `npx tsc --noEmit` 클린(기기에서 직접 확인). 애니메이션이 실제로 끝까지 이어진 뒤 넘어가는지, 1600ms 정도의 대기가 답답하게 느껴지지 않는지는 실기기 육안 확인 필요.
+
+### 75. 딥 패턴 상세 화면 — "Pattern Map"을 예시용 고정 그림 대신 실제 위치의 근사치로 교체
+- **피드백**: [스크린샷 2장, 동일] 패턴 상세 화면 하단 "Pattern Map"이 어떤 패턴을 봐도 항상 똑같은 고정된 원 몇 개(라벨도 "예시")였다 — 예시가 아니라 실제 위치의 근사치를, 유저가 더 인식하기 쉬운 그래프/맵 형태로 보여달라는 요청.
+- **원인**: `app/generate/deep-pattern-detail.tsx`에 하드코딩된 `<Circle cx={60} cy={40} .../>` 등 좌표가 고정값이라 어떤 패턴(patternIndex)을 열어도 항상 같은 그림이 떴음. 실제 basin 좌표(rowZone/colZone 등)는 `types.ts`의 설계 원칙("Basin 같은 엔진 내부 개념은 이 타입 밖으로 나가지 않는다")상 화면에 그대로 노출하지 않기로 되어 있어서, 대신 이미 사용자에게 노출 중인 값들로 좌표를 근사해야 했음.
+- **수정**:
+  - `src/components/deepPattern/PatternPositionMap.tsx`(신규): 상세 화면 위쪽 카드에서 이미 보여주고 있는 값들 — 구조적 공백/공백 지속성/시간 안정성(LOW·MID·HIGH 3개를 0/50/100으로 환산해 평균낸 값, `structuralIntensityScore()`)을 가로축, `validationPercentile`(통계적 유의성, 0~100)을 세로축으로 써서 이 패턴의 실제 위치에 점 하나를 찍는다. 패턴마다(같은 basin이 아닌 이상) 실제로 다른 좌표가 나옴 — 더 이상 고정된 그림이 아님. 배경의 흐릿한 원 3개(고정 "밀집 영역" 예시)는 없애고, 대신 가운데 점선 십자선으로 사분면 경계만 표시해 "그래프"로서 더 인식하기 쉽게 단순화. 축 의미는 SVG 안 작은 글자 대신(모바일에서 잘 안 보임) 차트 아래 캡션으로 명확히 설명(`→ 오른쪽일수록 구조적 공백이 강한 패턴`, `↑ 위쪽일수록 통계적으로 뚜렷한 패턴`).
+  - `src/components/deepPattern/index.ts`: `PatternPositionMap` export 추가.
+  - `app/generate/deep-pattern-detail.tsx`: 하드코딩 SVG 블록을 `<PatternPositionMap recommendation={rec} />` 호출로 교체하고, 더 이상 안 쓰는 `Svg`/`Circle`/`Rect` import와 `mapLegend`/`mapLegendText` 스타일 정리. 부제 "전체 조합 중 상대 위치(예시)" → "전체 조합 중 상대 위치(근사치)"로 변경(더 이상 가짜 예시가 아니라 실제 값 기반 근사치이므로).
+  - `DeepPatternRecommendation` 타입에는 손대지 않음 — 새 좌표는 기존에 이미 노출된 필드들을 조합해서 화면단에서만 계산.
+- **검증**: 사용자가 실기기 터미널에서 최종 상태로 `npx tsc --noEmit`·`npm run lint` 재실행 — 둘 다 에러/경고 없이 클린. 패턴마다(1~5번) 점 위치가 실제로 다르게 찍히는지, 차트가 그래프로서 이전보다 더 잘 읽히는지는 육안 확인 필요.
+
+### 76. [중요] 딥 패턴 상세 화면 — "이 번호 저장하기" 버튼이 기기 내비게이션 바와 겹치던 문제
+- **피드백**: [스크린샷 2장, 동일] 패턴 상세 화면 하단 "이 번호 저장하기" 버튼이 기기 시스템 내비게이션 바(하단 제스처/버튼 바)와 겹쳐서 잘림. 반드시 고쳐야 하는 중요한 문제로 표시됨.
+- **원인**: `app/generate/deep-pattern-detail.tsx`가 자체 `bottomBar`를 직접 구현하면서 `paddingBottom: 20` 고정값만 쓰고 있었음 — `useSafeAreaInsets()`를 전혀 안 써서 기기별 내비게이션 바 높이를 반영하지 못했음. 반면 앱의 다른 화면들(AI 조합 탐색/딥 패턴 인트로/운세 조합/45면체 주사위/제외 조합/행운 조합)은 전부 안전영역을 이미 올바르게 처리하는 공용 컴포넌트 `src/components/BottomActionBar.tsx`(`insets.bottom + 12`)를 쓰고 있어서, 이 화면만 그 관례에서 벗어나 있었던 것.
+- **재발 방지 확인**: 같은 문제가 다른 화면에도 있는지 전체를 점검 — `app/generate/` 안에서 `bottomBar`라는 자체 스타일을 쓰는 곳은 이 화면이 유일했고, `BottomActionBar`를 이미 쓰고 있는 화면은 6개(ai-search/deep-pattern/destiny/dice/exclusion/lucky). 고정 버튼이 없는 나머지 화면(`deep-pattern-result.tsx`, `qr-check.tsx`)은 버튼들이 전부 `ScrollView` 안에 있어서(스크롤 콘텐츠의 일부) 같은 종류의 겹침 위험이 없음을 코드로 확인.
+- **수정**: `app/generate/deep-pattern-detail.tsx` — 자체 구현한 `<View style={s.bottomBar}><Pressable .../></View>` 블록을 제거하고, 다른 화면들과 동일하게 `<BottomActionBar label={...} onPress={handleSave} disabled={isSaving} color="#6C5CE7" disabledColor="#C9C2FF" />`로 교체. 더 이상 안 쓰는 `bottomBar`/`saveButton`/`saveButtonDisabled`/`saveButtonText` 스타일 정리.
+- **검증**: `npx tsc --noEmit` 클린(기기에서 직접, 최종 커밋 상태 기준 재확인). 실기기에서 버튼이 내비게이션 바와 안 겹치는지 최종 확인 필요. 참고: 이번 피드백 스크린샷의 Pattern Map이 75번 수정 전 모습(고정 원 3개, "(예시)")으로 보였는데, 코드는 이미 75번에서 반영·검증됐으므로 앱을 다시 로드(리로드/재시작)하면 최신 화면이 보일 것으로 예상됨 — 계속 예전 모습이면 알려주세요.
+
+### 77. [조사] 딥 패턴 탐색 결과의 "제N회까지 반영" — 매주 자동 갱신되는지 확인 요청
+- **질문**: 결과 화면 하단 "제1235회까지의 당첨 이력을 반영한 결과예요" 문구가 실제 당첨 이력처럼 매주 자동으로 갱신되는지 확인해달라는 요청.
+- **조사 결과**: 자동 갱신되지 않음. 이 문구가 쓰는 값(`rec.historyThroughDrawNumber`)은 `data/deep-pattern-atlas.json`(딥 패턴용 81개 basin 통계 + 대표 조합 샘플)에서 오는데, 이 파일은 `scripts/build-deep-pattern-atlas.mjs`를 수동으로 실행해야 만들어지는 **빌드타임 산출물**이고 앱에 정적 import로 번들된다. 반면 `data/lotto-draws.json`(당첨번호 원본 이력)은 `.github/workflows/update-lotto-data.yml`이 매주 토요일 21:30(KST) 자동으로 갱신하고 있음 — 즉 "원본 이력"은 매주 자동으로 최신화되는데, 그걸 반영한 "딥 패턴용 재계산 결과"는 별도로 재빌드하지 않으면 그대로 멈춰 있는 구조였다. 실제로 확인 시점(8/13) 기준 앱 자체 회차 추정 공식(`estimateLatestDrawNumber()`)으로는 1236회가 나와야 하는데, atlas는 8/8 빌드 시점의 1235회에 멈춰 있어 이미 1회차 격차가 있었음.
+- **처리**: 사용자가 "자동 재생성 워크플로 추가"를 선택 — `.github/workflows/update-deep-pattern-atlas.yml`을 새로 작성했다. `update-lotto-data.yml`(당첨 이력 자동 갱신)이 끝나면 이어서(`workflow_run` 트리거) `node scripts/build-deep-pattern-atlas.mjs`를 실행해 atlas를 다시 계산하고, 변경이 있으면(회차가 늘었으면 거의 항상 있음) `data/deep-pattern-atlas.json`을 자동 커밋한다. `package.json`에 `build:atlas` 스크립트도 추가해서 필요시 수동 재생성도 쉽게 함.
+- **⚠️ 알아두어야 할 한계(중요)**: 이 워크플로는 저장소 안의 atlas "재료 파일"만 최신으로 유지해준다 — `data/deep-pattern-atlas.json`은 런타임에 다시 읽어오는 게 아니라 정적 import로 앱에 번들되는 빌드타임 데이터이기 때문에, 실제 사용자 화면의 "제N회까지 반영" 문구가 올라가려면 이 워크플로가 커밋한 최신 atlas를 포함해서 **앱을 다시 빌드하고 배포(EAS build 등)하는 과정이 반드시 별도로 필요**하다. 이 워크플로만으로는 이미 설치된 앱이 자동으로 최신화되지 않는다.
+- **커밋 관련 참고**: `.github/workflows/*.yml` 파일은 원격 기기 쓰기 도구로 직접 쓸 수 없게 보호되어 있어서(보안상 CI 워크플로 파일은 원격에서 못 바꾸게 막아둔 것으로 보임) `update-deep-pattern-atlas.yml`은 커밋하지 못했다 — 사용자에게 파일을 전달했으니 `.github/workflows/` 폴더에 직접 저장해야 함. `package.json`(build:atlas 스크립트 추가)은 정상 반영·커밋됨.
+- **검증**: `package.json`은 JSON 유효성 확인됨. 워크플로 yaml은 기존 `update-lotto-data.yml`과 동일한 구조/스타일로 작성(문법 오류 시 GitHub Actions 탭에서 바로 확인 가능). 실제로 다음 주 토요일 실행 후 커밋이 발생하는지, 그리고 다음 앱 빌드 때 새 atlas가 반영되는지는 확인 필요.
+
+### 78. [중요] 딥 패턴 Atlas — 앱 재빌드 없이 자동·서버리스로 최신화되게 아키텍처 변경
+- **배경**: 77번에서 "atlas 재생성은 자동화했지만, 실제 사용자 화면에 반영되려면 앱을 다시 빌드·배포해야 한다"고 안내하자, 사용자가 "앱 업데이트를 매주 해야 하는 건 유저에게 곤란하다 — 자동화·서버리스 형태를 유지할 방법을 고안해달라"고 요청. 중요한 문제로 표시됨.
+- **해결 방향**: `data/deep-pattern-atlas.json`을 앱에 **정적 번들**하는 대신, 이미 이 앱이 당첨 이력에 쓰고 있는 것과 동일한 패턴(`src/lib/draws/githubDataSource.ts`+`drawCache.ts` — "GitHub Actions가 정적 파일을 주기적으로 갱신·커밋해두고, 기기가 그 파일을 raw.githubusercontent.com에서 직접 받아온다", 서버 비용 없음)을 딥 패턴 Atlas에도 그대로 적용했다. 이러면 77번 워크플로가 매주 커밋해두는 최신 atlas를 **앱 재배포 없이** 기기가 스스로 받아와 쓸 수 있다 — 완전히 자동·서버리스.
+- **설계(신규 파일)**:
+  - `src/lib/deepPattern/atlasTypes.ts`: 기존 `engine.ts`에만 있던 `AtlasBasin`/`AtlasHistoryEntry`/`Atlas` 타입을 공용으로 분리(순환 참조 방지). 응답이 실제 Atlas 형태인지 구조적으로만 검증하는 `isPlausibleAtlas()`도 여기 둠(당첨 이력 쪽 `isPlausibleWinningDraw`와 같은 원칙 — "받아왔다고 그대로 안 믿는다").
+  - `src/lib/deepPattern/atlasGithubSource.ts`: `githubDataSource.ts`와 동일한 구조로 GitHub raw JSON을 받아온다. 절대 throw하지 않고 실패하면 항상 null(오프라인/타임아웃/형식 오류 전부 조용히 폴백).
+  - `src/lib/deepPattern/atlasCache.ts`: `drawCache.ts`와 동일한 원칙의 로컬 캐시 + 동기화 주기(6시간, 당첨 이력과 동일) 관리. 받아온 atlas가 지금 쓰는 atlas보다 회차가 더 최신일 때만 채택.
+  - `src/lib/deepPattern/engine.ts`: 번들된 atlas(`bundledAtlas`, §30 "오프라인에서도 핵심 추천은 계속 동작" 원칙 유지 — 항상 쓸 수 있는 바닥)를 기본값으로 하는 `activeAtlas`(mutable)를 도입. 모듈 로드 시 로컬 캐시에 더 최신 atlas가 있으면 즉시(네트워크 없이) 교체하고, 새로 export한 `refreshAtlasIfStale()`을 호출하면 GitHub에서 최신 atlas를 받아 더 최신이면 교체한다. 기존 `atlas.xxx` 참조는 전부 `activeAtlas.xxx`로 바뀌어서, 교체된 즉시 다음 추천부터 반영됨.
+  - `app/generate/deep-pattern.tsx`: 화면 마운트 시 `refreshAtlasIfStale()`을 한 번 호출(useEffect, fire-and-forget) — "패턴 분석 시작하기"를 누르는 흐름 자체는 이 네트워크 요청을 기다리지 않는다.
+- **테스트 안전성(신경 쓴 부분)**: `tests/deepPatternEngine.test.ts`가 `engine.ts`를 직접 import하는데, `atlasCache.ts`가 쓰는 `AsyncStorage`는 네이티브 모듈이라 `jest.config.js`의 "unit" 프로젝트(ts-jest+node, RN 목 없음)에서 실제로 호출하면 에러가 난다는 걸 미리 확인했다(`node -e "require('@react-native-async-storage/async-storage').default.getItem('x')"`로 재현 — "window is not defined"). 그래서 (a) 모듈 로드 시 자동으로 도는 부분은 로컬 캐시 읽기(`readJson`)뿐이고 `readJson`은 실패 시 항상 조용히 fallback을 반환하도록 이미 짜여 있어 이 환경에서도 안전하게 no-op된다, (b) 실제 네트워크 요청이 필요한 `refreshAtlasIfStale()`은 `engine.ts` 내부(모듈 최상단이나 `recommendDeepPatterns()` 안)에서 자동 호출하지 않고 화면(`deep-pattern.tsx`)에서만 명시적으로 호출하게 분리했다 — `tests/deepPatternEngine.test.ts`는 화면 코드를 안 건드리므로 항상 네트워크 없이 결정론적으로 돈다. `frequentPatternRatio` 기본값 0과 같은 원칙: 손 안 댄 경로는 기존과 완전히 동일하게 동작.
+- **검증**: `npx tsc --noEmit` 클린(기기에서 직접, 최종 커밋 상태 기준). `npx jest --selectProjects unit tests/deepPatternEngine.test.ts`는 이번엔 기기 응답이 계속 느려서(여러 번 시도해도 45초 내 안 끝남 — 반면 사용자가 직접 터미널에서 돌렸을 때는 5초 안팎이었음, 원인은 기기 자체가 아니라 이 세션이 쓰는 원격 실행 경로의 오버헤드로 추정) 이번 세션에서 직접 재확인은 못 했다. 위 "테스트 안전성" 분석과 로직상 근거는 확실하지만, **사용자가 실기기 터미널에서 `npx tsc --noEmit`·`npm run lint`·`npx jest tests/deepPatternEngine.test.ts` 한 번 더 돌려서 최종 확인 필요** — 특히 5개 테스트 전부(개수·유효성·중복 없음·구조적 공백 순서·3초 이내 완료) 그대로 통과하는지가 중요.
+- **남은 참고**: 새 Atlas 최초 배포(다음 EAS 빌드)까지는 GitHub의 최신 atlas가 여전히 저장소에만 있고 기존 설치 앱은 번들된 이전 atlas를 쓴다 — 그 최초 배포 이후부터는 이 세 파일이 있으므로 이후로는 앱 재배포 없이도 계속 최신화된다.
+
+### 79. 78번 후속 — expo-secure-store ESM import 때문에 unit 테스트가 깨지던 문제 수정
+- **발견**: 사용자가 78번 검증을 위해 `npx jest tests/deepPatternEngine.test.ts`를 실기기 터미널에서 재실행 — "Cannot use import statement outside a module" 에러로 테스트 스위트 자체가 실행되지 못하고 실패함.
+- **원인**: `atlasCache.ts`가 `src/lib/storage/storage.ts`의 `readJson`/`writeJson`을 그대로 가져다 썼는데, `storage.ts`는 같은 파일 안에서 `secureStorage.ts`(생년월일 등 민감정보용, `expo-secure-store` 사용)도 함께 import한다. `expo-secure-store`는 ESM 전용 패키지라, `tests/deepPatternEngine.test.ts`가 도는 jest "unit" 프로젝트(`jest.config.js` — ts-jest+node 환경, node_modules는 변환하지 않음)에서 `require`로 그대로 로드하려다 문법 오류로 실패함. 이 체인은 `tests/deepPatternEngine.test.ts` → `engine.ts` → `atlasCache.ts` → `storage.ts` → `secureStorage.ts` → `expo-secure-store` 순으로 연결됨 — engine.ts가 이번에 처음으로 storage.ts를 간접적으로 물게 되면서 드러난 문제.
+- **수정**: `src/lib/deepPattern/atlasCache.ts`가 `storage.ts`를 아예 거치지 않고 `AsyncStorage`(`@react-native-async-storage/async-storage`)를 직접 쓰도록 변경 — `readJson`/`writeJson`과 동일한 동작(읽기 실패 시 조용히 fallback, 쓰기 실패 시 throw)을 이 파일 안에 축소판으로 재구현했다. `storage.ts`와 같은 네임스페이스(`"@ai-lotto/"`)를 그대로 맞춰서 다른 모듈이 저장한 값과 안 섞이게 함. `engine.ts`/`atlasGithubSource.ts`/`atlasTypes.ts`는 변경 없음.
+- **검증**: `npx tsc --noEmit` 클린(기기 직접). 사용자가 실기기 터미널에서 `npx jest tests/deepPatternEngine.test.ts` 재실행 — import 에러 없이 5개 테스트 전부 통과 확인됨(status/메타데이터/유효성·중복없음/구조적 공백 순서/3초 이내 완료). 78/79번(딥 패턴 Atlas GitHub 자동 동기화 아키텍처)이 최종적으로 정상 동작 확인됨.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { NumberGrid, DisclaimerCard, BottomActionBar, LottoBallLoader } from "../../src/components";
 import { generateAiSearchGames, type AiSearchPhase } from "../../src/lib/lottery/generator";
 import type { ConsecutiveRule, GenerationRequest } from "../../src/lib/lottery/types";
@@ -25,7 +25,7 @@ import {
   SEARCH_STRENGTH_OPTIONS,
   SUM_AVERAGE_PREFERENCE_OPTIONS,
 } from "../../src/constants/lottery";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
 /** 실제 최근 당첨번호 합계 평균을 계산할 때 쓰는 표본 크기 (최근 52주 = 1년치 회차). lab.tsx와 동일 기준. */
 const RECENT_SUM_SAMPLE_SIZE = 52;
@@ -40,6 +40,24 @@ const LONG_TERM_ABSENT_WEEKS_BOOSTER = 8;
 
 type SumAveragePreference = "NONE" | "UP" | "DOWN";
 
+/**
+ * "preferred=5,11,22" 형태의 라우트 파라미터를 1~45 범위의 정수 배열로 변환한다.
+ * 홈 화면 "최근 오래 나오지 않은 번호 > 바로가기"에서 이 화면으로 넘어올 때, 해당 번호들을
+ * 선호번호로 미리 선택해두는 용도로 쓰인다(exclusion.tsx의 parseExcludeParam과 동일 패턴).
+ */
+function parsePreferredParam(raw?: string | string[]): number[] {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return [];
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((v) => Number(v))
+        .filter((n) => Number.isInteger(n) && n >= 1 && n <= 45)
+    ),
+  ];
+}
+
 // 탐색 단계별 안내 문구. generator.ts가 보고하는 phase에 그대로 매핑한다 —
 // percent 임계값(예: 60%, 85%)으로 라벨을 추측하지 않고, 실제 계산 단계와 항상 일치시킨다.
 const PHASE_LABELS: Record<AiSearchPhase, string> = {
@@ -50,13 +68,17 @@ const PHASE_LABELS: Record<AiSearchPhase, string> = {
 
 export default function AiSearchScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
   const setResult = useGenerationStore((s) => s.setResult);
+  const params = useLocalSearchParams<{ preferred?: string }>();
 
   const [searchCount, setSearchCount] = useState<1 | 30000 | 100000 | 1000000>(30000);
   const [excluded, setExcluded] = useState<number[]>([]);
-  const [preferred, setPreferred] = useState<number[]>([]);
+  const [preferred, setPreferred] = useState<number[]>(() => parsePreferredParam(params.preferred));
+  // 홈 화면 "최근 오래 나오지 않은 번호 > 바로가기"로 들어왔는지(마운트 시점 값으로 고정,
+  // 이후 선택 변경과 무관 — exclusion.tsx의 cameFromShortcut과 동일 패턴).
+  const [cameFromShortcut] = useState(() => parsePreferredParam(params.preferred).length > 0);
   const [consecutiveRule, setConsecutiveRule] = useState<ConsecutiveRule>("ANY");
   const [avoidPopular, setAvoidPopular] = useState(true);
   const [avoidMySaved, setAvoidMySaved] = useState(true);
@@ -247,12 +269,23 @@ export default function AiSearchScreen() {
     // (2) 눈으로 계속 움직임이 보이는 막대 바, (3) 막바지에는 안심시키는 문구로 바꿔
     // 오래 걸리는 연산이라는 걸 자연스럽게 체감시킨다.
     const isAlmostDone = progressPercent >= 95;
+    // 100만 회 부스터 탐색은 다른 옵션보다 훨씬 오래 걸리는데(17번 QA 항목 실측: 3만 회
+    // 대비 약 10.8배), 로딩 화면이 뜨자마자 그 사실을 먼저 알려주지 않으면 "왜 이렇게
+    // 안 끝나지"라는 인상을 주기 쉽다는 QA 피드백 — 스피너보다 먼저(화면 맨 위) 보이도록
+    // 배치하고, 탐색이 끝날 때까지 계속 보여준다(초반에만 잠깐 보이고 사라지면 뒤늦게
+    // 오래 걸리는 걸 알게 될 뿐이라 의미가 없다).
+    const isBoosterSearch = searchCount === BOOSTER_SEARCH_COUNT;
     return (
       <View
         style={styles.progressContainer}
         accessibilityLiveRegion="polite"
         accessibilityLabel={`${progressLabel}, ${progressPercent}퍼센트`}
       >
+        {isBoosterSearch ? (
+          <Text style={styles.boosterNotice}>
+            100만 회 부스터 탐색은 계산에 시간이 다소 걸릴 수 있어요.
+          </Text>
+        ) : null}
         <LottoBallLoader />
         <Text style={styles.progressLabel}>{progressLabel}</Text>
         <Text style={styles.progressPercent}>{progressPercent}%</Text>
@@ -271,6 +304,14 @@ export default function AiSearchScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      {cameFromShortcut ? (
+        <View style={styles.shortcutBanner}>
+          <Text style={styles.shortcutBannerText}>
+            홈 화면에서 오래 나오지 않은 번호가 자동으로 선호번호에 추가됐어요. 아래에서 직접 조정할 수 있어요.
+          </Text>
+        </View>
+      ) : null}
+
       <Text style={styles.sectionTitle}>탐색 강도</Text>
       <View style={styles.row}>
         {SEARCH_STRENGTH_OPTIONS.map((opt) => (
@@ -427,9 +468,16 @@ export default function AiSearchScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, tints: AppTints) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    shortcutBanner: {
+      backgroundColor: tints.indigo.bg,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 8,
+    },
+    shortcutBannerText: { color: tints.indigo.fg, fontSize: 12, fontWeight: "600", lineHeight: 18 },
     sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
     row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
     optionButton: {
@@ -453,6 +501,13 @@ function createStyles(colors: AppColors) {
     smallNotice: { fontSize: 11, color: colors.textMuted, marginBottom: 4, lineHeight: 16 },
     // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
     progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0F172A" },
+    boosterNotice: {
+      color: "#FDBA74",
+      fontSize: 13,
+      fontWeight: "700",
+      textAlign: "center",
+      marginBottom: 20,
+    },
     progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
     progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
     progressBarTrack: {

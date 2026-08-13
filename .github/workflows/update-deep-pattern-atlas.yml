@@ -1,0 +1,57 @@
+name: Update Deep Pattern Atlas
+
+# 딥 패턴 탐색이 쓰는 data/deep-pattern-atlas.json(81개 basin 통계 + basin별 대표 조합
+# 샘플)은 앱에 정적으로 번들되는 "빌드타임" 산출물이다 — data/lotto-draws.json(당첨 이력)이
+# update-lotto-data.yml로 매주 자동 갱신돼도, 이 atlas 파일은 scripts/build-deep-pattern-atlas.mjs를
+# 다시 돌리기 전까진 저절로 따라가지 않는다(QA_LOG.md 77번 참고 — 실기기에서 "제1235회까지
+# 반영"이 안 늘어난다는 피드백으로 발견).
+#
+# "Update Lotto Data" 워크플로가 끝난 직후 이어서 실행한다. 최신 당첨 이력 기준으로 atlas를
+# 다시 계산해서 변경이 있으면(회차가 늘었으면 거의 항상 있다) 커밋한다.
+#
+# 중요: 이 워크플로가 data/deep-pattern-atlas.json을 저장소에 커밋해도, 그 값이 실제 사용자
+# 화면("제N회까지 반영")에 나타나려면 앱을 다시 빌드해서 배포(EAS build 등)하는 과정이
+# 별도로 반드시 필요하다 — 이 파일은 런타임에 다시 읽어오는 게 아니라 정적 import로 번들되는
+# 빌드타임 데이터이기 때문이다. 즉 이 워크플로는 "다음 앱 빌드에 반영될 최신 재료"를
+# 준비해두는 역할이고, 사용자 화면 자동 업데이트까지 보장하진 않는다.
+#
+# 참고: GitHub는 60일 이상 커밋이 없는 저장소의 예약 실행(schedule)을 자동으로 비활성화한다.
+# workflow_run 트리거도 마찬가지로 저장소가 오래 조용하면 멈출 수 있다 — 그 경우 Actions
+# 탭에서 이 워크플로를 열고 수동으로 한 번 실행(Run workflow)하면 다시 살아난다.
+"on":
+  workflow_run:
+    workflows: ["Update Lotto Data"]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update-atlas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build atlas
+        # 순수 Node 내장 모듈(fs/url/path)만 쓰는 스크립트라 npm install 없이 바로 실행한다.
+        run: node scripts/build-deep-pattern-atlas.mjs
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet -- data/deep-pattern-atlas.json; then
+            echo "변경 사항 없음 — 커밋을 건너뜁니다."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/deep-pattern-atlas.json
+          THROUGH=$(node -e "const a=require('./data/deep-pattern-atlas.json'); console.log(a.historyThroughDrawNumber)")
+          git commit -m "chore: rebuild deep pattern atlas (최신 ${THROUGH}회 반영, 앱 재빌드 시 적용됨)"
+          git push

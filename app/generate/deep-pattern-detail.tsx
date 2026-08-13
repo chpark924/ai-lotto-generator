@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import Svg, { Circle, Rect } from "react-native-svg";
-import { PatternBoard } from "../../src/components/deepPattern";
+import { BottomActionBar } from "../../src/components";
+import { PatternBoard, PatternPositionMap } from "../../src/components/deepPattern";
 import { buildGameMetadata } from "../../src/lib/lottery/pattern";
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
 import { saveTicket } from "../../src/lib/storage";
@@ -140,18 +140,9 @@ export default function DeepPatternDetailScreen() {
         <View style={s.vizCard}>
           <View style={s.vizTitleRow}>
             <Text style={s.vizTitle}>Pattern Map</Text>
-            <Text style={s.vizSub}>전체 조합 중 상대 위치(예시)</Text>
+            <Text style={s.vizSub}>전체 조합 중 상대 위치(근사치)</Text>
           </View>
-          <Svg viewBox="0 0 240 140" width="100%" height={100}>
-            <Rect x={0} y={0} width={240} height={140} rx={10} fill={colors.surfaceAlt} />
-            <Circle cx={60} cy={40} r={22} fill="#6C5CE7" opacity={0.18} />
-            <Circle cx={110} cy={90} r={30} fill="#6C5CE7" opacity={0.25} />
-            <Circle cx={170} cy={35} r={18} fill="#6C5CE7" opacity={0.15} />
-            <Circle cx={185} cy={100} r={4} fill="#DC2626" />
-          </Svg>
-          <View style={s.mapLegend}>
-            <Text style={s.mapLegendText}>● 과거 밀집 영역 (연보라) · ● 이번 추천 위치 (빨강)</Text>
-          </View>
+          <PatternPositionMap recommendation={rec} />
         </View>
 
         <View style={s.disclaimerBox}>
@@ -163,17 +154,13 @@ export default function DeepPatternDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={s.bottomBar}>
-        <Pressable
-          style={[s.saveButton, isSaving && s.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={isSaving}
-          accessibilityRole="button"
-          accessibilityLabel="이 번호 저장하기"
-        >
-          <Text style={s.saveButtonText}>{isSaving ? "저장 중..." : "이 번호 저장하기"}</Text>
-        </Pressable>
-      </View>
+      <BottomActionBar
+        label={isSaving ? "저장 중..." : "이 번호 저장하기"}
+        onPress={handleSave}
+        disabled={isSaving}
+        color="#6C5CE7"
+        disabledColor="#C9C2FF"
+      />
     </View>
   );
 }
@@ -214,8 +201,6 @@ function styles(colors: AppColors, tints?: AppTints) {
     },
     nearestText: { fontSize: 11.5, color: colors.textSecondary, lineHeight: 18 },
     nearestBold: { fontWeight: "800", color: colors.textPrimary },
-    mapLegend: { marginTop: 8, alignItems: "center" },
-    mapLegendText: { fontSize: 10, color: colors.textMuted },
     disclaimerBox: {
       backgroundColor: colors.surfaceAlt,
       borderRadius: 12,
@@ -223,17 +208,6 @@ function styles(colors: AppColors, tints?: AppTints) {
       marginBottom: 8,
     },
     disclaimerText: { fontSize: 10.5, color: colors.textMuted, lineHeight: 16 },
-    bottomBar: {
-      backgroundColor: colors.background,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 20,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    saveButton: { backgroundColor: "#6C5CE7", borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-    saveButtonDisabled: { backgroundColor: "#C9C2FF" },
-    saveButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
     emptyButton: { backgroundColor: "#6C5CE7", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },

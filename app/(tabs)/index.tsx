@@ -85,7 +85,7 @@ export default function HomeScreen() {
   return (
     <>
       <View style={styles.swipeArea} {...panResponder.panHandlers}>
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
         <Pressable
           style={styles.settingsLink}
           onPress={() => setSettingsVisible(true)}
@@ -168,7 +168,7 @@ export default function HomeScreen() {
                 <LottoBall key={n} number={n} size={30} />
               ))}
             </View>
-            <View style={styles.frequentFooterRow}>
+            <View style={styles.cardFooterRow}>
               <Text style={styles.cardCaption}>평소와 다른 조합을 만들어볼까요?</Text>
               <Pressable
                 style={({ pressed }) => [styles.shortcutButton, pressed && styles.shortcutButtonPressed]}
@@ -204,6 +204,23 @@ export default function HomeScreen() {
               {absentNumbers.map((n) => (
                 <LottoBall key={n} number={n} size={30} />
               ))}
+            </View>
+            <View style={styles.cardFooterRow}>
+              <Text style={styles.cardCaption}>이번엔 나올지도 모르니 포함해서 만들어볼까요?</Text>
+              <Pressable
+                style={({ pressed }) => [styles.shortcutButton, pressed && styles.shortcutButtonPressed]}
+                android_ripple={{ color: "#1E293B" }}
+                onPress={() =>
+                  router.push({
+                    pathname: "/generate/ai-search",
+                    params: { preferred: absentNumbers.join(",") },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel="오래 나오지 않은 번호를 포함해서 만들기"
+              >
+                <Text style={styles.shortcutButtonText}>바로가기</Text>
+              </Pressable>
             </View>
           </View>
         ) : null}
@@ -258,7 +275,7 @@ function createStyles(colors: AppColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
-      marginBottom: 8,
+      marginBottom: 12,
     },
     settingsLinkText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
     // 히어로 카드: 어두운 브랜드 카드에서 밝은 카드(제목/부제는 어두운 텍스트)로 변경.
@@ -266,15 +283,15 @@ function createStyles(colors: AppColors) {
     heroCard: {
       backgroundColor: colors.surface,
       borderRadius: 20,
-      padding: 20,
-      marginBottom: 16,
+      padding: 22,
+      marginBottom: 20,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    heroSubtitle: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
-    heroSkeletonSubtitle: { marginBottom: 6 },
-    skeletonTitle: { marginBottom: 10 },
-    heroTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 16 },
+    heroSubtitle: { color: colors.textMuted, fontSize: 13, marginBottom: 8 },
+    heroSkeletonSubtitle: { marginBottom: 8 },
+    skeletonTitle: { marginBottom: 12 },
+    heroTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 18 },
     ctaButtonWrapper: { borderRadius: 16, overflow: "hidden" },
     ctaButton: {
       borderRadius: 16,
@@ -283,12 +300,12 @@ function createStyles(colors: AppColors) {
     },
     ctaButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
     ctaButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-    quickMenuRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+    quickMenuRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
     quickMenuItem: {
       flex: 1,
       backgroundColor: colors.surface,
       borderRadius: 12,
-      paddingVertical: 10,
+      paddingVertical: 14,
       paddingHorizontal: 2,
       alignItems: "center",
       borderWidth: 1,
@@ -307,22 +324,27 @@ function createStyles(colors: AppColors) {
       textAlign: "center",
       width: "100%",
     },
+    // 62번 QA에서 화면 전체 여백을 넓혔는데, "내가 자주 선택한 번호"/"최근 오래 나오지 않은
+    // 번호" 카드는 오히려 너무 커진 느낌이라는 후속 피드백을 받아 이 두 카드(공용 `card`
+    // 스타일)만 다시 소폭 촘촘하게 조정했다(히어로 카드·퀵메뉴 등 다른 영역은 그대로 유지).
     card: {
       backgroundColor: colors.surface,
       borderRadius: 16,
-      padding: 16,
+      padding: 14,
       marginBottom: 16,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 10 },
+    cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardCaption: { fontSize: 12, color: colors.textMuted, flexShrink: 1 },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    frequentFooterRow: {
+    // "내가 자주 선택한 번호"·"최근 오래 나오지 않은 번호" 카드가 공용으로 쓰는 하단
+    // 안내문구+바로가기 버튼 행.
+    cardFooterRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginTop: 12,
+      marginTop: 10,
       gap: 8,
     },
     // 아래 두 버튼도 히어로 카드와 마찬가지로 항상 어두운 브랜드 톤을 유지한다.
@@ -334,6 +356,6 @@ function createStyles(colors: AppColors) {
     },
     shortcutButtonPressed: { backgroundColor: "#1E293B", transform: [{ scale: 0.97 }] },
     shortcutButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-    footerNotice: { fontSize: 11, color: colors.textMuted, textAlign: "center", marginTop: 8, marginBottom: 24 },
+    footerNotice: { fontSize: 11, color: colors.textMuted, textAlign: "center", marginTop: 16, marginBottom: 28 },
   });
 }

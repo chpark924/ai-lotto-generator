@@ -111,8 +111,13 @@ export default function DiceScreen() {
       <Text style={styles.hint}>번호를 탭하면 그 번호만 다시 굴립니다.</Text>
 
       <View style={styles.buttonRow}>
+        {/* 세 버튼 다 눌러도 스타일이 그대로라 "이미 선택된 상태"처럼 정적으로 보인다는
+            QA 피드백 — 이 앱 다른 화면(홈 화면 CTA, 번호 만들기 카드 등)이 이미 쓰고 있는
+            일반적인 버튼 프레스 피드백 패턴(눌리는 순간 살짝 어두워지고 축소 + 안드로이드
+            리플)을 여기에도 동일하게 적용해, 누르는 행위 자체가 체감되도록 한다. */}
         <Pressable
-          style={[styles.button, styles.buttonOutline]}
+          style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonOutlinePressed]}
+          android_ripple={{ color: "#DBEAFE" }}
           onPress={rollOnce}
           disabled={rolled.length >= 6}
           accessibilityRole="button"
@@ -122,7 +127,8 @@ export default function DiceScreen() {
           <Text style={styles.buttonOutlineText}>한 번 굴리기</Text>
         </Pressable>
         <Pressable
-          style={[styles.button, styles.buttonPrimary]}
+          style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.buttonPrimaryPressed]}
+          android_ripple={{ color: "#1E3A8A" }}
           onPress={rollAllSix}
           accessibilityRole="button"
           accessibilityLabel="자동 6회 굴리기"
@@ -130,7 +136,8 @@ export default function DiceScreen() {
           <Text style={styles.buttonPrimaryText}>자동 6회 굴리기</Text>
         </Pressable>
         <Pressable
-          style={[styles.button, styles.buttonSecondary]}
+          style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.buttonSecondaryPressed]}
+          android_ripple={{ color: colors.surfaceAlt }}
           onPress={reset}
           accessibilityRole="button"
           accessibilityLabel="굴린 번호 초기화"
@@ -202,12 +209,20 @@ function createStyles(colors: AppColors) {
       shadowOffset: { width: 0, height: 3 },
       elevation: 2,
     },
+    // 누르는 순간 살짝 어두워지고(iOS 리플 대체) 축소돼서 "지금 눌렀다"는 게 체감되도록.
+    buttonPrimaryPressed: {
+      backgroundColor: "#1D4ED8",
+      transform: [{ scale: 0.97 }],
+      shadowOpacity: 0.15,
+    },
     buttonPrimaryText: { color: "#fff", fontSize: 12, fontWeight: "700" },
     // Secondary: 보조 액션 (한 번 굴리기) - 브랜드 컬러 아웃라인으로 Primary와 연관성은 유지하되 위계는 낮춤
     buttonOutline: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: "#2563EB" },
+    buttonOutlinePressed: { backgroundColor: colors.surfaceAlt, transform: [{ scale: 0.97 }] },
     buttonOutlineText: { color: "#2563EB", fontSize: 12, fontWeight: "700" },
     // Tertiary: 초기화 - 가장 낮은 위계, 중립 회색
     buttonSecondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    buttonSecondaryPressed: { backgroundColor: colors.surfaceAlt, transform: [{ scale: 0.97 }] },
     buttonSecondaryText: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
     toggleLink: { color: "#2563EB", fontSize: 13, fontWeight: "600", marginBottom: 8 },
   });

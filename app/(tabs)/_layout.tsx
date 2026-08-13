@@ -29,8 +29,11 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: "#0F172A" },
+        headerStyle: { backgroundColor: "#0F172A", height: 40 },
         headerTintColor: "#fff",
+        // 홈 화면 QA 피드백(상단 "홈" 헤더가 커서 답답하다) 반영 후, 탭 4개 전부
+        // 통일성 있게 보이도록 헤더 글자 크기·높이를 전체 탭 공통(screenOptions)으로 적용.
+        headerTitleStyle: { fontSize: 15, fontWeight: "600" },
         tabBarActiveTintColor: "#2563EB",
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },

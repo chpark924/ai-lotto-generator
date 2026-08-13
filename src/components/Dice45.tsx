@@ -94,11 +94,15 @@ export function Dice45({
   const tilt = spinRotate.interpolate({ inputRange: [0, 0.5, 1], outputRange: ["0deg", "16deg", "0deg"] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] });
 
+  // 이 구슬 자체는 눌러도 아무 반응이 없다(실제 굴리기는 화면 하단의 "한 번 굴리기"/
+  // "자동 6회 굴리기" 버튼으로만 동작). 예전엔 여기에 "탭해서 굴려보세요"라고 써놔서
+  // 이 구슬을 눌러야 하는 것처럼 오해할 수 있다는 QA 피드백 — 탭 가능하다는 뉘앙스의
+  // 문구를 완전히 빼고, 실제 상태(굴리는 중 / 방금 확정)만 안내한다.
   const statusLabel = isSpinning
     ? "45면체 주사위, 굴리는 중"
     : number !== null
       ? `45면체 주사위, 방금 ${number} 확정`
-      : "45면체 주사위, 탭해서 굴려보세요";
+      : "45면체 주사위";
 
   return (
     <View style={styles.wrap} accessible accessibilityLabel={statusLabel}>
@@ -141,9 +145,9 @@ export function Dice45({
         </View>
       </Animated.View>
 
-      <Text style={styles.caption}>
-        {isSpinning ? "굴리는 중..." : number !== null ? `방금 ${number} 확정` : "탭해서 굴려보세요"}
-      </Text>
+      {isSpinning || number !== null ? (
+        <Text style={styles.caption}>{isSpinning ? "굴리는 중..." : `방금 ${number} 확정`}</Text>
+      ) : null}
     </View>
   );
 }
