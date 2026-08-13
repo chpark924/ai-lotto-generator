@@ -1,38 +1,32 @@
-import { Pressable, Text } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 
 /**
  * "번호 만들기"의 각 기능 화면들(제외해보기/AI 조합탐색/행운번호/45면체 주사위/운명의 신/
- * 딥 패턴 탐색/QR당첨확인 등)을 하나의 중첩 스택으로 묶는다. 루트(app/_layout.tsx)는 이
- * 그룹 전체를 presentation:"modal" 하나로 등록하고(아래→위로 슬라이드해 올라오는 모달),
- * 이 안에서의 이동(예: ai-search → result, deep-pattern → deep-pattern-result →
- * deep-pattern-detail)은 평소처럼 일반 push로 그대로 동작한다.
+ * 딥 패턴 탐색/QR당첨확인 등)을 하나의 중첩 스택으로 묶는다. 이 안에서의 이동(예:
+ * ai-search → result, deep-pattern → deep-pattern-result → deep-pattern-detail)은
+ * 평소처럼 일반 push로 동작한다.
  *
- * 왜 필요한가(QA_LOG.md 86번): 예전엔 이 화면들이 루트 스택에 개별 등록된 평범한 push
- * 화면이라, 홈 화면 "바로가기"/빠른 메뉴로 들어가면 탭바가 완전히 사라지고 상단의 작은
- * '‹' 뒤로가기 버튼만 남았다 — 탭 전환에 익숙한 유저 입장에선 "홈으로 돌아갈 방법이 없다"로
- * 느껴졌다. 모달 프레젠테이션으로 바꾸면 "홈 위에 작업을 잠깐 얹는다"는 게 시각적으로도
- * 분명해지고, 아래 headerLeft의 "닫기" 버튼으로 뒤로가기를 여러 번 누르지 않고도 바로 홈으로
- * 돌아갈 수 있다(iOS는 위→아래로 스와이프해서 닫는 것도 그대로 가능).
+ * 프레젠테이션 방식(QA_LOG.md 86→87번 히스토리): 처음엔(86번) 이 화면들이 탭바 밖의 별도
+ * push 화면이라 홈에서 들어가면 돌아갈 방법이 안 보인다는 피드백에 아래→위 모달로 바꿨는데,
+ * 사용자가 실기기에서 써본 뒤 "이게 정말 일반적인 패턴이냐"고 재차 확인 요청(87번). 검토
+ * 결과: 모달(아래→위 슬라이드)은 보통 '작성/설정/필터'처럼 짧고 일회성인 작업에 쓰는 패턴이고,
+ * 이 화면들은 "번호 만들기" 탭의 핵심 기능 그 자체라 다단계로 오래 머무를 수 있다 — 대부분의
+ * 앱(토스·카카오뱅크 등)이 이런 "다른 섹션의 기능으로 이동"에는 오른쪽에서 들어오는 일반
+ * push + 표준 뒤로가기 버튼을 쓰지, 모달을 쓰지 않는다. 그래서 프레젠테이션은 기본값(오른쪽에서
+ * 슬라이드 인)으로 되돌리고, 원래 문제였던 "홈으로 돌아갈 방법이 안 보인다"는 부분은 여기서
+ * headerLeft를 커스텀하지 않고 React Navigation이 기본 제공하는 표준 '‹' 뒤로가기 버튼에
+ * 맡긴다 — 이 화면들이 중첩 스택으로 묶여 있어도, 그 안의 첫 화면(예: 홈에서 막 들어온
+ * ai-search)에서 뒤로가기를 누르면 표준 동작대로 이 그룹 전체가 pop되어 정확히 홈으로
+ * 돌아간다(react-navigation 공식 동작 — 자식 스택의 첫 화면에서 더 갈 곳이 없으면 부모
+ * 스택까지 pop됨). 커스텀 버튼 없이도 모든 유저가 이미 알고 있는 가장 표준적인 뒤로가기라
+ * 오히려 더 안정적이고 예측 가능하다.
  */
 export default function GenerateLayout() {
-  const router = useRouter();
-
   return (
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: "#0F172A" },
         headerTintColor: "#fff",
-        headerLeft: () => (
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
-            accessibilityRole="button"
-            accessibilityLabel="닫기"
-          >
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>닫기</Text>
-          </Pressable>
-        ),
       }}
     >
       <Stack.Screen name="exclusion" options={{ title: "제외하고 생성" }} />

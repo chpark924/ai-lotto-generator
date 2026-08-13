@@ -32,16 +32,11 @@ export default function RootLayout() {
           <StatusBar style="light" />
           <Stack screenOptions={{ headerStyle: { backgroundColor: "#0F172A" }, headerTintColor: "#fff" }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            {/* "번호 만들기"의 각 기능 화면(제외해보기/AI 조합탐색/행운번호/45면체 주사위/운명의
-                신/딥 패턴 탐색/QR당첨확인 등, app/generate/ 폴더 전체)은 홈 화면 "바로가기"나
-                빠른 메뉴에서 진입하면 탭바가 사라지고 작은 '‹' 뒤로가기만 남아 "홈으로 돌아갈
-                방법이 없다"는 QA 피드백(2026-08-13)으로 이어졌다. 이 폴더를 하나의 중첩
-                스택(app/generate/_layout.tsx)으로 묶고, 그 그룹 전체를 여기서 한 번만
-                presentation:"modal"로 등록한다 — 진입 시 아래→위로 슬라이드해 올라와 "홈
-                위에 작업을 잠깐 얹는다"는 게 시각적으로 분명해지고, 중첩 스택 쪽에 둔 명확한
-                "닫기" 버튼으로 바로 홈에 돌아갈 수 있다. 그룹 내부 이동(예: ai-search→result)은
-                중첩 스택 안에서 평소처럼 일반 push로 그대로 동작한다. */}
-            <Stack.Screen name="generate" options={{ headerShown: false, presentation: "modal" }} />
+            {/* "번호 만들기"의 각 기능 화면(app/generate/ 폴더 전체)을 하나의 중첩 스택으로 묶어
+                등록한다(app/generate/_layout.tsx 참고) — 그 파일 상단 주석에 프레젠테이션 방식을
+                모달에서 표준 push로 되돌린 이유(QA_LOG.md 87번)를 정리해 뒀다. 여기서는
+                headerShown만 끄고(중첩 스택이 자기 헤더를 그린다) 프레젠테이션은 기본값을 쓴다. */}
+            <Stack.Screen name="generate" options={{ headerShown: false }} />
             <Stack.Screen name="preferences" options={{ title: "선호번호 · 제외번호 세트" }} />
             <Stack.Screen name="privacy" options={{ title: "개인정보처리방침" }} />
           </Stack>
