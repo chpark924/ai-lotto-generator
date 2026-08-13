@@ -797,3 +797,11 @@
 - **질문 2**: 조사 과정에서 스크린샷 속 이번 회차 보너스 번호(10)가 여전히 "장기 미출현 번호"(19회째)에 남아있는 걸 발견해 사용자에게 알림 — 앱이 "출현" 판정을 본번호 6개 기준으로만 계산하고(`totalCount`/Top6/사카이 분석과 동일한 관례) 보너스는 별도 집계(`bonusCount`)만 하기 때문. 의도된 설계인지 확인 요청 → 사용자가 "보너스 번호까지 출현으로 쳐서 미출현 목록에서 빼자"고 결정.
 - **수정**: `src/lib/draws/drawStats.ts`의 `computeNumberFrequencies()` — 본번호 순회 후 `bonuses` 집계와 별개로, 보너스 번호에 대해서도 `lastSeen`(→ `lastDrawNumber`)을 갱신하는 로직을 추가(`markSeen()` 헬퍼로 본번호·보너스 공용화). `totalCount`(출현 빈도, Top6·사카이 분석 등에서 쓰는 "몇 번 나왔는지"의 의미)는 그대로 본번호만 세도록 유지 — "미출현 판정"에 쓰이는 `lastDrawNumber`만 보너스를 포함하도록 범위를 좁혀서, 다른 화면(출현 빈도 Top 6 등)에는 영향이 없게 함.
 - **검증**: `tests/drawStats.test.ts`에 신규 케이스 추가 — 본번호로는 한 번도 안 나오고 최신 회차에 보너스로만 나온 번호가 `totalCount=0`(빈도는 그대로 0)이면서도 `lastDrawNumber`는 그 회차로 갱신되고, `getLongestAbsentNumbers()` 결과에도 빠지는지 확인. `npx tsc --noEmit`·`npx eslint .`·`npx jest tests/drawStats.test.ts`(18개 전부, 신규 케이스 포함) 모두 클린/통과 확인(사용자 실기기 터미널). 로또 연구소/홈 화면에서 이번 회차 보너스 번호가 실제로 미출현 목록에서 빠지는지는 실기기 육안 확인 필요.
+
+### 83. "당첨번호 합계 추세" 그래프 — 스크롤 가능한 걸 알아채기 어렵고, 기본으로 오래된 회차부터 보임
+- **피드백**: [스크린샷 2장, 동일] 로또 연구소의 "당첨번호 합계 추세 (최근 52회)" 그래프에 대한 두 가지 요청. (1) 그래프가 가로로 스크롤된다는 걸 유저가 인지할 수 있게 그래프 영역의 색상을 다르게 달라는 요청. (2) 화면에 처음 들어왔을 때 디폴트로 가장 최신 시점의 값이 보이게 해달라는 요청(스크린샷 기준 처음엔 가장 오래된 회차인 1185회부터 보이고 있었음).
+- **원인**: `src/components/SumTrendChart.tsx` — 52개 회차 전체를 그리다 보니 그래프 실제 폭(`chartWidth`)이 화면보다 훨씬 넓어서 원래도 가로 스크롤이 가능한 구조였는데, (1) `<ScrollView>`가 카드와 똑같은 흰 배경이고 `showsHorizontalScrollIndicator={false}`로 스크롤바까지 꺼놔서 스크롤 가능한 영역이라는 시각적 단서가 전혀 없었음. (2) `<ScrollView>`에 별도 스크롤 위치 제어가 없어 기본값(맨 왼쪽 = 가장 오래된 회차)에서 시작했음.
+- **수정**: `src/components/SumTrendChart.tsx`
+  - `<ScrollView>`를 새 `chartPanel` 스타일(`colors.surfaceAlt` 배경, 둥근 모서리)로 감싸서 카드 흰 배경과 명확히 구분되는 별도 패널처럼 보이게 함. `showsHorizontalScrollIndicator`도 다시 켜서 네이티브 스크롤바 힌트까지 함께 제공(색상 구분 + 스크롤바 두 가지 신호).
+  - `useRef<ScrollView>`로 참조를 잡고, `onContentSizeChange`(그래프 폭이 실제로 확정되는 시점 — 표본이 바뀌어 폭이 달라질 때도 다시 호출됨)에서 `scrollToEnd({ animated: false })`를 호출해 항상 맨 오른쪽(최신 회차)이 기본으로 보이게 함.
+- **검증**: `npx tsc --noEmit`·`npx eslint .` 클린. `npx jest tests/components/lab.test.tsx` 통과(이 화면이 `SumTrendChart`를 렌더링하는 유일한 컴포넌트 테스트 — jest 테스트 렌더러에는 실제 레이아웃 엔진이 없어 `onContentSizeChange`가 테스트 중에는 호출되지 않으므로 `scrollToEnd` 관련 회귀 위험 없음을 확인). 실기기에서 그래프 영역이 시각적으로 구분되는지, 진입 시 최신 회차(1236회)가 바로 보이는지는 육안 확인 필요.
