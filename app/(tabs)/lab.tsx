@@ -192,7 +192,15 @@ export default function LabScreen() {
       ) : null}
 
       {latestDraw ? (
-        <View style={styles.card}>
+        // 이 카드만 실제 공식 발표 데이터(정부 추첨 결과)이고, 바로 아래 카드들(출현 빈도/
+        // 장기 미출현/패턴 통계 등)은 전부 그 결과를 가공한 통계·분석이다. 예전엔 둘 다 같은
+        // 흰색 카드 스타일이라 구분이 안 됐다는 QA 피드백(2026-08-13) — 색으로만 구분하면
+        // 색맹 등 접근성 문제가 있으므로, 톤이 다른 배경/테두리(tints.green)에 더해 "실제
+        // 당첨결과" 배지 텍스트도 함께 넣어 색 없이도 구분되게 한다.
+        <View style={styles.officialCard}>
+          <View style={styles.officialBadge}>
+            <Text style={styles.officialBadgeText}>실제 당첨결과</Text>
+          </View>
           <Text style={styles.cardTitle}>제 {latestDraw.drawNumber}회 당첨결과</Text>
           <Text style={styles.cardSub}>{latestDraw.drawDate}</Text>
           <View style={styles.ballRow}>
@@ -366,6 +374,26 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardSub: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
+    // "제 N회 당첨결과" 카드 전용 — 아래 통계 카드들과 같은 흰색 배경을 쓰지 않고, 실제 공식
+    // 결과라는 걸 한눈에 알 수 있도록 tints.green(라이트: 옅은 초록 배경 + 진한 초록 테두리,
+    // 다크: 어두운 초록 배경 + 밝은 초록 테두리)으로 구분한다.
+    officialCard: {
+      backgroundColor: tints.green.bg,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1.5,
+      borderColor: tints.green.fg,
+    },
+    officialBadge: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      marginBottom: 8,
+    },
+    officialBadgeText: { fontSize: 10, fontWeight: "700", color: tints.green.fg },
     retryButton: {
       alignSelf: "flex-start",
       backgroundColor: tints.indigo.bg,
