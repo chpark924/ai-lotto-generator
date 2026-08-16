@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -62,6 +63,9 @@ export default function GenerateHubScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
+  // 상단 여백을 직접 챙겨줘야 한다.
+  const insets = useSafeAreaInsets();
 
   // 맨 아래 "딥 패턴 탐색" 카드가 화면 하단에 거의 붙어 있어 스크롤로 더 볼 수 있다는 걸
   // 놓치기 쉽다는 QA 피드백. 처음엔 안내 문구를 달았는데, "이런 문구 있는 앱을 못 봤다,
@@ -78,7 +82,7 @@ export default function GenerateHubScreen() {
     <View style={styles.flexFill} onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
         onContentSizeChange={(_w, h) => setContentHeight(h)}
         onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={32}

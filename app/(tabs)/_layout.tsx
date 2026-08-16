@@ -29,11 +29,15 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: "#0F172A", height: 40 },
-        headerTintColor: "#fff",
-        // 홈 화면 QA 피드백(상단 "홈" 헤더가 커서 답답하다) 반영 후, 탭 4개 전부
-        // 통일성 있게 보이도록 헤더 글자 크기·높이를 전체 탭 공통(screenOptions)으로 적용.
-        headerTitleStyle: { fontSize: 15, fontWeight: "600" },
+        // 62/63번에서 "홈" 등 헤더 타이틀 글자 크기·영역을 줄였는데, 실기기에서 보니 그 작아진
+        // 텍스트가 어색하고 깨진 것처럼 보인다는 후속 피드백(94번) — 네비게이션 헤더 자체를
+        // 완전히 숨기고 화면을 깔끔하게 쓴다. "번호 만들기"/"로또 연구소" 탭은 이미 화면 콘텐츠
+        // 안에 자체 제목(styles.header)이 따로 있어 헤더를 숨겨도 제목이 사라지지 않고, "홈"/
+        // "내 번호" 탭은 원래도 화면 콘텐츠 쪽에 별도 제목 텍스트가 없었으므로(홈은 히어로
+        // 카드로, 내 번호는 "선호번호·제외번호 세트 관리" 링크로 바로 시작) 헤더를 숨기면
+        // 그 화면들은 최상단에 제목 텍스트가 아예 없어진다 — "깨끗하게 쓰자"는 요청에 맞는
+        // 의도된 결과.
+        headerShown: false,
         tabBarActiveTintColor: "#2563EB",
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },

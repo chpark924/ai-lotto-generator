@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getRecentDrawsSafe,
   computeNumberFrequencies,
@@ -23,6 +24,9 @@ const RECENT_DRAW_SAMPLE_SIZE = 52;
 export default function LabScreen() {
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
+  // 상단 여백을 직접 챙겨줘야 한다.
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [draws, setDraws] = useState<WinningDraw[]>([]);
@@ -123,7 +127,7 @@ export default function LabScreen() {
     // 중앙 스피너로 화면을 통째로 가리는 대신, 실제 카드 레이아웃을 흐릿하게 먼저
     // 보여준다 — 로딩이 끝나는 순간 "빈 화면 → 카드 등장"으로 튀어 보이지 않는다.
     return (
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
         <Text style={styles.header}>로또 연구소</Text>
 
         <View style={styles.card}>
@@ -170,7 +174,7 @@ export default function LabScreen() {
   const sumTrend = computeSumTrend(draws);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
       <Text style={styles.header}>로또 연구소</Text>
 
       {weeklyReport ? (

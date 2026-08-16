@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Alert, FlatList, Linking, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { LottoBall } from "../../src/components";
@@ -71,6 +72,9 @@ export default function TicketsScreen() {
   const router = useRouter();
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
+  // 상단 여백을 직접 챙겨줘야 한다.
+  const insets = useSafeAreaInsets();
   const [tickets, setTickets] = useState<SavedTicket[]>([]);
   const [drawNumberDrafts, setDrawNumberDrafts] = useState<Record<string, string>>({});
   // 회차 지정 입력칸을 펼쳐서 보여줄지 여부. 회차가 이미 있으면 평소엔 접어두고
@@ -302,7 +306,7 @@ export default function TicketsScreen() {
   return (
     <FlatList
       style={styles.container}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
       data={tickets}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={

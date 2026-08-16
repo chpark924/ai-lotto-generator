@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -20,6 +21,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  // 94번 항목 — 탭 상단 네비게이션 헤더를 완전히 숨겼기 때문에(app/(tabs)/_layout.tsx),
+  // 화면이 상태표시줄/카메라 펀치홀 바로 아래부터 시작하지 않도록 직접 안전영역 상단
+  // 여백을 챙겨줘야 한다(예전엔 헤더가 이 역할을 대신 해줬음).
+  const insets = useSafeAreaInsets();
   const [latestDrawNumber, setLatestDrawNumber] = useState<number | null>(null);
   const [absentNumbers, setAbsentNumbers] = useState<number[]>([]);
   const [myFrequentNumbers, setMyFrequentNumbers] = useState<number[]>([]);
@@ -85,7 +90,10 @@ export default function HomeScreen() {
   return (
     <>
       <View style={styles.swipeArea} {...panResponder.panHandlers}>
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: insets.top + 20, paddingBottom: 20 }}
+      >
         <Pressable
           style={styles.settingsLink}
           onPress={() => setSettingsVisible(true)}
