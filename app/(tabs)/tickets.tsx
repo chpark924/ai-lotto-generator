@@ -100,19 +100,32 @@ export default function TicketsScreen() {
   // QA_LOG 99번 — 예전엔 저장한 번호를 전부 하나의 목록에 나란히 나열했는데, 카드마다
   // "제 1237회 (8/15 추첨)"처럼 같은 회차 문구가 계속 반복되는 데다(같은 회차로 여러 세트를
   // 저장하는 경우가 흔함), 스크롤하는 동안 지금 몇 회차를 보고 있는지 놓치기 쉽다는 피드백을
-  // 받았다. 토스의 거래내역, 은행 앱들의 명세서 목록처럼 "같은 기준(날짜/회차)으로 묶고,
-  // 그 기준을 상단에 고정해서 계속 보여주는" 패턴을 참고해 회차별로 그룹을 나누고, 그룹
-  // 헤더가 스크롤 중에도 화면 상단에 붙어있게(SectionList의 sticky header) 만들었다.
+  // 받았다. 토스의 거래내역, 은행 앱들의 명세서 목록처럼 "같은 기준으로 묶고, 그 기준을
+  // 상단에 고정해서 계속 보여주는" 패턴을 참고해 그룹 헤더가 스크롤 중에도 화면 상단에
+  // 붙어있게(SectionList의 sticky header) 만들었다.
   //
-  // QA_LOG 101번 — "정말 더 편해졌는지 다시 검토해달라"는 요청을 받고 다시 보니, 회차
-  // 그룹핑이 항상 이득인 건 아니었다. 매주 추첨이 도니 몇 달 지나면 "제1230회 1장,
-  // 제1231회 1장, 제1232회 1장…"처럼 회차마다 딱 1장씩만 남는 경우가 흔해지는데, 이 경우
-  // 카드 1장마다 헤더가 하나씩 붙어버려서 — 오히려 예전(카드마다 회차 문구 반복)보다도
-  // 세로 공간을 더 차지하고 시각적 끊김이 더 잦아지는 역효과가 있었다. 그래서 "이미
-  // 지나간 회차(아직 이번 주/다음 주가 아닌)"이면서 "그 회차에 티켓이 1장뿐"인 경우만
-  // "지난 기록"이라는 하나의 공용 섹션으로 다시 모은다 — 여러 장을 함께 저장한 회차(비교
-  // 목적으로 저장한 경우가 많음)와 아직 확인 전인 이번 주/다음 주 회차는 지금처럼 각자
-  // 회차 헤더를 그대로 유지해 그 이득(반복 제거 + 스크롤 위치 인지)을 살린다.
+  // QA_LOG 101번 — 회차 하나하나를 그대로 그룹 기준으로 쓰면, 몇 달 지나 회차마다 티켓이
+  // 1장씩만 남는 시점부터는 카드 1장마다 헤더가 하나씩 붙어 오히려 역효과였다. 처음엔
+  // "회차에 티켓이 1장뿐인 과거 건만 예외적으로 하나의 '지난 기록'에 몰아넣는다"는 식으로
+  // 땜질했는데, "이게 최선인지 다시 검토해달라"는 요청을 받고 보니 이 방식도 두 가지가
+  // 걸렸다 — (1) 왜 이 카드는 따로 묶이고 저 카드는 자기 헤더를 갖는지 그 기준(우연히
+  // 같은 회차로 2장을 저장했는지 여부)이 사용자 입장에선 예측할 수 없고, (2) 오래 쓴
+  // 사용자일수록 "지난 기록" 하나에 수십 장이 다 몰려서, 그 안에서는 정확히 처음 문제(긴
+  // 목록을 스크롤하며 위치를 잃음)가 고스란히 되풀이된다 — 그룹 하나로 뭉뚱그린 것뿐, 근본
+  // 해결이 아니었다.
+  //
+  // QA_LOG 102번 — 그래서 기준 자체를 바꿨다. 토스·은행 앱들이 실제로 긴 내역을 다룰 때
+  // 쓰는 건 "최근엔 촘촘하게, 오래될수록 성기게" 묶는 시간 축 압축이다(예: 최근 며칠은
+  // 하루 단위, 오래된 건 월 단위로). 이 앱에 그대로 대입하면: 아직 추첨 전이라 확인이
+  // 필요한 회차(이번 주/다음 주)는 지금처럼 회차별로 각자 헤더를 갖고(어차피 한 번에
+  // 1~2개뿐이라 카드가 쌓일 일이 없다), 이미 추첨이 끝난 과거 회차는 회차 단위 대신
+  // "추첨 월" 단위로 묶는다. 한 달엔 보통 4~5회차가 있으니 매달 자연스럽게 여러 회차가
+  // 한 헤더 아래 모이고(1장짜리 회차가 몰려 헤더가 남발되는 문제 해결), 쌓인 지 오래된
+  // 기록도 "지난 기록" 하나로 뭉개지 않고 달마다 계속 갈라지니(수십 장이 한 섹션에
+  // 몰리는 문제 해결) 스크롤하다 지금 대략 몇 월 언저리를 보고 있는지 계속 가늠할 수 있다.
+  // "예측 가능성"도 명확해졌다 — "확인 전 회차는 회차별, 확인 끝난 과거는 월별"이라는
+  // 한 줄 규칙뿐, 우연한 개수에 좌우되는 예외가 없다. 한 달(월 버킷) 안엔 서로 다른
+  // 회차가 섞일 수 있으므로, 그 안의 카드에는 회차 문구를 다시 짧게 보여준다(아래 renderItem).
   const sections = useMemo(() => {
     const unassigned: SavedTicket[] = [];
     const byDraw = new Map<number, SavedTicket[]>();
@@ -132,27 +145,41 @@ export default function TicketsScreen() {
     // 최신 회차가 위로 오는 게 유저가 기대하는 순서에 가깝다.
     const sortedEntries = Array.from(byDraw.entries()).sort(([a], [b]) => b - a);
 
-    const drawSections: { key: string; title: string; data: SavedTicket[] }[] = [];
-    const pastSingles: SavedTicket[] = [];
+    const currentSections: { key: string; title: string; data: SavedTicket[] }[] = [];
+    const monthBuckets = new Map<string, { year: number; month: number; data: SavedTicket[] }>();
+
     for (const [drawNumber, data] of sortedEntries) {
-      const isPast = drawNumber < thisWeekDrawNumber;
-      if (isPast && data.length === 1) {
-        pastSingles.push(data[0]);
+      if (drawNumber >= thisWeekDrawNumber) {
+        // 아직 추첨 전(이번 주/다음 주 등) — 곧 확인해야 할 행동 대상이라 회차별로 그대로.
+        currentSections.push({ key: String(drawNumber), title: describeDrawNumber(drawNumber), data });
+        continue;
+      }
+      // 이미 추첨이 끝난 회차는 정확한 회차 대신 "추첨 월"로 묶는다.
+      const date = estimateDrawDate(drawNumber);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const bucket = monthBuckets.get(monthKey);
+      if (bucket) {
+        bucket.data.push(...data);
       } else {
-        drawSections.push({ key: String(drawNumber), title: describeDrawNumber(drawNumber), data });
+        monthBuckets.set(monthKey, { year: date.getFullYear(), month: date.getMonth(), data: [...data] });
       }
     }
+
+    const now = new Date();
+    const pastSections = Array.from(monthBuckets.values())
+      .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))
+      .map((bucket) => ({
+        key: `month-${bucket.year}-${bucket.month}`,
+        title: bucket.year === now.getFullYear() ? `${bucket.month + 1}월` : `${bucket.year}년 ${bucket.month + 1}월`,
+        data: bucket.data,
+      }));
 
     const result: { key: string; title: string; data: SavedTicket[] }[] = [];
     if (unassigned.length > 0) {
       // 아직 처리(회차 지정)가 필요한 항목이라 맨 위에 먼저 보여준다.
       result.push({ key: "unassigned", title: "회차 미지정", data: unassigned });
     }
-    result.push(...drawSections);
-    if (pastSingles.length > 0) {
-      // sortedEntries를 최신순으로 순회하며 채웠으니 이 안에서도 최신순 그대로 유지된다.
-      result.push({ key: "past-singles", title: "지난 기록", data: pastSingles });
-    }
+    result.push(...currentSections, ...pastSections);
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickets, thisWeekDrawNumber, nextWeekDrawNumber]);
@@ -385,12 +412,12 @@ export default function TicketsScreen() {
         // 됐지만, 그만큼 스크롤하다 얼핏 봐서는 눈에 잘 안 들어온다는 후속 피드백. 왼쪽에
         // 짧은 색 막대(강조 바)를 붙여 시선이 먼저 걸리는 지점을 만들고, "회차 미지정"
         // 섹션은 아직 처리(회차 지정)가 필요하다는 뜻에서 다른 섹션과 다른 색(레드 계열)을
-        // 써서 구분 자체도 더 명확하게 했다. "지난 기록"(101번, 여러 회차가 뒤섞인 공용
-        // 묶음)은 특정 회차 하나를 가리키는 게 아니므로 중립적인 슬레이트 색으로 구분한다.
+        // 써서 구분 자체도 더 명확하게 했다. 102번의 "추첨 월" 버킷(여러 회차가 함께 담김)은
+        // 특정 회차 하나를 가리키는 게 아니므로 중립적인 슬레이트 색으로 구분한다.
         const accentColor =
           section.key === "unassigned"
             ? tints.red.fg
-            : section.key === "past-singles"
+            : section.key.startsWith("month-")
               ? tints.slate.fg
               : tints.indigo.fg;
         return (
@@ -434,12 +461,12 @@ export default function TicketsScreen() {
             // 회차가 이미 정해진 평소 상태: "당첨 확인" 하나만 또렷한 버튼으로 보여주고,
             // 회차를 바꾸는 건 눈에 덜 띄는 텍스트 링크로 분리해 둘 중 뭘 눌러야 할지
             // 헷갈리지 않게 한다. 회차 문구(예: "이번 주 추첨 (8/16)")는 99번 항목부터
-            // 이 카드가 속한 섹션 헤더가 대신 보여준다 — 단, 101번의 "지난 기록" 묶음은
+            // 이 카드가 속한 섹션 헤더가 대신 보여준다 — 단, 102번의 "추첨 월" 버킷은
             // 서로 다른 회차 여러 개가 한 헤더 아래 섞여 있어서, 그 경우에만 이 카드가
             // 정확히 몇 회차인지 다시 여기서 짧게 보여준다(안 그러면 회차 정보 자체가
             // 사라져 버림).
             <View>
-              {section.key === "past-singles" && item.drawNumber ? (
+              {section.key.startsWith("month-") && item.drawNumber ? (
                 <Text style={styles.pastRoundLabel}>{describeDrawNumber(item.drawNumber)}</Text>
               ) : null}
               <View style={styles.drawSummaryRow}>
@@ -614,8 +641,9 @@ function createStyles(colors: AppColors) {
       paddingVertical: 3,
     },
     sectionHeaderCountText: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
-    // QA_LOG 101번 — "지난 기록" 공용 섹션(서로 다른 회차가 뒤섞여 있음) 안에서만, 카드가
-    // 정확히 몇 회차인지 다시 짧게 보여준다. 다른 섹션은 헤더가 이미 회차를 알려주므로 안 씀.
+    // QA_LOG 102번 — "추첨 월" 버킷(서로 다른 회차가 한 달 단위로 뒤섞여 있음) 안에서만,
+    // 카드가 정확히 몇 회차인지 다시 짧게 보여준다. 다른 섹션은 헤더가 이미 회차를
+    // 알려주므로 안 씀.
     pastRoundLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600", marginBottom: 6 },
     cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     statusBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
