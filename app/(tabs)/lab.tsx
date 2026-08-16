@@ -195,10 +195,11 @@ export default function LabScreen() {
         // 이 카드만 실제 공식 발표 데이터(정부 추첨 결과)이고, 바로 아래 카드들(출현 빈도/
         // 장기 미출현/패턴 통계 등)은 전부 그 결과를 가공한 통계·분석이다. 예전엔 둘 다 같은
         // 흰색 카드 스타일이라 구분이 안 됐다는 QA 피드백(2026-08-13, #81) — 처음엔 카드 전체를
-        // 초록 톤으로 칠했는데 실기기에서 "촌스럽다"는 피드백을 받아(#91), 카드 배경은 다른
-        // 카드들과 동일하게 유지하고 상단 브랜드 블루 강조선 + 솔리드 배지로만 구분하도록 변경.
-        // 색으로만 구분하면 색맹 등 접근성 문제가 있으므로 "실제 당첨결과" 배지 텍스트도 함께
-        // 넣어 색 없이도 구분되게 한다.
+        // 초록 톤으로 칠했는데 실기기에서 "촌스럽다"는 피드백(#91)을 받아 다른 카드와 완전히
+        // 같은 흰 배경으로 바꿨더니 이번엔 "눈에 안 띈다"는 후속 피드백(#92) — 옅은 브랜드 블루
+        // 톤 배경 + 그림자(shadow/elevation)로 카드가 화면에서 살짝 떠 보이게 하는 절충안으로
+        // 정착. 색으로만 구분하면 색맹 등 접근성 문제가 있으므로 "실제 당첨결과" 배지 텍스트도
+        // 함께 넣어 색 없이도 구분되게 한다.
         <View style={styles.officialCard}>
           <View style={styles.officialBadge}>
             <Text style={styles.officialBadgeText}>실제 당첨결과</Text>
@@ -376,12 +377,13 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardSub: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
-    // "제 N회 당첨결과" 카드 전용 — 아래 통계 카드들과 같은 흰색/서피스 배경은 그대로 쓰되(카드
-    // 전체를 진한 색으로 칠하면 파스텔톤이 많은 이 화면에서 튀다 못해 촌스러워 보인다는 피드백,
-    // QA_LOG 91번), 카드 상단에 브랜드 블루 얇은 강조선 + 채워진(솔리드) 배지로만 "이건 실제
-    // 공식 결과"라는 신호를 준다. 배지 텍스트가 색과 무관하게 의미를 전달하므로 접근성도 유지된다.
+    // "제 N회 당첨결과" 카드 전용 — 채도 높은 초록 박스(91번 이전)는 촌스러웠고, 다른 카드와
+    // 완전히 같은 흰 배경(91번)은 반대로 눈에 안 띈다는 후속 피드백 — 그 중간으로, 옅은 브랜드
+    // 블루 톤 배경(tints.indigo.bg, 다른 카드의 순백/서피스보다 살짝 톤이 다름) + 카드를 살짝
+    // 띄워 보이게 하는 부드러운 그림자(shadow/elevation) + 상단 강조선 + 솔리드 배지를 함께 써서
+    // "화면에서 붕 뜬 카드"처럼 도드라지게 하되 채도는 낮게 유지한다.
     officialCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: tints.indigo.bg,
       borderRadius: 16,
       padding: 16,
       marginBottom: 12,
@@ -389,6 +391,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
       borderColor: colors.border,
       borderTopWidth: 3,
       borderTopColor: "#2563EB",
+      shadowColor: "#2563EB",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 4,
     },
     officialBadge: {
       alignSelf: "flex-start",
