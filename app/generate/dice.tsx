@@ -39,7 +39,11 @@ export default function DiceScreen() {
   }
 
   function rollAllSix() {
-    let current = [...rolled];
+    // QA_LOG 97번 — 이미 6개가 다 찬 상태에서 "자동 6회 굴리기"를 다시 눌러도, 매번
+    // "초기화"부터 따로 눌러야만 새로 굴릴 수 있는 게 불편하다는 피드백. 그래서 기존에
+    // 몇 개가 차 있든 상관없이(이어받지 않고) 항상 빈 상태에서부터 새 6개를 굴리도록 바꿨다
+    // — 버튼을 연타하면 그때마다 완전히 새로운 6개 조합이 나온다.
+    let current: number[] = [];
     let last: number | null = null;
     while (current.length < 6) {
       last = rollDice45(excluded, current);
@@ -148,14 +152,14 @@ export default function DiceScreen() {
             styles.button,
             styles.buttonPrimary,
             pressed && styles.buttonPrimaryPressed,
-            (rolled.length >= 6 || isDiceSpinning) && styles.buttonDisabled,
+            isDiceSpinning && styles.buttonDisabled,
           ]}
           android_ripple={{ color: "#1E3A8A" }}
           onPress={rollAllSix}
-          disabled={rolled.length >= 6 || isDiceSpinning}
+          disabled={isDiceSpinning}
           accessibilityRole="button"
-          accessibilityLabel="자동 6회 굴리기"
-          accessibilityState={{ disabled: rolled.length >= 6 || isDiceSpinning }}
+          accessibilityLabel="자동 6회 굴리기, 다시 누르면 6개를 새로 굴립니다"
+          accessibilityState={{ disabled: isDiceSpinning }}
         >
           <Text style={styles.buttonPrimaryText}>자동 6회 굴리기</Text>
         </Pressable>
