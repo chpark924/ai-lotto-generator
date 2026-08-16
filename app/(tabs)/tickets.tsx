@@ -102,10 +102,17 @@ export default function TicketsScreen() {
   // 저장하는 경우가 흔함), 스크롤하는 동안 지금 몇 회차를 보고 있는지 놓치기 쉽다는 피드백을
   // 받았다. 토스의 거래내역, 은행 앱들의 명세서 목록처럼 "같은 기준(날짜/회차)으로 묶고,
   // 그 기준을 상단에 고정해서 계속 보여주는" 패턴을 참고해 회차별로 그룹을 나누고, 그룹
-  // 헤더가 스크롤 중에도 화면 상단에 붙어있게(SectionList의 sticky header) 만들었다. 이러면
-  // (1) 지금 보고 있는 게 몇 회차인지 스크롤 내내 눈에 보이고, (2) 카드마다 반복되던 회차
-  // 문구를 헤더 하나로 합쳐 목록이 더 가벼워진다. 회차가 아직 안 정해진 티켓은 "회차 미지정"
-  // 그룹으로 따로 모아 맨 위에 둔다 — 아직 처리(회차 지정)가 필요한 항목이라 먼저 보여준다.
+  // 헤더가 스크롤 중에도 화면 상단에 붙어있게(SectionList의 sticky header) 만들었다.
+  //
+  // QA_LOG 101번 — "정말 더 편해졌는지 다시 검토해달라"는 요청을 받고 다시 보니, 회차
+  // 그룹핑이 항상 이득인 건 아니었다. 매주 추첨이 도니 몇 달 지나면 "제1230회 1장,
+  // 제1231회 1장, 제1232회 1장…"처럼 회차마다 딱 1장씩만 남는 경우가 흔해지는데, 이 경우
+  // 카드 1장마다 헤더가 하나씩 붙어버려서 — 오히려 예전(카드마다 회차 문구 반복)보다도
+  // 세로 공간을 더 차지하고 시각적 끊김이 더 잦아지는 역효과가 있었다. 그래서 "이미
+  // 지나간 회차(아직 이번 주/다음 주가 아닌)"이면서 "그 회차에 티켓이 1장뿐"인 경우만
+  // "지난 기록"이라는 하나의 공용 섹션으로 다시 모은다 — 여러 장을 함께 저장한 회차(비교
+  // 목적으로 저장한 경우가 많음)와 아직 확인 전인 이번 주/다음 주 회차는 지금처럼 각자
+  // 회차 헤더를 그대로 유지해 그 이득(반복 제거 + 스크롤 위치 인지)을 살린다.
   const sections = useMemo(() => {
     const unassigned: SavedTicket[] = [];
     const byDraw = new Map<number, SavedTicket[]>();
@@ -121,18 +128,32 @@ export default function TicketsScreen() {
         byDraw.set(ticket.drawNumber, [ticket]);
       }
     }
-    const drawSections = Array.from(byDraw.entries())
-      // 회차가 큰(최신) 순서로 — 저장한 순서가 아니라 "어느 추첨을 보고 있는지" 기준으로
-      // 최신 회차가 위로 오는 게 유저가 기대하는 순서에 가깝다.
-      .sort(([a], [b]) => b - a)
-      .map(([drawNumber, data]) => ({
-        key: String(drawNumber),
-        title: describeDrawNumber(drawNumber),
-        data,
-      }));
-    return unassigned.length > 0
-      ? [{ key: "unassigned", title: "회차 미지정", data: unassigned }, ...drawSections]
-      : drawSections;
+    // 회차가 큰(최신) 순서로 — 저장한 순서가 아니라 "어느 추첨을 보고 있는지" 기준으로
+    // 최신 회차가 위로 오는 게 유저가 기대하는 순서에 가깝다.
+    const sortedEntries = Array.from(byDraw.entries()).sort(([a], [b]) => b - a);
+
+    const drawSections: { key: string; title: string; data: SavedTicket[] }[] = [];
+    const pastSingles: SavedTicket[] = [];
+    for (const [drawNumber, data] of sortedEntries) {
+      const isPast = drawNumber < thisWeekDrawNumber;
+      if (isPast && data.length === 1) {
+        pastSingles.push(data[0]);
+      } else {
+        drawSections.push({ key: String(drawNumber), title: describeDrawNumber(drawNumber), data });
+      }
+    }
+
+    const result: { key: string; title: string; data: SavedTicket[] }[] = [];
+    if (unassigned.length > 0) {
+      // 아직 처리(회차 지정)가 필요한 항목이라 맨 위에 먼저 보여준다.
+      result.push({ key: "unassigned", title: "회차 미지정", data: unassigned });
+    }
+    result.push(...drawSections);
+    if (pastSingles.length > 0) {
+      // sortedEntries를 최신순으로 순회하며 채웠으니 이 안에서도 최신순 그대로 유지된다.
+      result.push({ key: "past-singles", title: "지난 기록", data: pastSingles });
+    }
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickets, thisWeekDrawNumber, nextWeekDrawNumber]);
 
@@ -364,9 +385,14 @@ export default function TicketsScreen() {
         // 됐지만, 그만큼 스크롤하다 얼핏 봐서는 눈에 잘 안 들어온다는 후속 피드백. 왼쪽에
         // 짧은 색 막대(강조 바)를 붙여 시선이 먼저 걸리는 지점을 만들고, "회차 미지정"
         // 섹션은 아직 처리(회차 지정)가 필요하다는 뜻에서 다른 섹션과 다른 색(레드 계열)을
-        // 써서 구분 자체도 더 명확하게 했다.
-        const isUnassigned = section.key === "unassigned";
-        const accentColor = isUnassigned ? tints.red.fg : tints.indigo.fg;
+        // 써서 구분 자체도 더 명확하게 했다. "지난 기록"(101번, 여러 회차가 뒤섞인 공용
+        // 묶음)은 특정 회차 하나를 가리키는 게 아니므로 중립적인 슬레이트 색으로 구분한다.
+        const accentColor =
+          section.key === "unassigned"
+            ? tints.red.fg
+            : section.key === "past-singles"
+              ? tints.slate.fg
+              : tints.indigo.fg;
         return (
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
@@ -377,7 +403,7 @@ export default function TicketsScreen() {
           </View>
         );
       }}
-      renderItem={({ item }) => (
+      renderItem={({ item, section }) => (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Pressable
@@ -408,26 +434,34 @@ export default function TicketsScreen() {
             // 회차가 이미 정해진 평소 상태: "당첨 확인" 하나만 또렷한 버튼으로 보여주고,
             // 회차를 바꾸는 건 눈에 덜 띄는 텍스트 링크로 분리해 둘 중 뭘 눌러야 할지
             // 헷갈리지 않게 한다. 회차 문구(예: "이번 주 추첨 (8/16)")는 99번 항목부터
-            // 이 카드가 속한 섹션 헤더가 대신 보여주므로, 카드 안에서 또 반복하지 않는다.
-            <View style={styles.drawSummaryRow}>
-              <Pressable
-                style={styles.checkButton}
-                onPress={() => handleCheckResult(item)}
-                accessibilityRole="button"
-                accessibilityLabel={item.matchedRank !== undefined ? "다시 확인" : "당첨 확인"}
-              >
-                <Text style={styles.checkButtonText}>
-                  {item.matchedRank !== undefined ? "다시 확인" : "당첨 확인"}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={styles.linkButton}
-                onPress={() => startEditingDraw(item)}
-                accessibilityRole="button"
-                accessibilityLabel="회차 변경"
-              >
-                <Text style={styles.linkButtonText}>회차 변경</Text>
-              </Pressable>
+            // 이 카드가 속한 섹션 헤더가 대신 보여준다 — 단, 101번의 "지난 기록" 묶음은
+            // 서로 다른 회차 여러 개가 한 헤더 아래 섞여 있어서, 그 경우에만 이 카드가
+            // 정확히 몇 회차인지 다시 여기서 짧게 보여준다(안 그러면 회차 정보 자체가
+            // 사라져 버림).
+            <View>
+              {section.key === "past-singles" && item.drawNumber ? (
+                <Text style={styles.pastRoundLabel}>{describeDrawNumber(item.drawNumber)}</Text>
+              ) : null}
+              <View style={styles.drawSummaryRow}>
+                <Pressable
+                  style={styles.checkButton}
+                  onPress={() => handleCheckResult(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.matchedRank !== undefined ? "다시 확인" : "당첨 확인"}
+                >
+                  <Text style={styles.checkButtonText}>
+                    {item.matchedRank !== undefined ? "다시 확인" : "당첨 확인"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.linkButton}
+                  onPress={() => startEditingDraw(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel="회차 변경"
+                >
+                  <Text style={styles.linkButtonText}>회차 변경</Text>
+                </Pressable>
+              </View>
             </View>
           ) : manualEntry[item.id] ? (
             // "직접 입력"을 고른 드문 경우에만 회차 번호를 타이핑하게 한다.
@@ -580,6 +614,9 @@ function createStyles(colors: AppColors) {
       paddingVertical: 3,
     },
     sectionHeaderCountText: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
+    // QA_LOG 101번 — "지난 기록" 공용 섹션(서로 다른 회차가 뒤섞여 있음) 안에서만, 카드가
+    // 정확히 몇 회차인지 다시 짧게 보여준다. 다른 섹션은 헤더가 이미 회차를 알려주므로 안 씀.
+    pastRoundLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600", marginBottom: 6 },
     cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     statusBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
     statusBadgeText: { fontSize: 11, fontWeight: "700" },
