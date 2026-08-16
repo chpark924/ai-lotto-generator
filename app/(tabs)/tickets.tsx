@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from "react";
-import { Alert, FlatList, Linking, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Alert, Linking, Pressable, SectionList, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -96,6 +96,45 @@ export default function TicketsScreen() {
     if (drawNumber === nextWeekDrawNumber) return `다음 주 추첨 (${dateLabel})`;
     return `제 ${drawNumber}회 (${dateLabel} 추첨)`;
   }
+
+  // QA_LOG 99번 — 예전엔 저장한 번호를 전부 하나의 목록에 나란히 나열했는데, 카드마다
+  // "제 1237회 (8/15 추첨)"처럼 같은 회차 문구가 계속 반복되는 데다(같은 회차로 여러 세트를
+  // 저장하는 경우가 흔함), 스크롤하는 동안 지금 몇 회차를 보고 있는지 놓치기 쉽다는 피드백을
+  // 받았다. 토스의 거래내역, 은행 앱들의 명세서 목록처럼 "같은 기준(날짜/회차)으로 묶고,
+  // 그 기준을 상단에 고정해서 계속 보여주는" 패턴을 참고해 회차별로 그룹을 나누고, 그룹
+  // 헤더가 스크롤 중에도 화면 상단에 붙어있게(SectionList의 sticky header) 만들었다. 이러면
+  // (1) 지금 보고 있는 게 몇 회차인지 스크롤 내내 눈에 보이고, (2) 카드마다 반복되던 회차
+  // 문구를 헤더 하나로 합쳐 목록이 더 가벼워진다. 회차가 아직 안 정해진 티켓은 "회차 미지정"
+  // 그룹으로 따로 모아 맨 위에 둔다 — 아직 처리(회차 지정)가 필요한 항목이라 먼저 보여준다.
+  const sections = useMemo(() => {
+    const unassigned: SavedTicket[] = [];
+    const byDraw = new Map<number, SavedTicket[]>();
+    for (const ticket of tickets) {
+      if (ticket.drawNumber === undefined) {
+        unassigned.push(ticket);
+        continue;
+      }
+      const group = byDraw.get(ticket.drawNumber);
+      if (group) {
+        group.push(ticket);
+      } else {
+        byDraw.set(ticket.drawNumber, [ticket]);
+      }
+    }
+    const drawSections = Array.from(byDraw.entries())
+      // 회차가 큰(최신) 순서로 — 저장한 순서가 아니라 "어느 추첨을 보고 있는지" 기준으로
+      // 최신 회차가 위로 오는 게 유저가 기대하는 순서에 가깝다.
+      .sort(([a], [b]) => b - a)
+      .map(([drawNumber, data]) => ({
+        key: String(drawNumber),
+        title: describeDrawNumber(drawNumber),
+        data,
+      }));
+    return unassigned.length > 0
+      ? [{ key: "unassigned", title: "회차 미지정", data: unassigned }, ...drawSections]
+      : drawSections;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets, thisWeekDrawNumber, nextWeekDrawNumber]);
 
   const load = useCallback(async () => {
     const list = await getTickets();
@@ -304,11 +343,12 @@ export default function TicketsScreen() {
   }
 
   return (
-    <FlatList
+    <SectionList
       style={styles.container}
       contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
-      data={tickets}
+      sections={sections}
       keyExtractor={(item) => item.id}
+      stickySectionHeadersEnabled
       ListHeaderComponent={
         <Pressable
           style={styles.prefLinkRow}
@@ -319,6 +359,24 @@ export default function TicketsScreen() {
           <Text style={styles.prefLinkText}>선호번호 · 제외번호 세트 관리 &gt;</Text>
         </Pressable>
       }
+      renderSectionHeader={({ section }) => {
+        // QA_LOG 100번 — 헤더가 화면 배경과 완전히 같은 색이라 "구분되면서도 튀지 않게"는
+        // 됐지만, 그만큼 스크롤하다 얼핏 봐서는 눈에 잘 안 들어온다는 후속 피드백. 왼쪽에
+        // 짧은 색 막대(강조 바)를 붙여 시선이 먼저 걸리는 지점을 만들고, "회차 미지정"
+        // 섹션은 아직 처리(회차 지정)가 필요하다는 뜻에서 다른 섹션과 다른 색(레드 계열)을
+        // 써서 구분 자체도 더 명확하게 했다.
+        const isUnassigned = section.key === "unassigned";
+        const accentColor = isUnassigned ? tints.red.fg : tints.indigo.fg;
+        return (
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
+            <Text style={styles.sectionHeaderTitle}>{section.title}</Text>
+            <View style={styles.sectionHeaderCountBadge}>
+              <Text style={styles.sectionHeaderCountText}>{section.data.length}개</Text>
+            </View>
+          </View>
+        );
+      }}
       renderItem={({ item }) => (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -349,12 +407,9 @@ export default function TicketsScreen() {
           {item.drawNumber && !editingDraw[item.id] ? (
             // 회차가 이미 정해진 평소 상태: "당첨 확인" 하나만 또렷한 버튼으로 보여주고,
             // 회차를 바꾸는 건 눈에 덜 띄는 텍스트 링크로 분리해 둘 중 뭘 눌러야 할지
-            // 헷갈리지 않게 한다. 라벨도 회차 번호 대신 "이번 주/날짜"로 보여줘서
-            // 회차 번호를 몰라도 무슨 뜻인지 바로 알 수 있게 한다.
+            // 헷갈리지 않게 한다. 회차 문구(예: "이번 주 추첨 (8/16)")는 99번 항목부터
+            // 이 카드가 속한 섹션 헤더가 대신 보여주므로, 카드 안에서 또 반복하지 않는다.
             <View style={styles.drawSummaryRow}>
-              <View style={styles.drawChip}>
-                <Text style={styles.drawChipText}>{describeDrawNumber(item.drawNumber)}</Text>
-              </View>
               <Pressable
                 style={styles.checkButton}
                 onPress={() => handleCheckResult(item)}
@@ -483,17 +538,48 @@ function createStyles(colors: AppColors) {
     emptyText: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: colors.textMuted },
     // 저장한 카드마다 똑같은 흰 사각형이 촘촘히 붙어 있어서 눈에 잘 안 들어오고 피곤하다는
-    // QA 피드백(2026-08-13) — 카드 하나하나는 조금 더 컴팩트하게(padding·내부 여백 축소),
-    // 카드와 카드 사이 간격은 넉넉하게 벌려서(marginBottom 확대) 목록을 훑어볼 때 각 카드가
-    // 독립된 항목으로 눈에 띄게 한다.
+    // QA 피드백(2026-08-13) — 카드 하나하나는 조금 더 컴팩트하게(padding·내부 여백 축소).
+    // 카드 사이 간격(marginBottom)은 99번 항목에서 회차별 섹션 헤더가 새로 생기면서
+    // 그 자체로 그룹 구분 역할을 해줘 예전만큼 넓게 벌리지 않아도 각 카드가 눈에 들어온다
+    // — 같은 섹션(회차) 안에서는 살짝 더 붙여 "한 묶음"으로 읽히게, 대신 다음 섹션과는
+    // 헤더가 확실히 갈라준다.
     card: {
       backgroundColor: colors.surface,
       borderRadius: 16,
       padding: 14,
-      marginBottom: 20,
+      marginBottom: 12,
       borderWidth: 1,
       borderColor: colors.border,
     },
+    // QA_LOG 99/100번 — 회차별 그룹의 상단에 고정(sticky)되는 헤더. 배경을 화면 배경색과
+    // 동일하게 줘서 카드들이 이 헤더 "밑으로" 지나가는 것처럼 보이게 하되, 100번에서
+    // 그것만으론 눈에 잘 안 들어온다는 피드백에 따라 아래쪽 구분선에 더해 옅은 그림자를
+    // 얹어 "떠 있는 판" 같은 존재감을 주고(스크롤 여부와 상관없이 항상 살짝 떠 보이게),
+    // 왼쪽 강조 바 + 오른쪽 카운트 배지로 시선이 걸리는 지점을 늘렸다.
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.background,
+      paddingTop: 14,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      marginBottom: 10,
+      shadowColor: "#0F172A",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    sectionHeaderAccent: { width: 4, height: 16, borderRadius: 2, marginRight: 8 },
+    sectionHeaderTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.textPrimary },
+    sectionHeaderCountBadge: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    sectionHeaderCountText: { fontSize: 11, fontWeight: "700", color: colors.textSecondary },
     cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     statusBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
     statusBadgeText: { fontSize: 11, fontWeight: "700" },
@@ -514,15 +600,6 @@ function createStyles(colors: AppColors) {
     smallButton: { backgroundColor: "#0F172A", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
     smallButtonText: { color: "#fff", fontSize: 11, fontWeight: "700" },
     drawSummaryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    drawChip: {
-      backgroundColor: colors.background,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-    },
-    drawChipText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     // "당첨 확인"이 이 카드에서 지금 가장 중요한 행동이라는 걸 색으로도 드러낸다.
     checkButton: { backgroundColor: "#2563EB", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, flex: 1 },
     checkButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center" },
