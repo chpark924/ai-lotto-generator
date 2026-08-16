@@ -19,11 +19,18 @@ const FACET_LINE_ANGLES = [8, 47, 92, 133, 176, 214, 251, 296, 332];
 export function Dice45({
   number,
   spinTrigger,
+  onSpinningChange,
 }: {
   /** 이번에 확정된(또는 확정될) 숫자. null이면 기본 "45" 로고를 보여준다. */
   number: number | null;
   /** 값이 바뀔 때마다 새로운 굴리기 애니메이션을 1회 재생한다. 0은 최초 마운트를 의미. */
   spinTrigger: number;
+  /**
+   * 굴리기 애니메이션이 시작/종료될 때 알려준다(QA_LOG 96번). 호출부(dice.tsx)가 이 값으로
+   * "한 번 굴리기"/"자동 6회 굴리기" 버튼을 잠깐 비활성화해, 애니메이션이 끝나기 전에 같은
+   * 버튼을 연타해서 새 굴리기 사이클이 겹쳐 시작되는 것 자체를 막는다.
+   */
+  onSpinningChange?: (spinning: boolean) => void;
 }) {
   const idleRotate = useRef(new Animated.Value(0)).current;
   const spinRotate = useRef(new Animated.Value(0)).current;
@@ -58,6 +65,7 @@ export function Dice45({
     if (spinTrigger === 0) return;
 
     setIsSpinning(true);
+    onSpinningChange?.(true);
     spinRotate.setValue(0);
     scale.setValue(1);
     glow.setValue(0);
@@ -71,10 +79,18 @@ export function Dice45({
       duration: 480,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(() => {
+    }).start((result) => {
       clearInterval(flicker);
+      // "자동 6회 굴리기"를 연타하는 등 이 애니메이션이 끝나기 전에 같은 Animated.Value에
+      // 새 굴리기가 다시 시작되면, RN이 이 타이밍을 중간에 끊고 콜백을 finished:false로
+      // 즉시 호출한다 — 이때 아래 "착지" 연출(확정 숫자 표시, 스케일/글로우 이펙트)까지
+      // 그대로 실행해버리면, 방금 막 시작된 새 굴리기 위에 옛날 굴리기의 숫자/이펙트가
+      // 뒤늦게 덮어써져서 화면이 버벅이거나 멈춘 것처럼 보였다(QA_LOG 96번, 연타 시 "뻗는"
+      // 증상의 원인). 끝까지 완주한 애니메이션의 콜백만 착지 연출을 실행하도록 막는다.
+      if (!result.finished) return;
       setDisplayNumber(number);
       setIsSpinning(false);
+      onSpinningChange?.(false);
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.18, duration: 120, useNativeDriver: true }),
         Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),

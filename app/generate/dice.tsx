@@ -19,6 +19,12 @@ export default function DiceScreen() {
   const [showExclusionPicker, setShowExclusionPicker] = useState(false);
   const [diceNumber, setDiceNumber] = useState<number | null>(null);
   const [diceSpinTrigger, setDiceSpinTrigger] = useState(0);
+  // QA_LOG 96번 — "자동 6회 굴리기"를 연타하면 Dice45 안의 굴리기 애니메이션(스케일/글로우
+  // 이펙트까지 포함해 최대 ~1.2초)이 채 끝나기도 전에 다음 굴리기가 새로 시작돼 애니메이션이
+  // 서로 겹치며 화면이 버벅이거나 멈춘 것처럼 보이는 문제가 있었다. Dice45가 애니메이션
+  // 진행 상태를 이 값으로 올려주면, 굴리는 동안은 굴리기 버튼들을 잠깐 비활성화해 애초에
+  // 겹쳐 시작될 수 없게 막는다.
+  const [isDiceSpinning, setIsDiceSpinning] = useState(false);
 
   function toggleExcluded(n: number) {
     setExcluded((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
@@ -86,7 +92,7 @@ export default function DiceScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
-      <Dice45 number={diceNumber} spinTrigger={diceSpinTrigger} />
+      <Dice45 number={diceNumber} spinTrigger={diceSpinTrigger} onSpinningChange={setIsDiceSpinning} />
 
       <Text style={styles.title}>가상의 45면체 주사위를 굴려보세요</Text>
 
@@ -112,35 +118,60 @@ export default function DiceScreen() {
 
       <View style={styles.buttonRow}>
         {/* 세 버튼 다 눌러도 스타일이 그대로라 "이미 선택된 상태"처럼 정적으로 보인다는
-            QA 피드백 — 이 앱 다른 화면(홈 화면 CTA, 번호 만들기 카드 등)이 이미 쓰고 있는
+            QA 피드백(70번) — 이 앱 다른 화면(홈 화면 CTA, 번호 만들기 카드 등)이 이미 쓰고 있는
             일반적인 버튼 프레스 피드백 패턴(눌리는 순간 살짝 어두워지고 축소 + 안드로이드
-            리플)을 여기에도 동일하게 적용해, 누르는 행위 자체가 체감되도록 한다. */}
+            리플)을 여기에도 동일하게 적용해, 누르는 행위 자체가 체감되도록 한다.
+            후속(95번): 프레스 피드백을 넣은 뒤에도 "한 번 굴리기"(파란 테두리)와
+            "자동 6회 굴리기"(파란 채움)가 나란히 브랜드 블루를 공유하고 있어서, 마치 세그먼트
+            토글에서 두 개가 이미 "선택"돼 있고 "초기화"만 선택 안 된 것처럼 읽혔다 — 그래서
+            브랜드 블루는 실제 핵심 액션(자동 6회 굴리기) 하나에만 남기고, "한 번 굴리기"는
+            중립 회색 채움(버튼처럼 눌러야 하는 하나의 독립 액션)으로 바꿔 세 버튼이 토글
+            그룹이 아니라 위계가 다른 개별 버튼 3개로 읽히게 한다. */}
         <Pressable
-          style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonOutlinePressed]}
-          android_ripple={{ color: "#DBEAFE" }}
+          style={({ pressed }) => [
+            styles.button,
+            styles.buttonOutline,
+            pressed && styles.buttonOutlinePressed,
+            (rolled.length >= 6 || isDiceSpinning) && styles.buttonDisabled,
+          ]}
+          android_ripple={{ color: colors.surfaceAlt }}
           onPress={rollOnce}
-          disabled={rolled.length >= 6}
+          disabled={rolled.length >= 6 || isDiceSpinning}
           accessibilityRole="button"
           accessibilityLabel="한 번 굴리기"
-          accessibilityState={{ disabled: rolled.length >= 6 }}
+          accessibilityState={{ disabled: rolled.length >= 6 || isDiceSpinning }}
         >
           <Text style={styles.buttonOutlineText}>한 번 굴리기</Text>
         </Pressable>
         <Pressable
-          style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.buttonPrimaryPressed]}
+          style={({ pressed }) => [
+            styles.button,
+            styles.buttonPrimary,
+            pressed && styles.buttonPrimaryPressed,
+            (rolled.length >= 6 || isDiceSpinning) && styles.buttonDisabled,
+          ]}
           android_ripple={{ color: "#1E3A8A" }}
           onPress={rollAllSix}
+          disabled={rolled.length >= 6 || isDiceSpinning}
           accessibilityRole="button"
           accessibilityLabel="자동 6회 굴리기"
+          accessibilityState={{ disabled: rolled.length >= 6 || isDiceSpinning }}
         >
           <Text style={styles.buttonPrimaryText}>자동 6회 굴리기</Text>
         </Pressable>
         <Pressable
-          style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.buttonSecondaryPressed]}
+          style={({ pressed }) => [
+            styles.button,
+            styles.buttonSecondary,
+            pressed && styles.buttonSecondaryPressed,
+            isDiceSpinning && styles.buttonDisabled,
+          ]}
           android_ripple={{ color: colors.surfaceAlt }}
           onPress={reset}
+          disabled={isDiceSpinning}
           accessibilityRole="button"
           accessibilityLabel="굴린 번호 초기화"
+          accessibilityState={{ disabled: isDiceSpinning }}
         >
           <Text style={styles.buttonSecondaryText}>초기화</Text>
         </Pressable>
@@ -216,14 +247,22 @@ function createStyles(colors: AppColors) {
       shadowOpacity: 0.15,
     },
     buttonPrimaryText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-    // Secondary: 보조 액션 (한 번 굴리기) - 브랜드 컬러 아웃라인으로 Primary와 연관성은 유지하되 위계는 낮춤
-    buttonOutline: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: "#2563EB" },
-    buttonOutlinePressed: { backgroundColor: colors.surfaceAlt, transform: [{ scale: 0.97 }] },
-    buttonOutlineText: { color: "#2563EB", fontSize: 12, fontWeight: "700" },
-    // Tertiary: 초기화 - 가장 낮은 위계, 중립 회색
+    // Secondary: 보조 액션 (한 번 굴리기) - QA_LOG 95번: 예전엔 브랜드 블루 아웃라인이라
+    // Primary(자동 6회 굴리기, 파란 채움)와 색이 겹쳐 마치 이미 "선택"된 세그먼트 토글처럼
+    // 보였다. 브랜드 블루는 진짜 핵심 액션 하나에만 남기고, 이 버튼은 중립 회색 채움으로
+    // 바꿔 "눌러야 하는 독립된 버튼"으로 읽히게 한다.
+    buttonOutline: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+    buttonOutlinePressed: { backgroundColor: colors.border, transform: [{ scale: 0.97 }] },
+    buttonOutlineText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
+    // Tertiary: 초기화 - 가장 낮은 위계, 중립 회색(테두리만)
     buttonSecondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
     buttonSecondaryPressed: { backgroundColor: colors.surfaceAlt, transform: [{ scale: 0.97 }] },
     buttonSecondaryText: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
+    // QA_LOG 96번: 굴리는 애니메이션 도중엔 버튼들이 비활성화되는데, Pressable의 disabled
+    // prop 자체는 시각적으로 아무것도 바꾸지 않는다 — 눌러도 반응 없는 버튼이 멀쩡해 보이면
+    // 유저가 "왜 안 눌리지" 하고 여러 번 다시 누르게 된다. 살짝 흐리게 표시해 지금은 누를 수
+    // 없는 상태임을 바로 알 수 있게 한다.
+    buttonDisabled: { opacity: 0.45 },
     toggleLink: { color: "#2563EB", fontSize: 13, fontWeight: "600", marginBottom: 8 },
   });
 }
