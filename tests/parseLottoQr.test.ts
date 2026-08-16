@@ -39,6 +39,19 @@ describe("parseLottoQrText (동행복권 QR 파싱)", () => {
     expect(result.status).toBe("success");
   });
 
+  it("qr.dhlottery.co.kr/?v=... 형태(QA_LOG 93번, 2026-08 실기기에서 확인된 최신 QR 발급 방식)도 인식한다", () => {
+    // /qr.do 경로도, method=winQr 파라미터도 없는 실제 정품 용지(제1237회, 2026-08-15 추첨분) 형태.
+    const url = "https://qr.dhlottery.co.kr/?v=1237m061214182840m010518234144m022026333445";
+    const result = parseLottoQrText(url);
+    expect(result.status).toBe("success");
+    if (result.status !== "success") return;
+    expect(result.data.drawNumber).toBe(1237);
+    expect(result.data.games).toHaveLength(3);
+    expect(result.data.games[0]).toEqual({ gameType: "MANUAL", numbers: [6, 12, 14, 18, 28, 40] });
+    expect(result.data.games[1]).toEqual({ gameType: "MANUAL", numbers: [1, 5, 18, 23, 41, 44] });
+    expect(result.data.games[2]).toEqual({ gameType: "MANUAL", numbers: [2, 20, 26, 33, 34, 45] });
+  });
+
   it("동행복권 도메인이 아닌 임의의 QR(다른 사이트 URL)은 not_lotto_qr", () => {
     expect(parseLottoQrText("https://example.com/some-page").status).toBe("not_lotto_qr");
   });

@@ -57,15 +57,25 @@ const NUMBERS_PER_GAME = 6;
 // 그래서 원래대로 dhlottery.co.kr만 신뢰하도록 되돌린다. QR 파서에 검증 안 된(심지어 정부가
 // 차단한) 도메인을 "정상 동행복권 QR"로 인식하게 두는 건, 설령 최종 당첨 여부를 서버에서
 // 재검증한다 해도(아래) 그 자체로 위험한 신뢰 부여이므로 절대 다시 넣지 않는다.
-const KNOWN_WIN_QR_URL_PATTERN = /dhlottery\.co\.kr\/qr\.do\?/;
+//
+// 정정 2(QA_LOG.md 93번 항목): 위 패턴은 "dhlottery.co.kr/qr.do?method=winQr&v=..." 형태만
+// 허용했는데, 실기기로 실제 로또 용지(2026-08-15 추첨분, 제1237회)를 스캔해보니 동행복권이
+// 이미 "qr.dhlottery.co.kr/?v=..." 형태(경로가 /qr.do 아닌 그냥 /, method 파라미터 자체가
+// 없음)로 QR 발급 방식을 바꿔둔 상태였다 — 그래서 실제 정품 용지인데도 "로또 당첨 확인 QR이
+// 아니에요"로 잘못 거부됐다(브라우저로 그 URL을 직접 열어 동행복권 공식 "구매복권 당첨결과"
+// 페이지가 정상적으로 뜨는 것까지 확인해 진짜 정품 QR임을 재확인했음). 이제는 도메인이
+// dhlottery.co.kr이고 v= 파라미터가 존재한다는 두 가지만 신뢰 조건으로 삼고, 경로(/qr.do 유무)나
+// method 파라미터 유무는 더 이상 강제하지 않는다 — 동행복권이 다시 URL 형식을 바꿔도 도메인만
+// 같으면 계속 인식되도록 방어적으로 넓힌 것.
+const KNOWN_WIN_QR_URL_PATTERN = /dhlottery\.co\.kr\//;
 
 /** URL 전체(예: 카메라로 스캔한 QR 원문)에서 v= 파라미터 값을 뽑아낸다. */
 function extractVParam(raw: string): string | null {
   const trimmed = raw.trim();
 
-  // 동행복권 당첨 확인 URL 형태 (모바일/PC 도메인 모두 허용).
-  const isDhlotteryWinQrUrl = KNOWN_WIN_QR_URL_PATTERN.test(trimmed) && /method=winQr/.test(trimmed);
-  if (isDhlotteryWinQrUrl) {
+  // 동행복권 당첨 확인 URL 형태 (모바일/PC/qr 서브도메인 등 dhlottery.co.kr 밑이면 전부 허용).
+  const isDhlotteryUrl = KNOWN_WIN_QR_URL_PATTERN.test(trimmed);
+  if (isDhlotteryUrl) {
     const match = trimmed.match(/[?&]v=([^&]+)/);
     return match ? match[1] : null;
   }
