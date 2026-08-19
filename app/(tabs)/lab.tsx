@@ -16,7 +16,7 @@ import {
 import { getGenerationHistory, getTickets } from "../../src/lib/storage";
 import { getOddCount } from "../../src/lib/lottery/pattern";
 import { overlapCount } from "../../src/lib/lottery/similarity";
-import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart } from "../../src/components";
+import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart, StatusBarSafeMask } from "../../src/components";
 import {
   POPULARITY_HEURISTIC_NOTICE,
   SUM_TREND_NOTICE,
@@ -147,41 +147,44 @@ export default function LabScreen() {
     // 중앙 스피너로 화면을 통째로 가리는 대신, 실제 카드 레이아웃을 흐릿하게 먼저
     // 보여준다 — 로딩이 끝나는 순간 "빈 화면 → 카드 등장"으로 튀어 보이지 않는다.
     return (
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
-        <Text style={styles.header}>로또 연구소</Text>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
+          <Text style={styles.header}>로또 연구소</Text>
 
-        <View style={styles.card}>
-          <SkeletonBlock width={140} height={14} style={styles.skeletonMb8} />
-          <SkeletonBlock width={90} height={11} style={styles.skeletonMb8} />
-          <View style={styles.ballRow}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <SkeletonBall key={i} size={32} />
-            ))}
+          <View style={styles.card}>
+            <SkeletonBlock width={140} height={14} style={styles.skeletonMb8} />
+            <SkeletonBlock width={90} height={11} style={styles.skeletonMb8} />
+            <View style={styles.ballRow}>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <SkeletonBall key={i} size={32} />
+              ))}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.card}>
-          <SkeletonBlock width={180} height={14} style={styles.skeletonMb8} />
-          <View style={styles.ballRow}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <View key={i} style={styles.freqItem}>
-                <SkeletonBall size={32} />
-                <SkeletonBlock width={20} height={9} />
+          <View style={styles.card}>
+            <SkeletonBlock width={180} height={14} style={styles.skeletonMb8} />
+            <View style={styles.ballRow}>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={styles.freqItem}>
+                  <SkeletonBall size={32} />
+                  <SkeletonBlock width={20} height={9} />
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <SkeletonBlock width={160} height={14} style={styles.skeletonMb8} />
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.row}>
+                <SkeletonBlock width={110} height={11} />
+                <SkeletonBlock width={40} height={11} />
               </View>
             ))}
           </View>
-        </View>
-
-        <View style={styles.card}>
-          <SkeletonBlock width={160} height={14} style={styles.skeletonMb8} />
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} style={styles.row}>
-              <SkeletonBlock width={110} height={11} />
-              <SkeletonBlock width={40} height={11} />
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+        <StatusBarSafeMask />
+      </View>
     );
   }
 
@@ -198,7 +201,8 @@ export default function LabScreen() {
       : [];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
+    <View style={styles.container}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
       <Text style={styles.header}>로또 연구소</Text>
 
       {weeklyReport ? (
@@ -416,6 +420,8 @@ export default function LabScreen() {
 
       <DisclaimerCard text={POPULARITY_HEURISTIC_NOTICE} />
     </ScrollView>
+    <StatusBarSafeMask />
+    </View>
   );
 }
 

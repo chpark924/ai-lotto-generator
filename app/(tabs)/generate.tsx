@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { DeepPatternIcon } from "../../src/components/deepPattern";
+import { StatusBarSafeMask } from "../../src/components";
 import { useAppTheme, type AppColors } from "../../src/theme";
 
 const MENU_ITEMS: {
@@ -143,6 +144,7 @@ export default function GenerateHubScreen() {
           style={styles.bottomFade}
         />
       ) : null}
+      <StatusBarSafeMask />
     </View>
   );
 }

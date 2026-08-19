@@ -3,7 +3,7 @@ import { Alert, Linking, Pressable, SectionList, Share, StyleSheet, Text, TextIn
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { LottoBall } from "../../src/components";
+import { LottoBall, StatusBarSafeMask } from "../../src/components";
 import {
   getTickets,
   updateTicketStatus,
@@ -391,8 +391,9 @@ export default function TicketsScreen() {
   }
 
   return (
+    <View style={styles.container}>
     <SectionList
-      style={styles.container}
+      style={styles.list}
       contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
       sections={sections}
       keyExtractor={(item) => item.id}
@@ -589,12 +590,15 @@ export default function TicketsScreen() {
         </View>
       )}
     />
+    <StatusBarSafeMask />
+    </View>
   );
 }
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    list: { flex: 1 },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
     emptyText: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: colors.textMuted },

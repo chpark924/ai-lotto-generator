@@ -9,4 +9,5 @@ export * from "./GeneratedGameCard";
 export * from "./NumberGrid";
 export * from "./SettingsSheet";
 export * from "./Skeleton";
+export * from "./StatusBarSafeMask";
 export * from "./SumTrendChart";

@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { estimateLatestDrawNumber, getRecentDrawsSafe, getLongestAbsentNumbers, computeNumberFrequencies } from "../../src/lib/draws";
 import { getGenerationHistory } from "../../src/lib/storage";
 import { ENTERTAINMENT_NOTICE } from "../../src/constants/messages";
-import { LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall } from "../../src/components";
+import { LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, StatusBarSafeMask } from "../../src/components";
 import { useAppTheme, type AppColors } from "../../src/theme";
 
 function daysUntilNextSaturday(): number {
@@ -235,6 +235,7 @@ export default function HomeScreen() {
 
         <Text style={styles.footerNotice}>{ENTERTAINMENT_NOTICE}</Text>
       </ScrollView>
+      <StatusBarSafeMask />
       </View>
 
       <SettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
