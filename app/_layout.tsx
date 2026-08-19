@@ -9,7 +9,7 @@ import { ThemeProvider } from "../src/theme";
 // 스플래시(로고) 최소 노출 시간(ms). 앱 초기화 자체는 순간적으로 끝나서
 // 기본 동작대로 두면 로고가 거의 안 보이고 바로 사라짐 — 타사 앱들과
 // 비슷한 수준으로 로고를 인지할 수 있게 인위적으로 최소 시간을 확보한다.
-const MIN_SPLASH_DURATION_MS = 1300;
+const MIN_SPLASH_DURATION_MS = 1000;
 
 // 앱이 준비되기 전에 네이티브 스플래시가 자동으로 사라지는 것을 막는다.
 // (RootLayout 마운트보다 먼저 실행돼야 하므로 모듈 최상단에서 호출)
