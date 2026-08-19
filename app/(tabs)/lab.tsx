@@ -6,20 +6,34 @@ import {
   computeNumberFrequencies,
   computeCombinationPatternStats,
   computeSumTrend,
+  computeTransitionFrequencies,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
   type WinningDraw,
   type NumberFrequency,
+  type TransitionFrequencyRow,
 } from "../../src/lib/draws";
 import { getGenerationHistory, getTickets } from "../../src/lib/storage";
 import { getOddCount } from "../../src/lib/lottery/pattern";
 import { overlapCount } from "../../src/lib/lottery/similarity";
 import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart } from "../../src/components";
-import { POPULARITY_HEURISTIC_NOTICE, SUM_TREND_NOTICE } from "../../src/constants/messages";
+import {
+  POPULARITY_HEURISTIC_NOTICE,
+  SUM_TREND_NOTICE,
+  TRANSITION_FREQUENCY_NOTICE,
+} from "../../src/constants/messages";
 import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
 /** 번호별 출현 빈도·패턴 통계의 기준 표본 크기 (최근 52주 = 1년치 회차). */
 const RECENT_DRAW_SAMPLE_SIZE = 52;
+/**
+ * "이번 회차 번호 이후 통계"(computeTransitionFrequencies) 전용 표본 크기. 표본이 작을수록
+ * 노이즈가 커지므로 52주가 아니라 최대한 많은 과거 데이터를 쓴다. 로또6/45는 2002년 12월
+ * 시작(2026년 기준 약 1,300회차 안팎)이므로 이 값이면 사실상 전체 히스토리를 커버한다.
+ */
+const FULL_HISTORY_SAMPLE_SIZE = 2000;
+/** 이 미만이면 트리거별 표본이 너무 작아 카드 자체를 숨긴다(순위가 사실상 무의미해짐). */
+const MIN_TRANSITION_HISTORY_DRAWS = 200;
 
 export default function LabScreen() {
   const { colors, tints } = useAppTheme();
@@ -30,6 +44,7 @@ export default function LabScreen() {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
   const [draws, setDraws] = useState<WinningDraw[]>([]);
+  const [fullHistoryDraws, setFullHistoryDraws] = useState<WinningDraw[]>([]);
   const [frequencies, setFrequencies] = useState<NumberFrequency[]>([]);
   const [myAnalysis, setMyAnalysis] = useState<{
     totalGames: number;
@@ -44,7 +59,12 @@ export default function LabScreen() {
   } | null>(null);
 
   const loadLabData = useCallback(async () => {
-    const recentDraws = await getRecentDrawsSafe(RECENT_DRAW_SAMPLE_SIZE);
+    // FULL_HISTORY_SAMPLE_SIZE(2000)는 RECENT_DRAW_SAMPLE_SIZE(52)의 상위집합이므로,
+    // 별도로 두 번 fetch하지 않고 큰 표본 하나를 받아 앞쪽 52개를 그대로 "최근 52주" 통계에
+    // 재사용한다(getRecentDraws는 최신 회차부터 역순으로 채워 반환한다).
+    const fullHistoryDraws = await getRecentDrawsSafe(FULL_HISTORY_SAMPLE_SIZE);
+    const recentDraws = fullHistoryDraws.slice(0, RECENT_DRAW_SAMPLE_SIZE);
+    setFullHistoryDraws(fullHistoryDraws);
     setDraws(recentDraws);
     setFrequencies(computeNumberFrequencies(recentDraws));
 
@@ -172,6 +192,10 @@ export default function LabScreen() {
     ? getLongestAbsentNumbers(frequencies, latestDraw.drawNumber, 6)
     : [];
   const sumTrend = computeSumTrend(draws);
+  const transitionRows: TransitionFrequencyRow[] =
+    latestDraw && fullHistoryDraws.length >= MIN_TRANSITION_HISTORY_DRAWS
+      ? computeTransitionFrequencies(fullHistoryDraws, latestDraw.numbers, 3)
+      : [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
@@ -275,6 +299,44 @@ export default function LabScreen() {
             ))}
           </View>
         </View>
+      ) : null}
+
+      {transitionRows.length > 0 ? (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
+              이번 회차 번호 이후 통계 (전체 {fullHistoryDraws.length}회 기준)
+            </Text>
+            <Text style={styles.cardSub}>
+              제 {latestDraw?.drawNumber}회 당첨번호 각각이 과거에 나온 뒤, 그 다음 회차에 어떤
+              번호가 자주 나왔는지 보여주는 통계입니다. 예측이 아니에요 — 아래 안내를 꼭
+              확인해주세요.
+            </Text>
+            {transitionRows.map((row) => (
+              <View key={row.triggerNumber} style={styles.transitionRow}>
+                <LottoBall number={row.triggerNumber} size={28} />
+                <Text style={styles.transitionArrow}>다음 회차 →</Text>
+                <View style={styles.transitionTopList}>
+                  {row.top.length > 0 ? (
+                    row.top.map((item) => (
+                      <View key={item.number} style={styles.freqItem}>
+                        <LottoBall number={item.number} size={26} />
+                        <Text style={styles.freqCount}>{item.count}회</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.cardSub}>표본 부족</Text>
+                  )}
+                </View>
+              </View>
+            ))}
+            <Text style={styles.helperNote}>
+              표본 크기(해당 번호가 나온 뒤 다음 회차 데이터가 있는 과거 횟수):{" "}
+              {transitionRows.map((r) => `${r.triggerNumber}번 ${r.sampleSize}회`).join(" · ")}
+            </Text>
+          </View>
+          <DisclaimerCard text={TRANSITION_FREQUENCY_NOTICE} />
+        </>
       ) : null}
 
       <View style={styles.card}>
@@ -426,6 +488,15 @@ function createStyles(colors: AppColors, tints: AppTints) {
     freqItem: { alignItems: "center", gap: 4 },
     freqCount: { fontSize: 10, color: colors.textMuted },
     freqCountLight: { fontSize: 10, color: "#C4B5FD" },
+    transitionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10,
+      flexWrap: "wrap",
+    },
+    transitionArrow: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+    transitionTopList: { flexDirection: "row", flexWrap: "wrap", gap: 10, flexShrink: 1 },
     // 이번 주 리포트 카드는 항상 어두운 브랜드 톤을 유지한다.
     weeklyCard: {
       backgroundColor: "#0F172A",

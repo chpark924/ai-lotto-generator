@@ -212,3 +212,67 @@ export function buildHistoricalFrequencyRatio(draws: WinningDraw[]): number[] {
   }
   return byNumber;
 }
+
+export interface TransitionFrequencyRow {
+  /** 기준(트리거) 번호 — 보통 최신 당첨번호 6개 중 하나. */
+  triggerNumber: number;
+  /** 트리거 번호가 나온 과거 회차 중, 그 다음 회차 데이터까지 확보된 표본 수. 값이 작을수록
+   * top 목록의 순위 차이가 통계적으로 무의미할 가능성이 크므로 화면에 항상 함께 노출해야 한다. */
+  sampleSize: number;
+  top: { number: number; count: number }[];
+}
+
+/**
+ * "다음 회차 통계 탐색" — 로또 연구소 신규 섹션.
+ *
+ * ⚠️ 반드시 읽을 것: 로또 6/45 추첨은 회차마다 완전히 독립된 사건이다. 특정 번호가 나온 뒤
+ * 다음 회차에 어떤 번호가 더 자주 나왔는지를 집계하면 항상 "1위, 2위, 3위..."라는 순위가
+ * 생기지만, 이건 순수하게 표본 크기가 유한해서 생기는 무작위 변동(노이즈)이지 실제 인과관계나
+ * 확률적 편향이 아니다. 예: 트리거 번호 1개가 과거 N회 등장했다면, 특정 목표 번호가 "다음
+ * 회차"에 나올 기대 횟수는 N×6/45, 표준편차는 √(기대값×(1-6/45))이며, 실제 관측치는 거의
+ * 항상 이 범위 안에서만 움직인다. 즉 이 함수의 출력은 "그럼에도 불구하고 과거엔 이랬다"를
+ * 보여주는 서술적 통계일 뿐 다음 회차 예측이 아니며, 반드시 TRANSITION_FREQUENCY_NOTICE와
+ * 함께 노출해야 한다(§23 사용 금지/권장 표현 원칙과 동일한 원칙 적용).
+ *
+ * 여러 트리거 번호의 결과를 하나의 "합산 점수"로 더하지 않고 트리거 번호별로 따로 반환한다 —
+ * 합산하면 사실상 각 번호의 전체 출현 빈도(핫넘버 여부)를 몇 배로 부풀려 재현할 뿐이라
+ * "직전 회차와의 관계"라는 조건 자체가 주는 정보가 없어지고, 오히려 더 그럴듯한 예측처럼
+ * 보이는 착시만 커진다.
+ *
+ * @param draws 표본으로 쓸 과거 당첨 회차. 표본이 작을수록 노이즈가 커지므로 호출부는
+ *   가능한 한 많은(이상적으로는 전체) 히스토리를 넘겨야 한다 — lab.tsx는 이 목적으로
+ *   RECENT_DRAW_SAMPLE_SIZE(52주)가 아닌 별도의 대용량 표본을 사용한다.
+ * @param triggerNumbers 기준이 되는 번호 집합(보통 최신 당첨번호 6개).
+ * @param topN 트리거 번호별로 보여줄 다음 회차 후보 개수.
+ */
+export function computeTransitionFrequencies(
+  draws: WinningDraw[],
+  triggerNumbers: readonly number[],
+  topN = 3
+): TransitionFrequencyRow[] {
+  if (draws.length === 0 || triggerNumbers.length === 0) return [];
+
+  // drawNumber → WinningDraw 맵으로 "바로 다음 회차"를 찾는다. 배열상 인접 원소가 아니라
+  // 실제 drawNumber+1 존재 여부를 기준으로 삼아야, 캐시에 빠진 회차가 있어도 엉뚱한 회차끼리
+  // 잘못 이어붙이지 않는다.
+  const byDrawNumber = new Map(draws.map((d) => [d.drawNumber, d]));
+
+  return triggerNumbers.map((triggerNumber) => {
+    const counts = new Map<number, number>();
+    let sampleSize = 0;
+    for (const draw of draws) {
+      if (!draw.numbers.includes(triggerNumber)) continue;
+      const next = byDrawNumber.get(draw.drawNumber + 1);
+      if (!next) continue;
+      sampleSize += 1;
+      for (const n of next.numbers) counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+
+    const top = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .slice(0, topN)
+      .map(([number, count]) => ({ number, count }));
+
+    return { triggerNumber, sampleSize, top };
+  });
+}
