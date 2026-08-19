@@ -64,6 +64,22 @@ export function Dice45({
     }
     if (spinTrigger === 0) return;
 
+    // QA_LOG 107번 — "자동 6회 굴리기"/번호 재굴리기를 15회 이상 빠르게 연타하면 앱이
+    // 점점 느려지다가 완전히 멈춰(뻗어) 강제 종료해야 하는 문제가 있었다. 원인: 굴리기가
+    // 끝난 뒤 이어지는 "착지" 연출(scale 튕김 + glow 반짝임)은 isDiceSpinning이 이미
+    // false로 풀린 뒤에도 최대 ~700ms 더 재생되는데, 그 사이에 버튼이 다시 눌리면(96번
+    // 가드는 스핀 자체의 480ms만 막아줄 뿐, 그 뒤에 이어지는 이 착지 연출까지는 막지
+    // 못했다) 새 사이클이 scale/glow 값을 setValue()로 되돌리기만 했다 — RN Animated는
+    // setValue를 호출해도 이미 진행 중이던 애니메이션을 자동으로 멈춰주지 않기 때문에,
+    // 매 연타마다 이전 애니메이션들이 정리되지 않고 native 쪽에 계속 쌓여 함께 실행됐다.
+    // 15번 연타하면 수십 개의 애니메이션이 동시에 쌓여 돌아가며 기기가 느려지다 못해
+    // 완전히 멈추는 원인이 됐다. 새 사이클을 시작하기 전에 이 세 Animated.Value에서
+    // 진행 중인 애니메이션을 명시적으로 멈춰(stopAnimation) 잔여 애니메이션이 계속
+    // 누적되지 않게 한다.
+    spinRotate.stopAnimation();
+    scale.stopAnimation();
+    glow.stopAnimation();
+
     setIsSpinning(true);
     onSpinningChange?.(true);
     spinRotate.setValue(0);

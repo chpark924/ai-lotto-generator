@@ -105,9 +105,12 @@ export default function DiceScreen() {
           n ? (
             <Pressable
               key={i}
+              style={({ pressed }) => [isDiceSpinning && styles.ballDisabled]}
               onPress={() => rerollOne(n)}
+              disabled={isDiceSpinning}
               accessibilityRole="button"
               accessibilityLabel={`${n}번, 탭하면 이 번호만 다시 굴리기`}
+              accessibilityState={{ disabled: isDiceSpinning }}
             >
               <LottoBall number={n} size={48} />
             </Pressable>
@@ -267,6 +270,11 @@ function createStyles(colors: AppColors) {
     // 유저가 "왜 안 눌리지" 하고 여러 번 다시 누르게 된다. 살짝 흐리게 표시해 지금은 누를 수
     // 없는 상태임을 바로 알 수 있게 한다.
     buttonDisabled: { opacity: 0.45 },
+    // QA_LOG 107번 — 개별 번호 공(재굴리기)은 96번 당시 하단 3개 버튼에만 넣었던
+    // isDiceSpinning 가드가 빠져 있었다. 애니메이션이 도는 중에도 계속 탭이 먹혀
+    // 새 굴리기가 계속 겹쳐 시작될 수 있었던 지점이라, 버튼들과 동일하게 굴리는 동안
+    // 흐리게 비활성화한다.
+    ballDisabled: { opacity: 0.45 },
     toggleLink: { color: "#2563EB", fontSize: 13, fontWeight: "600", marginBottom: 8 },
   });
 }
