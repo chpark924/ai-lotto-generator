@@ -9,6 +9,7 @@ import {
   updateTicketStatus,
   updateTicketDrawNumber,
   updateTicketMatchedRank,
+  clearTicketCheckResult,
   deleteTicket,
   type SavedTicket,
   type TicketStatus,
@@ -84,6 +85,7 @@ export default function TicketsScreen() {
   // 예외적인 경우에만 노출한다 — 유저 대부분은 회차 번호 자체를 신경 쓰지 않기 때문.
   const [manualEntry, setManualEntry] = useState<Record<string, boolean>>({});
   const isAutoChecking = useRef(false);
+  const isHealing = useRef(false);
 
   // "이번 주"는 아직 추첨되지 않은 다음 회차(구매 대상), "다음 주"는 그 다음 회차.
   const thisWeekDrawNumber = estimateLatestDrawNumber() + 1;
@@ -190,6 +192,43 @@ export default function TicketsScreen() {
     return list;
   }, []);
 
+  /**
+   * QA_LOG 114번 — updateTicketDrawNumber(109번)의 "회차가 실제로 바뀔 때만 matchedRank를
+   * 지운다"는 가드는 그 수정이 배포된 시점 이후의 회차 변경에만 적용된다. 그 전에 이미
+   * 기기(AsyncStorage)에 저장돼 있던 티켓 — 예: 이미 확인이 끝난 과거 회차의 결과(matchedRank)를
+   * 그대로 지닌 채 회차 번호만 미래(다음 주 등)로 바뀐 낡은 데이터 — 는 코드가 고쳐진 뒤에도
+   * 소급 적용되지 않아, 화면엔 여전히 "아직 추첨도 안 한 회차인데 확인완료·낙첨"이 보일 수
+   * 있었다(2026-08-25 재현 스크린샷으로 확인). "지정된 회차가 thisWeekDrawNumber 이상(=아직
+   * 추첨 전)인데 matchedRank가 남아있는" 티켓은 그 자체로 항상 무효한 상태이므로, 화면 진입
+   * 때마다 조용히 정리한다 — 한 번 정리되면 그 뒤로는 다시 나타나지 않는다.
+   */
+  const healFutureTickets = useCallback(
+    async (list: SavedTicket[]): Promise<SavedTicket[]> => {
+      if (isHealing.current) return list;
+      const invalid = list.filter(
+        (t) => t.drawNumber !== undefined && t.drawNumber >= thisWeekDrawNumber && t.matchedRank !== undefined
+      );
+      if (invalid.length === 0) return list;
+
+      isHealing.current = true;
+      try {
+        for (const ticket of invalid) {
+          try {
+            await clearTicketCheckResult(ticket.id);
+          } catch (e) {
+            // 조용히 정리하는 백그라운드 동작이라 실패해도 알림 없이 넘어가고,
+            // 다음 화면 방문 때 다시 시도한다.
+            console.error("[tickets] 미래 회차 확인 결과 정리 실패:", e);
+          }
+        }
+        return await load();
+      } finally {
+        isHealing.current = false;
+      }
+    },
+    [thisWeekDrawNumber, load]
+  );
+
   const autoCheckPendingTickets = useCallback(async (list: SavedTicket[]) => {
     if (isAutoChecking.current) return;
     isAutoChecking.current = true;
@@ -233,10 +272,11 @@ export default function TicketsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load().then((list) => {
-        autoCheckPendingTickets(list);
+      load().then(async (list) => {
+        const healedList = await healFutureTickets(list);
+        autoCheckPendingTickets(healedList);
       });
-    }, [load, autoCheckPendingTickets])
+    }, [load, healFutureTickets, autoCheckPendingTickets])
   );
 
   async function cycleStatus(ticket: SavedTicket) {

@@ -78,6 +78,31 @@ export async function updateTicketDrawNumber(id: string, drawNumber: number): Pr
   await writeJson(KEY, updated);
 }
 
+/**
+ * QA_LOG 114번 — updateTicketDrawNumber(109번)의 가드는 "그 시점 이후에 일어나는 회차
+ * 변경"만 막아준다. 109번 수정이 배포되기 전에 이미 저장돼 있던 티켓(예: 이미 확인이 끝난
+ * 회차의 matchedRank를 그대로 지닌 채 회차 번호만 미래로 바뀐 낡은 데이터)에는 소급 적용되지
+ * 않으므로, 기기에 남아있던 그런 티켓은 109번 수정 이후에도 여전히 "아직 추첨도 안 한
+ * 회차인데 확인완료·낙첨" 화면으로 보였다. tickets.tsx가 화면 진입 시 이 함수로 "지정된
+ * 회차가 아직 추첨 전인데 matchedRank가 남아있는" 티켓을 찾아 스스로 정리한다(1회 정리되면
+ * 그 뒤로는 다시 나타나지 않는다) — updateTicketDrawNumber의 회차-변경 가드와 달리, 회차
+ * 자체는 그대로 두고 "무효가 된 확인 결과"만 지운다는 점이 다르다.
+ */
+export async function clearTicketCheckResult(id: string): Promise<void> {
+  const tickets = await getTickets();
+  const updated = tickets.map((t) =>
+    t.id === id
+      ? {
+          ...t,
+          matchedRank: undefined,
+          status: t.status === "CHECKED" ? "SAVED" : t.status,
+          updatedAt: new Date().toISOString(),
+        }
+      : t
+  );
+  await writeJson(KEY, updated);
+}
+
 export async function updateTicketMatchedRank(
   id: string,
   matchedRank: SavedTicket["matchedRank"]
