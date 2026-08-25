@@ -1026,3 +1026,9 @@
   - `src/lib/storage/tickets.ts` — `clearTicketCheckResult(id)`를 새로 추가. `updateTicketDrawNumber`처럼 회차 번호는 그대로 두고, `matchedRank`만 지우고 그 값 때문에 켜져 있던 "CHECKED" 상태만 "SAVED"로 되돌린다.
   - `app/(tabs)/tickets.tsx` — `healFutureTickets(list)`를 추가해, 화면에 진입(포커스)할 때마다 "지정된 회차가 `thisWeekDrawNumber` 이상(=아직 추첨 전)인데 `matchedRank`가 남아있는" 티켓을 찾아 `clearTicketCheckResult`로 정리한다. 기존 `load() → autoCheckPendingTickets()` 흐름 사이에 `load() → healFutureTickets() → autoCheckPendingTickets()`로 끼워 넣었다 — 정리 후 곧바로 자동 확인 로직이 이어지므로, 실제로 발표된 회차라면 바로 정상적으로 다시 확인되고, 아직 발표 전이면 조용히 "미확인" 상태로만 남는다. 낡은 데이터든 앞으로 생길 수 있는 다른 경로의 오류든, 이 정리 로직이 화면 진입 때마다 계속 안전망 역할을 한다 — 한 번 정리되면 그 뒤로는 다시 나타나지 않는다.
 - **검증**: `npx tsc --noEmit`·`npx eslint .`(사용자 실기기 터미널에서 확인 예정). 실기기에서 앱을 열자마자(탭 진입 시) "다음 주 추첨 (9/5)" 섹션의 기존 3장이 "확인 완료"/"낙첨" 없이 "당첨 확인" 버튼이 있는 정상(미확인) 상태로 바뀌는지, 다른 정상 티켓(과거 회차의 실제 확인 결과)은 그대로 유지되는지 확인 필요. 추가로 이미 확인된 과거 회차 티켓을 "회차 변경"으로 미래 회차로 옮겨봤을 때도(109번 케이스) 즉시 미확인 상태로 보이는지 재확인 부탁.
+
+### 115. 로또 연구소 맨 하단의 "많이 선택되는 번호" 안내 문구 삭제
+- **피드백**: "로또연구소 맨 하단 텍스트는 다른 곳에 존재(ai조합탐색)하므로 삭제해도 될 것 같아. 로또연구소 내 연관성 있는 내용이 없으니까말야."
+- **원인**: `POPULARITY_HEURISTIC_NOTICE`(‘많이 선택되는 번호’ 정보는 실제 타 사용자 데이터가 아니라 일반적인 선택 편향 근사치라는 안내)는 원래 `app/generate/ai-search.tsx`(AI 조합 탐색)의 "인기번호 회피" 토글 옆에 붙어야 할 안내문인데, 로또 연구소(`lab.tsx`) 화면 맨 아래에도 같은 문구가 붙어 있었다. 로또 연구소 화면 안에는 이 문구가 설명하는 "많이 선택되는 번호(인기도 근사치)" 관련 카드나 수치가 하나도 없어서, 사용자 입장에선 화면 어디와도 연결되지 않는 문구가 맥락 없이 맨 아래에 붙어 있는 것으로 보였다.
+- **수정**: `app/(tabs)/lab.tsx` — 맨 아래 `<DisclaimerCard text={POPULARITY_HEURISTIC_NOTICE} />`와 이제 쓰이지 않는 `POPULARITY_HEURISTIC_NOTICE` import를 제거했다. `app/generate/ai-search.tsx`의 안내는 그대로 유지되며, `src/constants/messages.ts`의 상수 자체도 그대로 남겨뒀다(다른 곳에서 계속 쓰이므로 삭제 대상이 아님).
+- **검증**: `npx tsc --noEmit`·`npx eslint .`(사용자 실기기 터미널에서 확인 예정) — 카드 하나와 미사용 import를 제거한 변경이라 회귀 위험 없음. 실기기에서 로또 연구소 화면을 맨 아래까지 스크롤했을 때 "당첨번호 합계 추세" 안내 문구 다음에 더 이상 아무 문구도 뜨지 않고 화면이 자연스럽게 끝나는지, AI 조합 탐색 화면의 "인기번호 회피" 관련 안내는 그대로 잘 보이는지 확인 필요.

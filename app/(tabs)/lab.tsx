@@ -20,7 +20,6 @@ import { getOddCount } from "../../src/lib/lottery/pattern";
 import { overlapCount } from "../../src/lib/lottery/similarity";
 import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart, StatusBarSafeMask } from "../../src/components";
 import {
-  POPULARITY_HEURISTIC_NOTICE,
   SUM_TREND_NOTICE,
   TRANSITION_FREQUENCY_NOTICE,
   FIRST_PRIZE_EXPECTATION_NOTICE,
@@ -460,8 +459,6 @@ export default function LabScreen() {
         )}
       </View>
       {sumTrend.length > 0 ? <DisclaimerCard text={SUM_TREND_NOTICE} /> : null}
-
-      <DisclaimerCard text={POPULARITY_HEURISTIC_NOTICE} />
     </ScrollView>
     <StatusBarSafeMask />
     </View>
