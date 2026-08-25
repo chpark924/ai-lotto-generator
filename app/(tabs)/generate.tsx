@@ -93,7 +93,7 @@ export default function GenerateHubScreen() {
         {MENU_ITEMS.map((item) => (
           <Pressable
             key={item.path}
-            style={({ pressed }) => [styles.card, item.isNew && styles.cardNew, pressed && styles.cardPressed]}
+            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
             android_ripple={{ color: "#E2E8F0" }}
             onPress={() => router.push(item.path as never)}
             accessibilityRole="button"
@@ -187,18 +187,12 @@ function createStyles(colors: AppColors) {
     // 토스처럼 "확실히 눌렀다"는 게 체감되도록, 한 단계 더 진한 colors.border 톤
     // (라이트: #E2E8F0, 다크에서도 surfaceAlt보다 한 톤 밝은 값)을 배경으로 쓰고,
     // 그림자를 눌리는 순간 완전히 없애 카드가 화면 속으로 살짝 눌려 들어가는
-    // 느낌을 더했다. borderColor는 이제 따로 덮어쓰지 않아 "딥 패턴 탐색" 카드의
-    // NEW 보라색 테두리가 누르는 동안에도 사라지지 않고 그대로 유지된다(기존엔
-    // 눌릴 때마다 이 테두리가 잠깐 회색으로 바뀌었다 떼는 손 위치가 살짝 어색했음).
+    // 느낌을 더했다.
     cardPressed: {
       backgroundColor: colors.border,
       transform: [{ scale: 0.97 }],
       shadowOpacity: 0,
       elevation: 0,
-    },
-    cardNew: {
-      borderColor: "#6C5CE7",
-      borderWidth: 1.5,
     },
     cardIcon: { width: 48, height: 48, marginRight: 12 },
     cardIconWrap: { marginRight: 12 },
