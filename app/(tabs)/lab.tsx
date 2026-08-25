@@ -310,7 +310,7 @@ export default function LabScreen() {
 
       {transitionRows.length > 0 ? (
         <>
-          <View style={styles.card}>
+          <View style={[styles.card, styles.cardTight]}>
             <Text style={styles.cardTitle}>
               이번 회차 번호 이후 통계 (전체 {fullHistoryDraws.length}회 기준)
             </Text>
@@ -342,7 +342,7 @@ export default function LabScreen() {
               {transitionRows.map((r) => `${r.triggerNumber}번 ${r.sampleSize}회`).join(" · ")}
             </Text>
           </View>
-          <DisclaimerCard text={TRANSITION_FREQUENCY_NOTICE} />
+          <DisclaimerCard text={TRANSITION_FREQUENCY_NOTICE} style={styles.attachedNotice} />
         </>
       ) : null}
 
@@ -371,7 +371,7 @@ export default function LabScreen() {
 
       {firstPrizeExpectation ? (
         <>
-          <View style={styles.card}>
+          <View style={[styles.card, styles.cardTight]}>
             <Text style={styles.cardTitle}>
               기대 대비 실제 1등 당첨자 수 (제 {firstPrizeExpectation.drawNumber}회)
             </Text>
@@ -404,7 +404,7 @@ export default function LabScreen() {
               />
             ) : null}
           </View>
-          <DisclaimerCard text={FIRST_PRIZE_EXPECTATION_NOTICE} />
+          <DisclaimerCard text={FIRST_PRIZE_EXPECTATION_NOTICE} style={styles.attachedNotice} />
         </>
       ) : null}
 
@@ -439,7 +439,7 @@ export default function LabScreen() {
         </View>
       )}
 
-      <View style={styles.card}>
+      <View style={[styles.card, styles.cardTight]}>
         {sumTrend.length > 0 ? (
           <>
             <Text style={styles.cardTitle}>당첨번호 합계 추세 (최근 {sumTrend.length}회)</Text>
@@ -458,7 +458,7 @@ export default function LabScreen() {
           </>
         )}
       </View>
-      {sumTrend.length > 0 ? <DisclaimerCard text={SUM_TREND_NOTICE} /> : null}
+      {sumTrend.length > 0 ? <DisclaimerCard text={SUM_TREND_NOTICE} style={styles.attachedNotice} /> : null}
     </ScrollView>
     <StatusBarSafeMask />
     </View>
@@ -486,6 +486,24 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 12,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    // QA_LOG 117번 — 카드 바로 아래 그 카드 전용 DisclaimerCard(안내 문구)가 이어지는 자리에서
+    // 쓴다. 예전엔 "카드(marginBottom 12) + 안내 문구(marginVertical 8)"가 그대로 합쳐져
+    // 카드↔안내 문구 사이가 20px로 벌어지는 반면, 안내 문구↔다음(무관한) 카드 사이는 8px밖에
+    // 안 돼서 정작 서로 연관된 카드-안내 쌍보다 무관한 다음 섹션이 더 가까워 보이는 역전
+    // 현상이 있었다(사용자 피드백: "간격이 일정하지 않다", "연관성 있는 설명은 좀 더 가깝게").
+    // 이 스타일로 카드 쪽 아래 여백을 좁혀(6px) 안내 문구와 밀착시키고, attachedNotice가
+    // 안내 문구 쪽 위 여백을 0으로 맞춰 그 둘을 하나의 덩어리처럼 보이게 한다. 대신 안내 문구
+    // 아래쪽엔 attachedNotice가 표준 섹션 간격(12px)을 그대로 유지해, 다음(무관한) 카드와의
+    // 경계는 화면의 다른 카드-카드 간격과 동일하게 일정히 유지된다.
+    cardTight: {
+      marginBottom: 6,
+    },
+    // cardTight와 짝을 이루는 DisclaimerCard 전용 여백 오버라이드. 위는 카드에 밀착(0),
+    // 아래는 화면 전체와 동일한 표준 간격(12)으로 다음 섹션과 자연스럽게 분리한다.
+    attachedNotice: {
+      marginTop: 0,
+      marginBottom: 12,
     },
     cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardSub: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
