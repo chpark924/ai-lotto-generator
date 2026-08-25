@@ -3,6 +3,7 @@
  * 기기에 캐시된 과거 당첨번호만으로 전부 클라이언트에서 계산한다 (서버 집계 없음).
  */
 import { getOddCount, getLowNumberCount, getMaxConsecutiveLength, getNumberSum } from "../lottery/pattern";
+import { TOTAL_COMBINATIONS } from "../lottery/probability";
 import type { WinningDraw } from "./types";
 
 export interface NumberFrequency {
@@ -275,4 +276,90 @@ export function computeTransitionFrequencies(
 
     return { triggerNumber, sampleSize, top };
   });
+}
+
+/** 로또 1게임 가격(원). 총판매액에서 게임 수를 역산할 때만 쓰는 상수다. */
+const LOTTO_TICKET_PRICE = 1000;
+
+export interface FirstPrizeExpectation {
+  drawNumber: number;
+  totalSalesAmount: number;
+  /** 총판매액 ÷ 1,000원으로 역산한 추정 구매 게임 수(자동/수동 구분 없이 전체). */
+  estimatedGameCount: number;
+  /** 추정 게임 수가 전부 서로 다른 조합이라 가정했을 때의 이론적(포아송 근사) 1등 기대 인원. */
+  expectedWinnerCount: number;
+  actualWinnerCount: number;
+  /** 실제/기대 비율. 기대 인원이 0에 가까우면(표본 부족) null. */
+  ratio: number | null;
+  /** (실제 − 기대) ÷ √기대. 포아송 분포 기준 표준화 편차 — 절대값이 클수록 이례적. */
+  zScore: number | null;
+}
+
+/**
+ * 회차별 "기대 대비 실제 1등 당첨자 수" — 로또 연구소 신규 카드.
+ *
+ * ⚠️ 반드시 읽을 것: 이 함수는 예측이 아니라 순수한 사후 서술 통계다. 총판매액에서 역산한
+ * 추정 게임 수를 8,145,060(TOTAL_COMBINATIONS)으로 나누면 "모든 게임이 서로 다른 조합을
+ * 골랐다고 가정했을 때"의 이론적 1등 기대 인원이 나온다(포아송 근사). 실제로는 자동/수동
+ * 선택 편향으로 특정 조합에 구매가 몰리므로 이 기대값은 근사치일 뿐이며, 이 값과 실제
+ * 당첨자 수의 차이(zScore)가 크다고 해서 다음 회차의 확률이 달라지는 것도 아니다 — 반드시
+ * FIRST_PRIZE_EXPECTATION_NOTICE와 함께 노출해야 한다(§23 사용 금지/권장 표현 원칙 적용).
+ *
+ * 데이터가 없거나(과거 극초기 회차 등) 비정상 값이면 null을 반환한다 — 호출부는 카드 자체를
+ * 숨겨야 한다.
+ */
+export function computeFirstPrizeExpectation(draw: WinningDraw): FirstPrizeExpectation | null {
+  if (
+    draw.totalSalesAmount == null ||
+    draw.totalSalesAmount <= 0 ||
+    draw.firstPrizeWinnerCount == null ||
+    draw.firstPrizeWinnerCount < 0
+  ) {
+    return null;
+  }
+
+  const estimatedGameCount = draw.totalSalesAmount / LOTTO_TICKET_PRICE;
+  const expectedWinnerCount = estimatedGameCount / TOTAL_COMBINATIONS;
+  const actualWinnerCount = draw.firstPrizeWinnerCount;
+
+  const ratio = expectedWinnerCount > 0 ? actualWinnerCount / expectedWinnerCount : null;
+  const zScore =
+    expectedWinnerCount > 0 ? (actualWinnerCount - expectedWinnerCount) / Math.sqrt(expectedWinnerCount) : null;
+
+  return {
+    drawNumber: draw.drawNumber,
+    totalSalesAmount: draw.totalSalesAmount,
+    estimatedGameCount,
+    expectedWinnerCount,
+    actualWinnerCount,
+    ratio,
+    zScore,
+  };
+}
+
+/**
+ * computeFirstPrizeExpectation() 결과를 유저가 한눈에 이해할 수 있는 한 문장으로 요약한다.
+ * 카드에 그대로 노출하기 위한 것이며, 이 문장 자체도 "지금까지 그랬다"는 서술일 뿐 다음
+ * 회차 예측이 아니다 — 반드시 FIRST_PRIZE_EXPECTATION_NOTICE와 함께 노출해야 한다.
+ */
+export function describeFirstPrizeExpectation(exp: FirstPrizeExpectation): string {
+  const expected = exp.expectedWinnerCount.toFixed(1);
+
+  if (exp.actualWinnerCount === 0) {
+    return `제 ${exp.drawNumber}회는 1등 당첨자가 한 명도 없어 상금이 다음 회차로 이월됐습니다. (판매량 기준 이론적 기대치는 약 ${expected}명)`;
+  }
+  if (exp.zScore === null) {
+    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명입니다.`;
+  }
+
+  const absZ = Math.abs(exp.zScore);
+  const direction = exp.zScore >= 0 ? "많이" : "적게";
+
+  if (absZ < 1) {
+    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)와 비슷한 수준입니다.`;
+  }
+  if (absZ < 2) {
+    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)보다 다소 ${direction} 나왔습니다.`;
+  }
+  return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)보다 꽤 이례적으로 ${direction} 나왔습니다.`;
 }

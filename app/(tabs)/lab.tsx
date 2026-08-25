@@ -7,6 +7,8 @@ import {
   computeCombinationPatternStats,
   computeSumTrend,
   computeTransitionFrequencies,
+  computeFirstPrizeExpectation,
+  describeFirstPrizeExpectation,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
   type WinningDraw,
@@ -21,6 +23,7 @@ import {
   POPULARITY_HEURISTIC_NOTICE,
   SUM_TREND_NOTICE,
   TRANSITION_FREQUENCY_NOTICE,
+  FIRST_PRIZE_EXPECTATION_NOTICE,
 } from "../../src/constants/messages";
 import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
 
@@ -199,6 +202,7 @@ export default function LabScreen() {
     latestDraw && fullHistoryDraws.length >= MIN_TRANSITION_HISTORY_DRAWS
       ? computeTransitionFrequencies(fullHistoryDraws, latestDraw.numbers, 3)
       : [];
+  const firstPrizeExpectation = latestDraw ? computeFirstPrizeExpectation(latestDraw) : null;
 
   return (
     <View style={styles.container}>
@@ -365,6 +369,45 @@ export default function LabScreen() {
           </>
         )}
       </View>
+
+      {firstPrizeExpectation ? (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
+              기대 대비 실제 1등 당첨자 수 (제 {firstPrizeExpectation.drawNumber}회)
+            </Text>
+            <Text style={styles.cardSub}>{describeFirstPrizeExpectation(firstPrizeExpectation)}</Text>
+            <Row
+              styles={styles}
+              label="총 판매액"
+              value={`${firstPrizeExpectation.totalSalesAmount.toLocaleString("ko-KR")}원`}
+            />
+            <Row
+              styles={styles}
+              label="추정 구매 게임 수"
+              value={`약 ${Math.round(firstPrizeExpectation.estimatedGameCount).toLocaleString("ko-KR")}게임`}
+            />
+            <Row
+              styles={styles}
+              label="이론적 기대 1등 당첨자 수"
+              value={`약 ${firstPrizeExpectation.expectedWinnerCount.toFixed(1)}명`}
+            />
+            <Row
+              styles={styles}
+              label="실제 1등 당첨자 수"
+              value={`${firstPrizeExpectation.actualWinnerCount}명`}
+            />
+            {firstPrizeExpectation.ratio !== null ? (
+              <Row
+                styles={styles}
+                label="기대 대비 실제 비율"
+                value={`${Math.round(firstPrizeExpectation.ratio * 100)}%`}
+              />
+            ) : null}
+          </View>
+          <DisclaimerCard text={FIRST_PRIZE_EXPECTATION_NOTICE} />
+        </>
+      ) : null}
 
       {myAnalysis ? (
         <View style={styles.card}>
