@@ -432,7 +432,7 @@ export default function TicketsScreen() {
         );
       }}
       renderItem={({ item, section }) => (
-        <View style={styles.card}>
+        <View style={[styles.card, section.key.startsWith("month-") && styles.cardPast]}>
           <View style={styles.cardHeader}>
             <Pressable
               style={[styles.statusBadge, { backgroundColor: getStatusBadgeStyle(tints, item.status).backgroundColor }]}
@@ -615,6 +615,14 @@ function createStyles(colors: AppColors) {
       marginBottom: 12,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    // 106번 QA 스크린샷 피드백 — "추첨 월" 버킷(과거 회차) 안의 카드는 이번 주/다음 주
+    // 회차 카드와 같은 흰색이라 "지나간 기록"이라는 느낌이 안 든다는 지적. surface(흰색)
+    // 대신 surfaceAlt(아주 옅은 회색 톤 — 라이트 #F1F5F9, 다크에서는 카드보다 한 톤 밝은
+    // 슬레이트)를 배경으로 써서, 그 자체로 "이건 지난 기록"이라는 게 색으로도 은은하게
+    // 드러나게 한다. 새 색을 만들지 않고 이미 있는 보조 서피스 토큰을 재사용.
+    cardPast: {
+      backgroundColor: colors.surfaceAlt,
     },
     // QA_LOG 99/100번 — 회차별 그룹의 상단에 고정(sticky)되는 헤더. 배경을 화면 배경색과
     // 동일하게 줘서 카드들이 이 헤더 "밑으로" 지나가는 것처럼 보이게 하되, 100번에서

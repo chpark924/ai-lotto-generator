@@ -33,6 +33,17 @@ export function StatusBarSafeMask() {
         right: 0,
         height: insets.top,
         backgroundColor: colors.background,
+        // QA_LOG 106번 — "내 번호" 탭에서 SectionList의 sticky 섹션 헤더(예: 월 버킷
+        // "8월")가 스크롤로 화면 맨 위에 고정된 상태에서 이 마스크보다 위에 그려져,
+        // 상태표시줄 시계·배터리와 다시 겹쳐 보이는 문제가 있었다. 헤더 카드에 "떠 있는
+        // 판" 느낌을 주려고 준 elevation(안드로이드)이, 이 마스크가 JSX상 더 나중에
+        // 와서 원래는 위에 그려져야 함에도 불구하고 시각적으로 그 위를 덮어버렸다 —
+        // 안드로이드에서 elevation이 있는 뷰는 형제 순서와 무관하게 그 자체로 그림자용
+        // 레이어를 만들어 종종 예상보다 위로 떠 보인다. 마스크에 헤더의 elevation(1)보다
+        // 훨씬 큰 값을 명시적으로 줘서, 어떤 하위 요소에 elevation이 얼마가 걸려 있든
+        // 이 마스크가 항상 최상단에 그려지도록 고정한다(zIndex는 iOS/신아키텍처용).
+        zIndex: 999,
+        elevation: 999,
       }}
     />
   );
