@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Dice45, DisclaimerCard, LottoBall, NumberGrid, BottomActionBar } from "../../src/components";
@@ -25,13 +25,31 @@ export default function DiceScreen() {
   // 진행 상태를 이 값으로 올려주면, 굴리는 동안은 굴리기 버튼들을 잠깐 비활성화해 애초에
   // 겹쳐 시작될 수 없게 막는다.
   const [isDiceSpinning, setIsDiceSpinning] = useState(false);
+  // QA_LOG 112번 — 96/107번의 isDiceSpinning 가드는 React state라, "누름 → 상태 반영 →
+  // 리렌더 → 버튼 disabled 적용"까지 최소 두 번의 리렌더 사이클(커밋 이후 useEffect에서
+  // Dice45가 onSpinningChange(true)를 올려주는 구조라 한 박자 더 늦다)을 거쳐야 실제로
+  // 버튼이 눌리지 않게 된다. 20회 가까이 아주 빠르게 연타하면, 그 사이클이 채 끝나기
+  // 전(버튼이 아직 시각적으로도 활성 상태인 그 짧은 틈)에 다음 탭이 들어와 가드를 그대로
+  // 통과해버리는 경우가 있었다 — 그렇게 새고 나간 탭 몇 개가 애니메이션 사이클을 다시
+  // 겹쳐 시작시키면서(107번에서 고친 stopAnimation은 "겹치더라도 잔여물이 안 쌓이게"만
+  // 막아줄 뿐, 애초에 겹쳐 시작되는 것 자체를 막지는 못한다), 반복되면 JS 스레드가 계속
+  // 밀리며 화면 전체(뒤로가기 포함)가 한동안 응답하지 않는 것처럼 보였다. React state가
+  // 아니라 참조(ref) 값으로 "지금 굴리는 중"을 즉시(다음 리렌더를 기다리지 않고) 체크·
+  // 잠그면, 이런 리렌더 지연으로 인한 틈 자체가 없어진다.
+  const isSpinningRef = useRef(false);
+
+  function handleSpinningChange(spinning: boolean) {
+    if (!spinning) isSpinningRef.current = false;
+    setIsDiceSpinning(spinning);
+  }
 
   function toggleExcluded(n: number) {
     setExcluded((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
   }
 
   function rollOnce() {
-    if (rolled.length >= 6) return;
+    if (rolled.length >= 6 || isSpinningRef.current) return;
+    isSpinningRef.current = true;
     const next = rollDice45(excluded, rolled);
     setRolled((prev) => [...prev, next].sort((a, b) => a - b));
     setDiceNumber(next);
@@ -43,6 +61,8 @@ export default function DiceScreen() {
     // "초기화"부터 따로 눌러야만 새로 굴릴 수 있는 게 불편하다는 피드백. 그래서 기존에
     // 몇 개가 차 있든 상관없이(이어받지 않고) 항상 빈 상태에서부터 새 6개를 굴리도록 바꿨다
     // — 버튼을 연타하면 그때마다 완전히 새로운 6개 조합이 나온다.
+    if (isSpinningRef.current) return;
+    isSpinningRef.current = true;
     let current: number[] = [];
     let last: number | null = null;
     while (current.length < 6) {
@@ -62,6 +82,8 @@ export default function DiceScreen() {
   }
 
   function rerollOne(target: number) {
+    if (isSpinningRef.current) return;
+    isSpinningRef.current = true;
     const withoutTarget = rolled.filter((n) => n !== target);
     const next = rollDice45(excluded, withoutTarget);
     setRolled([...withoutTarget, next].sort((a, b) => a - b));
@@ -96,7 +118,7 @@ export default function DiceScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
-      <Dice45 number={diceNumber} spinTrigger={diceSpinTrigger} onSpinningChange={setIsDiceSpinning} />
+      <Dice45 number={diceNumber} spinTrigger={diceSpinTrigger} onSpinningChange={handleSpinningChange} />
 
       <Text style={styles.title}>가상의 45면체 주사위를 굴려보세요</Text>
 
