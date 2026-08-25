@@ -19790,5 +19790,21 @@
     "firstPrizeWinnerCount": 23,
     "firstPrizeAmount": 1214932680,
     "totalSalesAmount": 59181583190
+  },
+  {
+    "drawNumber": 1238,
+    "drawDate": "2026-08-22",
+    "numbers": [
+      2,
+      13,
+      18,
+      32,
+      38,
+      42
+    ],
+    "bonusNumber": 22,
+    "firstPrizeWinnerCount": 23,
+    "firstPrizeAmount": 1197258718,
+    "totalSalesAmount": 57268901802
   }
 ]
