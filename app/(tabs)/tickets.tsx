@@ -393,8 +393,18 @@ export default function TicketsScreen() {
   return (
     <View style={styles.container}>
     <SectionList
-      style={styles.list}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
+      // QA_LOG 110번 — sticky 섹션 헤더는 스크롤로 "고정"될 때, 콘텐츠 안쪽 여백
+      // (contentContainerStyle의 paddingTop)이 아니라 SectionList 자기 자신의 레이아웃
+      // 박스 맨 위(상단 y=0)에 달라붙는다. 예전엔 insets.top만큼의 여백을 contentContainerStyle
+      // 쪽에 줬는데, 그건 "콘텐츠가 처음 어디서 시작하는지"만 밀어줄 뿐 "헤더가 고정될 때
+      // 어디에 달라붙는지"는 그대로 화면 맨 위(상태표시줄 영역)였다 — 108번에서 마스크에
+      // zIndex/elevation을 최대로 줘도 완전히 못 가린 이유. 아예 SectionList 자신의 `style`에
+      // paddingTop: insets.top을 줘서 리스트의 "레이아웃 박스" 자체가 상태표시줄 아래에서
+      // 시작하게 만들면, 헤더가 고정되는 기준점 자체가 상태표시줄 아래로 내려가 애초에
+      // 겹칠 일이 없어진다(대신 이 padding만큼은 contentContainerStyle의 paddingTop에서
+      // 빼서 전체 첫 카드 위치는 예전과 동일하게 유지).
+      style={[styles.list, { paddingTop: insets.top }]}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}
       sections={sections}
       keyExtractor={(item) => item.id}
       stickySectionHeadersEnabled
@@ -432,7 +442,17 @@ export default function TicketsScreen() {
         );
       }}
       renderItem={({ item, section }) => (
-        <View style={[styles.card, section.key.startsWith("month-") && styles.cardPast]}>
+        <View
+          style={[
+            styles.card,
+            section.key.startsWith("month-") && styles.cardPast,
+            // QA_LOG 110번 — "회차 변경"을 눌러 이번 주/다음 주/직접 입력 선택지가 펼쳐진
+            // 카드가, 펼쳐지지 않은 다른 카드들과 테두리가 똑같아서 "지금 이 카드를 수정
+            // 중"이라는 게 한눈에 안 들어온다는 피드백. 편집 중인 카드만 테두리를 브랜드
+            // 블루로, 두께도 살짝 굵게 줘서 "지금 여기가 변경 중"이라는 걸 명확히 한다.
+            editingDraw[item.id] && styles.cardEditing,
+          ]}
+        >
           <View style={styles.cardHeader}>
             <Pressable
               style={[styles.statusBadge, { backgroundColor: getStatusBadgeStyle(tints, item.status).backgroundColor }]}
@@ -623,6 +643,11 @@ function createStyles(colors: AppColors) {
     // 드러나게 한다. 새 색을 만들지 않고 이미 있는 보조 서피스 토큰을 재사용.
     cardPast: {
       backgroundColor: colors.surfaceAlt,
+    },
+    // 110번 — "회차 변경" 편집 중인 카드를 테두리 색으로 구분.
+    cardEditing: {
+      borderColor: "#2563EB",
+      borderWidth: 2,
     },
     // QA_LOG 99/100번 — 회차별 그룹의 상단에 고정(sticky)되는 헤더. 배경을 화면 배경색과
     // 동일하게 줘서 카드들이 이 헤더 "밑으로" 지나가는 것처럼 보이게 하되, 100번에서
