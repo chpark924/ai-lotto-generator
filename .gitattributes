@@ -1,0 +1,11 @@
+# 텍스트 파일은 항상 LF로 저장한다 (APP_REVIEW_2026-08-26.md에서 확인된 CRLF/LF 혼재 방지).
+# Windows 에디터/터미널이 자동으로 CRLF로 재저장해도, git이 커밋 시 LF로 정규화한다.
+* text=auto eol=lf
+
+# 바이너리 취급이 필요한 자산은 줄바꿈 정규화 대상에서 제외한다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.ttf binary
+*.otf binary

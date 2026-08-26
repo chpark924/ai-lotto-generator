@@ -43,25 +43,26 @@ app/                   Expo Router 화면 (탭 4개 + 생성 플로우 5종 + �
 tests/                 Jest 단위 테스트 (엔진 정확성 검증)
 ```
 
-## 당첨번호 데이터 파이프라인 (설정 필요)
+## 당첨번호 데이터 파이프라인 (운영 중)
 
 `src/lib/draws/`가 당첨번호를 받아오는 방식이 두 겹으로 돼 있습니다.
 
 1. **1순위 — GitHub 정적 JSON**: `data/lotto-draws.json`을 앱이 `raw.githubusercontent.com`으로
    받아온다(`src/lib/draws/githubDataSource.ts`). 이 파일은 `.github/workflows/update-lotto-data.yml`이
    매주 토요일 추첨 후 자동으로 갱신·커밋한다(`scripts/update-lotto-data.mjs`). 서버 비용 0원.
-2. **2순위(폴백) — 기기에서 직접 조회**: 1순위가 실패하거나(아직 설정 안 됨, 오프라인 등)
-   해당 회차가 없으면 기존 방식대로 기기가 동행복권에 직접 요청한다(`drawApi.ts`).
+2. **2순위(폴백) — 기기에서 직접 조회**: 1순위가 실패하거나 해당 회차가 아직 GitHub에 반영되기
+   전이면 기존 방식대로 기기가 동행복권에 직접 요청한다(`drawApi.ts`).
 
-`GITHUB_OWNER`/`GITHUB_REPO`는 이미 `chpark924`/`ai-lotto-generator`로 설정되어 있고 저장소도
-GitHub에 푸시된 상태입니다. **남은 건 `data/lotto-draws.json`을 실제 데이터로 채우는 것뿐입니다.**
+`GITHUB_OWNER`/`GITHUB_REPO`는 `chpark924`/`ai-lotto-generator`로 설정되어 있고, 저장소도 GitHub에
+푸시된 상태로 매주 자동 동기화가 정상 운영 중입니다(2026-08-26 기준 `data/lotto-draws.json`에
+1,238회차(2026-08-22 추첨분)까지 반영됨). 이 항목은 별도 설정 없이 계속 최신 상태로 유지됩니다.
 
-1. `data/README.md` 안내대로 `node scripts/update-lotto-data.mjs`를 실인터넷이 되는 환경(로컬 PC 등)에서
-   실행해 초기 데이터를 채우고 커밋·푸시한다. (37번 항목 수정 이후로는 회차 범위를 한 번의
-   요청으로 받아오므로 예전보다 훨씬 빠르게 끝난다.)
-2. GitHub 저장소 Settings → Actions → General에서 워크플로 쓰기 권한이 켜져 있는지 확인한다
+문제가 생겼을 때 확인할 곳:
+1. GitHub 저장소 Settings → Actions → General에서 워크플로 쓰기 권한이 켜져 있는지 확인한다
    (`permissions: contents: write`가 워크플로 파일에 있지만, 저장소 설정에서 Actions의 기본
    권한이 read-only로 잠겨 있으면 커밋 단계가 실패할 수 있다).
+2. 어떤 이유로든 자동 갱신이 며칠 이상 멈춘 것 같으면 `node scripts/update-lotto-data.mjs`를
+   실인터넷이 되는 환경(로컬 PC 등)에서 수동 실행해 최신 회차까지 받아오고 커밋·푸시하면 된다.
 
 **해결됨(QA_LOG.md 37번 항목)**: `dhlottery.co.kr`의 옛 JSON 엔드포인트(`common.do`)와 옛 결과
 페이지(`gameResult.do`)가 죽어 있던 진짜 원인을 찾았습니다 — 도메인이 바뀐 게 아니라, 사이트

@@ -127,7 +127,7 @@ export default function DiceScreen() {
           n ? (
             <Pressable
               key={i}
-              style={({ pressed }) => [isDiceSpinning && styles.ballDisabled]}
+              style={() => [isDiceSpinning && styles.ballDisabled]}
               onPress={() => rerollOne(n)}
               disabled={isDiceSpinning}
               accessibilityRole="button"
