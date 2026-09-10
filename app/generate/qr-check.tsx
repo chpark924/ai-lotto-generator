@@ -11,7 +11,7 @@ import {
   RANK_LABELS,
   type WinningDraw,
 } from "../../src/lib/draws";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
 
 const GAME_TYPE_LABELS: Record<ParsedLottoQrGame["gameType"], string> = {
   MANUAL: "수동",
@@ -39,8 +39,8 @@ function openOfficialResultPage(drawNumber: number) {
 
 export default function QrCheckScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanLocked, setScanLocked] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -215,7 +215,7 @@ export default function QrCheckScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     camera: { flex: 1 },
@@ -259,23 +259,30 @@ function createStyles(colors: AppColors) {
       padding: 24,
       gap: 12,
     },
-    permissionTitle: { fontSize: 17, fontWeight: "800", color: colors.textPrimary, textAlign: "center" },
+    permissionTitle: {
+      fontSize: 17,
+      fontWeight: "800",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      textAlign: "center",
+    },
     permissionBody: { fontSize: 13, color: colors.textSecondary, textAlign: "center", lineHeight: 20 },
     permissionButton: {
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
       borderRadius: 12,
       paddingVertical: 14,
       paddingHorizontal: 24,
       marginTop: 8,
     },
-    permissionButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    permissionButtonText: { color: "#fff", fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
     backLink: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: 8, textDecorationLine: "underline" },
     resultHeader: { alignItems: "center", marginBottom: 16 },
     resultRound: { fontSize: 14, color: colors.textMuted, fontWeight: "600", marginBottom: 4 },
-    resultSummary: { fontSize: 20, color: colors.textPrimary, fontWeight: "800" },
+    resultSummary: { fontSize: 20, color: colors.textPrimary, fontWeight: "800", fontFamily: fontFamily.bold },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 16→20(주요 콘텐츠 카드 티어).
     gameCard: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 16,
       marginBottom: 12,
       borderWidth: 1,
@@ -287,8 +294,8 @@ function createStyles(colors: AppColors) {
     rankTextWin: { color: "#DC2626" },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     resultActionRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-    primaryButton: { flex: 1, backgroundColor: "#2563EB", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-    primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    primaryButton: { flex: 1, backgroundColor: brand.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+    primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
     secondaryButton: {
       flex: 1,
       backgroundColor: colors.surface,
@@ -298,6 +305,6 @@ function createStyles(colors: AppColors) {
       paddingVertical: 14,
       alignItems: "center",
     },
-    secondaryButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: "700" },
+    secondaryButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
   });
 }

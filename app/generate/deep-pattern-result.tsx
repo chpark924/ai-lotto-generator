@@ -10,7 +10,7 @@ import { recommendDeepPatterns } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternRecommendation } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 
@@ -152,12 +152,13 @@ function createStyles(colors: AppColors, tints?: AppTints) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     sub: { fontSize: 12.5, color: colors.textMuted, marginBottom: 14 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 16→20 — 리스트 카드 등급.
     card: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 14,
       marginBottom: 12,
     },
@@ -169,35 +170,39 @@ function createStyles(colors: AppColors, tints?: AppTints) {
     // tints.purple(라이트 #5B21B6, 다크 #DDD6FE)로 교체한다.
     basinTag: { fontSize: 11, fontWeight: "700", color: tints ? tints.purple.fg : "#5847D6", marginBottom: 4 },
     ballsRow: { flexDirection: "row", gap: 4, marginBottom: 6, flexWrap: "wrap" },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 6→12 — 칩/배지 등급. 배경/글자색은
+    // tints.green과는 다른 이 화면 전용 연두 톤이라(수치가 다름) 그대로 둔다.
     metricChip: {
       alignSelf: "flex-start",
       backgroundColor: "#EAF5EE",
       paddingHorizontal: 8,
       paddingVertical: 2,
-      borderRadius: 6,
+      borderRadius: 12,
     },
     metricChipText: { fontSize: 10.5, fontWeight: "700", color: "#3C7A4E" },
     chev: { color: colors.textMuted, fontSize: 18 },
     footNote: { fontSize: 10, color: colors.textMuted, textAlign: "center", lineHeight: 16, marginVertical: 10 },
     btnRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 14→12 — 버튼 등급.
     btnGhost: {
       flex: 1,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 14,
+      borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
     },
-    btnGhostText: { color: colors.textPrimary, fontWeight: "700", fontSize: 13 },
-    btnPrimary: { flex: 1, backgroundColor: "#6C5CE7", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+    btnGhostText: { color: colors.textPrimary, fontWeight: "700", fontSize: 13, fontFamily: fontFamily.bold },
+    // 이 화면군(딥 패턴)은 destiny.tsx처럼 보라(#6C5CE7)를 고유 강조색으로 쓴다 — brand 토큰 대상이 아니다.
+    btnPrimary: { flex: 1, backgroundColor: "#6C5CE7", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
     btnPrimaryDisabled: { backgroundColor: "#C9C2FF" },
-    btnPrimaryText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+    btnPrimaryText: { color: "#fff", fontWeight: "800", fontSize: 13, fontFamily: fontFamily.bold },
     regeneratingBox: { alignItems: "center", paddingVertical: 40 },
     regeneratingText: { marginTop: 10, color: colors.textMuted, fontSize: 12, fontWeight: "600" },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
     emptyButton: { backgroundColor: "#6C5CE7", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-    emptyButtonText: { color: "#fff", fontWeight: "700" },
+    emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
   });
 }

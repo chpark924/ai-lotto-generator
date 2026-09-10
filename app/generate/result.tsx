@@ -18,7 +18,7 @@ import {
   type SakaiAnalysisInputs,
 } from "../../src/lib/lottery/resultBadges";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 결과 설명에 쓸 "최근 4주(회차) 실제 당첨번호" 합집합. 못 불러오면 null. */
 const RECENT_WEEKS_FOR_EXPLANATION = 4;
@@ -43,8 +43,8 @@ async function loadSakaiAnalysisInputs(): Promise<SakaiAnalysisInputs | null> {
 export default function ResultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   const { lastResult, lastRequest, setResult } = useGenerationStore();
   const [explanations, setExplanations] = useState<Record<string, string>>({});
   const [badgesByGameId, setBadgesByGameId] = useState<Record<string, ResultBadge[]>>({});
@@ -273,12 +273,14 @@ export default function ResultScreen() {
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 14→20 — 화면 맨 위에서 한 번만 뜨는
+    // 히어로성 안내 카드라 "주요 콘텐츠 카드" 등급으로 맞춘다.
     noticeCard: {
       backgroundColor: tints.purple.bg,
-      borderRadius: 14,
+      borderRadius: 20,
       padding: 14,
       marginBottom: 12,
     },
@@ -287,11 +289,12 @@ function createStyles(colors: AppColors, tints: AppTints) {
     // 연결한다 — 다만 여기는 카드 안이 아니라 화면 상단에 한 번만 뜬다(배치 단위 정보라
     // 카드마다 반복하지 않기로 한 결정, QA_LOG 48번 참고).
     batchBadgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 8→12 — 칩/배지 등급.
     batchBadgeChip: {
       backgroundColor: tints.green.bg,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 12,
     },
     batchBadgeChipText: { fontSize: 11, color: tints.green.fg, fontWeight: "600" },
     cardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
@@ -299,6 +302,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     // 톤(테두리만 있는 아웃라인)을 써서 "이 버튼만 앱을 벗어나 외부 사이트로 이동한다"는 걸
     // 시각적으로도 구분한다. 카드마다 반복하지 않고 화면당 한 번만 노출(QA_LOG 49번 참고).
     purchaseSection: { marginTop: 4, marginBottom: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 14→12 — 버튼 등급.
     purchaseButton: {
       flexDirection: "row",
       alignItems: "center",
@@ -306,11 +310,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
       gap: 6,
       borderWidth: 1.5,
       borderColor: colors.border,
-      borderRadius: 14,
+      borderRadius: 12,
       paddingVertical: 14,
       backgroundColor: colors.surface,
     },
-    purchaseButtonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
+    purchaseButtonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
     purchaseCaption: {
       color: colors.textMuted,
       fontSize: 11,
@@ -318,33 +322,36 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginTop: 6,
       lineHeight: 16,
     },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 10→12 — 버튼 등급.
     footerButton: {
       backgroundColor: tints.indigo.bg,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 10,
+      borderRadius: 12,
     },
     footerButtonText: { color: tints.indigo.fg, fontSize: 12, fontWeight: "700" },
     // 재생성 버튼/로딩 카드는 항상 어두운 브랜드 톤을 유지한다.
+    // [DESIGN_GUIDE.md 4절/7절 / Phase 5c, 2026-09-10] "#0F172A" 고정값→brand.dark 토큰, radius 14→12(버튼 등급).
     regenerateButton: {
-      backgroundColor: "#0F172A",
-      borderRadius: 14,
+      backgroundColor: brand.dark,
+      borderRadius: 12,
       paddingVertical: 16,
       alignItems: "center",
       marginTop: 8,
     },
-    regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+    regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
     regenerateLoadingContainer: {
-      backgroundColor: "#0F172A",
-      borderRadius: 14,
+      backgroundColor: brand.dark,
+      borderRadius: 12,
       paddingVertical: 16,
       alignItems: "center",
       marginTop: 8,
     },
-    regenerateLoadingText: { color: "#fff", fontWeight: "700", fontSize: 13, marginTop: 8 },
+    regenerateLoadingText: { color: "#fff", fontWeight: "700", fontSize: 13, marginTop: 8, fontFamily: fontFamily.bold },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
-    emptyButton: { backgroundColor: "#2563EB", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-    emptyButtonText: { color: "#fff", fontWeight: "700" },
+    // [DESIGN_GUIDE.md 4절 / Phase 5c, 2026-09-10] "#2563EB" 고정값→brand.primary 토큰.
+    emptyButton: { backgroundColor: brand.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+    emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
   });
 }

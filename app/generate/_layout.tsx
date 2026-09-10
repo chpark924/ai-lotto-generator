@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { fontFamily } from "../../src/theme";
 
 /**
  * "번호 만들기"의 각 기능 화면들(제외해보기/AI 조합탐색/행운번호/45면체 주사위/운명의 신/
@@ -27,6 +28,11 @@ export default function GenerateLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: "#0F172A" },
         headerTintColor: "#fff",
+        // [DESIGN_GUIDE.md 5절 / Phase 5c, 2026-09-10] 이 안의 10개 화면(제외하고 생성/
+        // AI 조합탐색/행운번호/45면체 주사위/운명의 신/딥 패턴 탐색 3개/생성 결과/QR 확인)이
+        // 전부 이 한 곳의 네비게이션 헤더를 공유해서 쓰기 때문에, 여기 한 줄만 바꿔도 10개
+        // 화면 제목이 한 번에 Pretendard로 바뀐다 — 화면마다 따로 손댈 필요가 없다.
+        headerTitleStyle: { fontFamily: fontFamily.bold },
       }}
     >
       <Stack.Screen name="exclusion" options={{ title: "제외하고 생성" }} />

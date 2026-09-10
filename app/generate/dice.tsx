@@ -7,12 +7,12 @@ import { buildGameMetadata } from "../../src/lib/lottery/pattern";
 import { calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "../../src/lib/lottery/probability";
 import { useGenerationStore } from "../../src/state/generationStore";
 import type { GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
 
 export default function DiceScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
   const setResult = useGenerationStore((s) => s.setResult);
   const [excluded, setExcluded] = useState<number[]>([]);
   const [rolled, setRolled] = useState<number[]>([]);
@@ -230,10 +230,17 @@ export default function DiceScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    title: { fontSize: 16, fontWeight: "700", color: colors.textPrimary, marginBottom: 16, textAlign: "center" },
+    title: {
+      fontSize: 16,
+      fontWeight: "700",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginBottom: 16,
+      textAlign: "center",
+    },
     diceResultArea: {
       flexDirection: "row",
       justifyContent: "center",
@@ -262,8 +269,8 @@ function createStyles(colors: AppColors) {
     },
     // Primary: 결과 확인까지 가장 빠르게 도달하는 핵심 액션
     buttonPrimary: {
-      backgroundColor: "#2563EB",
-      shadowColor: "#2563EB",
+      backgroundColor: brand.primary,
+      shadowColor: brand.primary,
       shadowOpacity: 0.25,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 3 },
@@ -271,7 +278,7 @@ function createStyles(colors: AppColors) {
     },
     // 누르는 순간 살짝 어두워지고(iOS 리플 대체) 축소돼서 "지금 눌렀다"는 게 체감되도록.
     buttonPrimaryPressed: {
-      backgroundColor: "#1D4ED8",
+      backgroundColor: brand.primaryPressed,
       transform: [{ scale: 0.97 }],
       shadowOpacity: 0.15,
     },
@@ -297,6 +304,6 @@ function createStyles(colors: AppColors) {
     // 새 굴리기가 계속 겹쳐 시작될 수 있었던 지점이라, 버튼들과 동일하게 굴리는 동안
     // 흐리게 비활성화한다.
     ballDisabled: { opacity: 0.45 },
-    toggleLink: { color: "#2563EB", fontSize: 13, fontWeight: "600", marginBottom: 8 },
+    toggleLink: { color: brand.primary, fontSize: 13, fontWeight: "600", marginBottom: 8 },
   });
 }

@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { AppErrorBoundary } from "../src/components";
-import { ThemeProvider } from "../src/theme";
+import { ThemeProvider, fontFamily } from "../src/theme";
 
 // 스플래시(로고) 최소 노출 시간(ms). 앱 초기화 자체는 순간적으로 끝나서
 // 기본 동작대로 두면 로고가 거의 안 보이고 바로 사라짐 — 타사 앱들과
@@ -53,7 +53,15 @@ export default function RootLayout() {
       <ThemeProvider>
         <SafeAreaProvider>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerStyle: { backgroundColor: "#0F172A" }, headerTintColor: "#fff" }}>
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: "#0F172A" },
+              headerTintColor: "#fff",
+              // [Phase 5c] "선호번호·제외번호 세트"/"개인정보처리방침" 헤더 제목도
+              // generate/_layout.tsx와 동일하게 Pretendard로 통일.
+              headerTitleStyle: { fontFamily: fontFamily.bold },
+            }}
+          >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             {/* "번호 만들기"의 각 기능 화면(app/generate/ 폴더 전체)을 하나의 중첩 스택으로 묶어
                 등록한다(app/generate/_layout.tsx 참고) — 그 파일 상단 주석에 프레젠테이션 방식을

@@ -8,7 +8,7 @@ import { calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "../../sr
 import { getPreferences, updatePreferences } from "../../src/lib/storage/preferences";
 import { useGenerationStore } from "../../src/state/generationStore";
 import type { GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
 
 const RATIO_OPTIONS = [
   { label: "운명 30%", value: 0.3 },
@@ -19,8 +19,8 @@ const RATIO_OPTIONS = [
 
 export default function LuckyProfileScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
   const setResult = useGenerationStore((s) => s.setResult);
 
   const [year, setYear] = useState("");
@@ -183,15 +183,23 @@ export default function LuckyProfileScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginTop: 16,
+      marginBottom: 8,
+    },
     dateRow: { flexDirection: "row", gap: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 10→12.
     dateInput: {
       flex: 1,
       backgroundColor: colors.surface,
-      borderRadius: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
       paddingHorizontal: 12,
@@ -213,12 +221,12 @@ function createStyles(colors: AppColors) {
     optionButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 10,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    optionButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+    optionButtonActive: { backgroundColor: brand.primary, borderColor: brand.primary },
     optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     optionButtonTextActive: { color: "#fff" },
   });

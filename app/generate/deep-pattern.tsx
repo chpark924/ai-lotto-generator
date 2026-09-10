@@ -5,7 +5,7 @@ import { BottomActionBar } from "../../src/components";
 import { DeepPatternLoadingBoard, PatternMixSlider } from "../../src/components/deepPattern";
 import { recommendDeepPatterns, refreshAtlasIfStale, snapFrequentPatternRatio } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 // v3 엔진(engine.ts)은 basin마다 빌드타임에 미리 검증해둔 대표 후보 목록(sampleCombos)에서
@@ -82,6 +82,8 @@ export default function DeepPatternIntroScreen() {
         <PatternMixSlider value={frequentMixRatio} onChange={setFrequentMixRatio} />
       </ScrollView>
 
+      {/* 딥 패턴 3개 화면(deep-pattern/-result/-detail)은 운명의 신(destiny.tsx)처럼 보라(#6C5CE7)를
+          이 기능군 고유 강조색으로 쓴다 — brand 토큰(파랑) 대상이 아니라 그대로 유지한다. */}
       <BottomActionBar label="패턴 분석 시작하기" onPress={handleStart} color="#6C5CE7" disabledColor="#C9C2FF" />
     </View>
   );
@@ -104,7 +106,13 @@ function createStyles(colors: AppColors) {
       backgroundColor: colors.background,
       paddingHorizontal: 30,
     },
-    loadingTitle: { fontSize: 15, fontWeight: "800", color: colors.textPrimary, marginBottom: 18 },
+    loadingTitle: {
+      fontSize: 15,
+      fontWeight: "800",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginBottom: 18,
+    },
     progressTrack: {
       width: "100%",
       height: 5,

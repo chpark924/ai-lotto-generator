@@ -25,7 +25,7 @@ import {
   SEARCH_STRENGTH_OPTIONS,
   SUM_AVERAGE_PREFERENCE_OPTIONS,
 } from "../../src/constants/lottery";
-import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 실제 최근 당첨번호 합계 평균을 계산할 때 쓰는 표본 크기 (최근 52주 = 1년치 회차). lab.tsx와 동일 기준. */
 const RECENT_SUM_SAMPLE_SIZE = 52;
@@ -68,8 +68,8 @@ const PHASE_LABELS: Record<AiSearchPhase, string> = {
 
 export default function AiSearchScreen() {
   const router = useRouter();
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   const setResult = useGenerationStore((s) => s.setResult);
   const params = useLocalSearchParams<{ preferred?: string }>();
 
@@ -468,7 +468,7 @@ export default function AiSearchScreen() {
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     shortcutBanner: {
@@ -478,17 +478,25 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 8,
     },
     shortcutBannerText: { color: tints.indigo.fg, fontSize: 12, fontWeight: "600", lineHeight: 18 },
-    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginTop: 16,
+      marginBottom: 8,
+    },
     row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 10→12.
     optionButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 10,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    optionButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+    optionButtonActive: { backgroundColor: brand.primary, borderColor: brand.primary },
     optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     optionButtonTextActive: { color: "#fff" },
     switchRow: {
@@ -500,7 +508,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     switchLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
     smallNotice: { fontSize: 11, color: colors.textMuted, marginBottom: 4, lineHeight: 16 },
     // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
-    progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0F172A" },
+    progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: brand.dark },
     boosterNotice: {
       color: "#FDBA74",
       fontSize: 13,
@@ -508,8 +516,8 @@ function createStyles(colors: AppColors, tints: AppTints) {
       textAlign: "center",
       marginBottom: 20,
     },
-    progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
-    progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
+    progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", fontFamily: fontFamily.bold, marginTop: 16 },
+    progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", fontFamily: fontFamily.bold, marginTop: 8 },
     progressBarTrack: {
       width: "100%",
       height: 6,
@@ -518,7 +526,9 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginTop: 14,
       overflow: "hidden",
     },
-    progressBarFill: { height: "100%", borderRadius: 3, backgroundColor: "#3B82F6" },
+    // [Phase 5c] #3B82F6는 brand.primary(#2563EB)와 별개로 존재하던 다섯 번째 파랑이었다 —
+    // 토큰으로 통일.
+    progressBarFill: { height: "100%", borderRadius: 3, backgroundColor: brand.primary },
     progressCaption: { color: "#94A3B8", fontSize: 12, marginTop: 16, textAlign: "center" },
   });
 }

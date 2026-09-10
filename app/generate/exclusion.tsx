@@ -9,7 +9,7 @@ import { getRecentDraws, RecentDrawsFetchError } from "../../src/lib/draws";
 import { getExclusionSets, saveExclusionSet, type ExclusionSet } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { ALL_COMBINATIONS_EQUAL_NOTICE } from "../../src/constants/messages";
-import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 const RECENT_WEEK_OPTIONS = [1, 3, 5, 10];
 const MAX_SET_NAME_LENGTH = 20;
@@ -30,8 +30,8 @@ function parseExcludeParam(raw?: string | string[]): number[] {
 
 export default function ExclusionScreen() {
   const router = useRouter();
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   const params = useLocalSearchParams<{ exclude?: string }>();
   const setResult = useGenerationStore((s) => s.setResult);
   const [selected, setSelected] = useState<number[]>(() => parseExcludeParam(params.exclude));
@@ -268,7 +268,7 @@ export default function ExclusionScreen() {
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     shortcutBanner: {
@@ -278,28 +278,38 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 8,
     },
     shortcutBannerText: { color: tints.indigo.fg, fontSize: 12, fontWeight: "600", lineHeight: 18 },
-    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginTop: 16,
+      marginBottom: 8,
+    },
     row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 10→12(칩/작은 버튼 티어로 통일).
     smallButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 10,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    smallButtonActive: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
+    smallButtonActive: { backgroundColor: brand.primary, borderColor: brand.primary },
     smallButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     smallButtonTextActive: { color: "#fff" },
     // 방금 저장된 세트를 목록에서 잠깐 강조 표시 (저장 완료를 목록 위치에서도 확인시켜줌).
     // 반투명 블루 오버레이라 라이트/다크 배경 위에서 모두 자연스럽게 보인다.
-    smallButtonHighlight: { backgroundColor: "rgba(37,99,235,0.15)", borderColor: "#2563EB", borderWidth: 1.5 },
-    smallButtonTextHighlight: { color: "#1D4ED8" },
+    // (rgba(37,99,235,...)는 brand.primary #2563EB와 동일한 값 — rgba는 토큰을 그대로
+    // 문자열로 못 써서 숫자로 남겨뒀다.)
+    smallButtonHighlight: { backgroundColor: "rgba(37,99,235,0.15)", borderColor: brand.primary, borderWidth: 1.5 },
+    smallButtonTextHighlight: { color: brand.primaryPressed },
     newBadge: {
       position: "absolute",
       top: -8,
       right: -8,
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
       color: "#fff",
       fontSize: 9,
       fontWeight: "800",
@@ -312,7 +322,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     inputWrap: { flex: 1 },
     input: {
       backgroundColor: colors.surface,
-      borderRadius: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
       paddingHorizontal: 12,
@@ -328,10 +338,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     charCountLimit: { color: "#EF4444", fontWeight: "700" },
     // 저장 버튼/토스트는 항상 어두운 브랜드 톤을 유지한다.
-    saveButton: { backgroundColor: "#0F172A", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+    saveButton: { backgroundColor: brand.dark, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
     saveButtonDisabled: { backgroundColor: "#94A3B8" },
-    saveButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-    // 저장 완료 토스트: 저장 직후 화면 하단(생성 버튼 위)에 잠깐 나타났다 사라짐
+    saveButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", fontFamily: fontFamily.bold },
+    // 저장 완료 토스트: 저장 직후 화면 하단(생성 버튼 위)에 잠깐 나타났다 사라짐. radius 20은
+    // 카드 티어가 아니라 토스트 높이(~40px)의 절반에 맞춘 완전한 캡슐 모양이라 그대로 둔다.
     toast: {
       position: "absolute",
       bottom: 92,
@@ -339,7 +350,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: "#0F172A",
+      backgroundColor: brand.dark,
       paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 20,

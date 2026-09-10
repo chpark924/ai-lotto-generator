@@ -14,7 +14,7 @@ import { getGenerationHistory, getPreferences } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { CONSECUTIVE_RULE_LABELS, DESTINY_TARGET_OPTIONS } from "../../src/constants/lottery";
 import type { ConsecutiveRule, GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors } from "../../src/theme";
 
 const GENERATE_BUTTON_LABELS = ["이번 운명을 결정한다", "신의 번호를 내린다", "이번 주 운명을 연다"];
 
@@ -104,7 +104,10 @@ export default function DestinyScreen() {
         accessibilityLiveRegion="polite"
         accessibilityLabel="운명을 계산하는 중"
       >
-        <ActivityIndicator size="large" color="#2563EB" />
+        {/* [Phase 5c] 이 화면 버튼들의 보라(#7C3AED)와 무관한 브랜드 블루 스피너가 떠 있던
+            것을 이 화면 전용 색 계열(같은 보라 계열의 밝은 톤 — 어두운 배경 위에서 읽히도록,
+            lab.tsx의 freqCountLight와 같은 값)로 맞췄다. */}
+        <ActivityIndicator size="large" color="#C4B5FD" />
         <Text style={styles.progressLabel}>운명을 계산하는 중...</Text>
       </View>
     );
@@ -186,16 +189,26 @@ export default function DestinyScreen() {
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginTop: 16, marginBottom: 8 },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      fontFamily: fontFamily.bold,
+      color: colors.textPrimary,
+      marginTop: 16,
+      marginBottom: 8,
+    },
     row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 10→12.
     optionButton: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 10,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
+    // 이 화면(운명의 신)은 다른 생성 화면들과 달리 보라색을 자기 고유 강조색으로 쓴다 —
+    // brand 토큰(파랑) 대상이 아니라 그대로 유지한다.
     optionButtonActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
     optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     optionButtonTextActive: { color: "#fff" },
@@ -209,6 +222,6 @@ function createStyles(colors: AppColors) {
     toggleLink: { color: "#7C3AED", fontSize: 13, fontWeight: "600", marginVertical: 8 },
     // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
     progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0F172A" },
-    progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", marginTop: 16 },
+    progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", fontFamily: fontFamily.bold, marginTop: 16 },
   });
 }
