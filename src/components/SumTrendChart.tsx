@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line as SvgLine, Path } from "react-native-svg";
 import type { SumTrendPoint } from "../lib/draws";
@@ -22,12 +22,19 @@ const CHART_HEIGHT = 140;
 const CHART_PADDING_Y = 18;
 const POINT_GAP = 14;
 const REVEAL_DURATION_MS = 900;
+// 스크롤 인디케이터 막대가 아무리 콘텐츠가 넓어도(회차가 많아져도) 손가락으로 잡기엔
+// 너무 얇아지지 않도록 잡아두는 최소 너비.
+const MIN_SCROLL_THUMB_WIDTH = 24;
 
 export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; midpoint: number }) {
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const reveal = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  // 스크롤 가능한 영역(뷰포트)의 실제 너비 — onLayout으로 측정해야 정확하다(화면 크기,
+  // 카드 안쪽 여백 등에 따라 달라지므로 고정값을 쓸 수 없다).
+  const [viewportWidth, setViewportWidth] = useState(0);
 
   const pointsKey = points.map((p) => p.drawNumber).join(",");
   useEffect(() => {
@@ -63,6 +70,20 @@ export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; m
 
   const revealWidth = reveal.interpolate({ inputRange: [0, 1], outputRange: [0, chartWidth] });
 
+  // 콘텐츠(chartWidth)가 뷰포트보다 넓을 때만 스크롤 가능한 상태이므로, 그때만 인디케이터를
+  // 보여준다(뷰포트 폭을 아직 측정 못 한 첫 프레임엔 viewportWidth가 0이라 숨긴다).
+  const canScroll = viewportWidth > 0 && chartWidth > viewportWidth;
+  const scrollThumbWidth = canScroll
+    ? Math.max(MIN_SCROLL_THUMB_WIDTH, (viewportWidth / chartWidth) * viewportWidth)
+    : viewportWidth;
+  const maxScrollX = Math.max(1, chartWidth - viewportWidth);
+  const maxThumbTranslate = Math.max(0, viewportWidth - scrollThumbWidth);
+  const scrollThumbTranslateX = scrollX.interpolate({
+    inputRange: [0, maxScrollX],
+    outputRange: [0, maxThumbTranslate],
+    extrapolate: "clamp",
+  });
+
   return (
     <View>
       <View style={styles.legendRow}>
@@ -78,13 +99,25 @@ export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; m
           가능했는데, 흰 카드 배경과 구분이 안 되고 스크롤 인디케이터도 꺼둬서(showsHorizontal
           ScrollIndicator=false) "스크롤할 수 있다"는 걸 알아채기 어려웠다는 QA 피드백. 이 패널만
           카드와 다른 배경(colors.surfaceAlt)을 줘서 "여기는 별도의 스크롤 가능 영역"이라는 걸
-          시각적으로 구분하고, 스크롤 인디케이터도 다시 켜서 네이티브 스크롤 힌트까지 함께 준다. */}
+          시각적으로 구분한다. 네이티브 스크롤 인디케이터(showsHorizontalScrollIndicator)도
+          한 번 다시 켜봤지만, iOS/Android 모두 손을 대기 전까진 아예 안 보이거나 터치 중에만
+          잠깐 나타나는 방식이라 "가만히 봤을 때 스크롤 가능 여부를 바로 인지"하는 용도로는
+          약하다는 후속 피드백(문구로 안내하는 건 원치 않음, 다른 앱에서 흔히 쓰는 방식 요청).
+          그래서 차트 밑에 항상 떠 있는(터치 여부와 무관하게 계속 보이는) 커스텀 스크롤 위치
+          막대를 따로 추가했다 — 트랙 전체 대비 막대(thumb) 길이로 "전체 중 지금 보이는 비율"을,
+          막대 위치로 "지금 어디를 보고 있는지"를 아이콘/문구 없이도 바로 알 수 있다(주식·헬스
+          앱 등에서 가장 흔히 쓰이는 형태). 네이티브 인디케이터와 중복되지 않도록 끈다. */}
       <View style={styles.chartPanel}>
         <ScrollView
           ref={scrollRef}
           horizontal
-          showsHorizontalScrollIndicator
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+            useNativeDriver: false,
+          })}
+          scrollEventThrottle={16}
           // 기본으로는 가장 오래된 회차(왼쪽)부터 보여서, 정작 가장 궁금해할 최신 회차는
           // 매번 오른쪽으로 스크롤해야 보였다는 QA 피드백 — 그래프 폭이 확정되는 시점
           // (onContentSizeChange, points가 바뀌어 폭이 달라질 때도 다시 호출됨)마다 끝까지
@@ -127,6 +160,17 @@ export function SumTrendChart({ points, midpoint }: { points: SumTrendPoint[]; m
         </ScrollView>
       </View>
 
+      {canScroll ? (
+        <View style={styles.scrollIndicatorTrack}>
+          <Animated.View
+            style={[
+              styles.scrollIndicatorThumb,
+              { width: scrollThumbWidth, transform: [{ translateX: scrollThumbTranslateX }] },
+            ]}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.axisRow}>
         <Text style={styles.axisText}>{points[0].drawNumber}회</Text>
         <Text style={styles.axisText}>{points[points.length - 1].drawNumber}회 (최신)</Text>
@@ -162,6 +206,19 @@ function createStyles(colors: AppColors) {
       paddingHorizontal: 6,
     },
     scrollContent: { paddingRight: 4 },
+    // 항상 떠 있는 커스텀 스크롤 위치 막대 — 트랙(전체 폭)과 막대(현재 보이는 비율) 두 겹.
+    scrollIndicatorTrack: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      marginTop: 8,
+      overflow: "hidden",
+    },
+    scrollIndicatorThumb: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.textSecondary,
+    },
     revealMask: {
       overflow: "hidden",
       position: "absolute",
