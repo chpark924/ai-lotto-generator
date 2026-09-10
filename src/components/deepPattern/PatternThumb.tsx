@@ -1,7 +1,7 @@
 import React from "react";
 import Svg, { Circle, Path } from "react-native-svg";
 import { buildCanonicalPath } from "../../lib/deepPattern/coordinates";
-import { useAppTheme } from "../../theme";
+import { useAppTheme, accentViolet } from "../../theme";
 
 /**
  * 결과 리스트 카드용 미니 패턴 미리보기. 45칸 그리드는 생략하고, canonical path의 점 6개와
@@ -26,13 +26,13 @@ export function PatternThumb({
     y: padding + ((p.row - 0.5) / 7) * usable,
   }));
   const d = points.map((pt, i) => `${i === 0 ? "M" : "L"}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
-  const lineColor = highlighted ? "#6C5CE7" : colors.textMuted;
+  const lineColor = highlighted ? accentViolet.primary : colors.textMuted;
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Path d={d} stroke={lineColor} strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       {points.map((pt, i) => (
-        <Circle key={i} cx={pt.x} cy={pt.y} r={2.6} fill="#6C5CE7" />
+        <Circle key={i} cx={pt.x} cy={pt.y} r={2.6} fill={accentViolet.primary} />
       ))}
     </Svg>
   );

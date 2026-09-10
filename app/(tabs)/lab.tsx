@@ -24,7 +24,7 @@ import {
   TRANSITION_FREQUENCY_NOTICE,
   FIRST_PRIZE_EXPECTATION_NOTICE,
 } from "../../src/constants/messages";
-import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, accentViolet, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 번호별 출현 빈도·패턴 통계의 기준 표본 크기 (최근 52주 = 1년치 회차). */
 const RECENT_DRAW_SAMPLE_SIZE = 52;
@@ -38,8 +38,8 @@ const FULL_HISTORY_SAMPLE_SIZE = 2000;
 const MIN_TRANSITION_HISTORY_DRAWS = 200;
 
 export default function LabScreen() {
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
   // 상단 여백을 직접 챙겨줘야 한다.
   const insets = useSafeAreaInsets();
@@ -263,7 +263,7 @@ export default function LabScreen() {
             accessibilityState={{ disabled: retrying, busy: retrying }}
           >
             {retrying ? (
-              <ActivityIndicator size="small" color="#2563EB" />
+              <ActivityIndicator size="small" color={brand.primary} />
             ) : (
               <Text style={styles.retryButtonText}>다시 시도</Text>
             )}
@@ -474,7 +474,7 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { fontSize: 22, fontWeight: "800", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 16 },
@@ -523,8 +523,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
       borderWidth: 1,
       borderColor: colors.border,
       borderTopWidth: 3,
-      borderTopColor: "#2563EB",
-      shadowColor: "#2563EB",
+      // [Phase 5c 브랜드 토큰 확장, 2026-09-10] borderTopColor·shadowColor 둘 다 브랜드 블루를
+      // 그대로 옮겨 "떠 있는" 강조 글로우를 내는 의도된 조합이라 함께 brand.primary로 교체한다
+      // (다른 곳의 shadowColor: "#0F172A"는 중립 그림자 용도라 이 교체 대상이 아니다).
+      borderTopColor: brand.primary,
+      shadowColor: brand.primary,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.18,
       shadowRadius: 10,
@@ -532,7 +535,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     officialBadge: {
       alignSelf: "flex-start",
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 3,
@@ -549,13 +552,14 @@ function createStyles(colors: AppColors, tints: AppTints) {
       minWidth: 72,
       alignItems: "center",
     },
-    retryButtonText: { color: "#2563EB", fontSize: 12, fontWeight: "700" },
+    retryButtonText: { color: brand.primary, fontSize: 12, fontWeight: "700" },
     helperNote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: 8 },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
     plusText: { fontSize: 16, color: colors.textMuted, fontWeight: "700" },
     freqItem: { alignItems: "center", gap: 4 },
     freqCount: { fontSize: 10, color: colors.textMuted },
-    freqCountLight: { fontSize: 10, color: "#C4B5FD" },
+    // [Phase 5c 보라색 통일, 2026-09-10] destiny.tsx의 진행 스피너와 값을 공유하는 토큰으로 교체.
+    freqCountLight: { fontSize: 10, color: accentViolet.light },
     transitionRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -568,7 +572,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     // 이번 주 리포트 카드는 항상 어두운 브랜드 톤을 유지한다.
     // [Phase 3] radius 16→20 (다른 항목과 동일 근거).
     weeklyCard: {
-      backgroundColor: "#0F172A",
+      backgroundColor: brand.dark,
       borderRadius: 20,
       padding: 16,
       marginBottom: 12,

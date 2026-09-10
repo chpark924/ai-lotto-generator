@@ -118,3 +118,29 @@ export const brand: BrandTokens = {
   primaryPressed: "#1D4ED8",
   dark: "#0F172A",
 };
+
+/**
+ * [Phase 5c 보라색 통일, 2026-09-10] "번호 만들기" 하위 두 기능 — 운명의 신(destiny.tsx)과
+ * 딥 패턴(deep-pattern*.tsx) — 은 brand(파랑)와 무관하게 각자 보라를 고유 강조색으로 써왔다.
+ * 문제는 그 둘이 서로 다른 보라 값(destiny #7C3AED / deep-pattern #6C5CE7)을 썼다는 점 —
+ * 사용자가 두 화면을 오갈 때 "미묘하게 다른 보라"가 Design Principle(Quiet UI. Crafted
+ * Objects. §15 ④ "다른 화면과 같은 앱처럼 보이는가")에 어긋난다고 판단해 하나로 합쳤다.
+ * 값은 이미 두 화면·lab.tsx(freqCountLight)에서 공유되던 쪽(#7C3AED/#C4B5FD)으로 통일한다 —
+ * destiny.tsx의 기존 주석이 "lab.tsx의 freqCountLight와 같은 값"이라고 직접 명시하고 있어,
+ * 이 값이 이미 사실상의 공용 라이트 톤이었다.
+ * brand와 마찬가지로 라이트/다크 무관 고정값이며, tints.purple(옅은 배경 + 진한 글자 배지용
+ * 텍스트 쌍, 라이트/다크로 뒤집힘)과는 별개다 — CTA 버튼·스피너·진행바처럼 진한 단색이
+ * 필요한 곳은 accentViolet을, 배지/라벨처럼 옅은 배경 위 텍스트가 필요한 곳은 tints.purple을
+ * 쓴다(brand.primary와 tints.brand가 같은 방식으로 역할을 나누는 것과 동일한 패턴).
+ */
+export interface AccentTokens {
+  /** 진한 CTA 버튼 배경, 활성 상태, 진행바 채움 등. */
+  primary: string;
+  /** 어두운 배경 위 텍스트·스피너, 비활성(disabled) 상태 등 옅게 써야 하는 곳. */
+  light: string;
+}
+
+export const accentViolet: AccentTokens = {
+  primary: "#7C3AED",
+  light: "#C4B5FD",
+};

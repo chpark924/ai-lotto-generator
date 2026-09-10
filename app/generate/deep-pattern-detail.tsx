@@ -9,7 +9,7 @@ import { saveTicket } from "../../src/lib/storage";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternLevel } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, accentViolet, type AppColors, type AppTints } from "../../src/theme";
 
 const LEVEL_LABEL: Record<DeepPatternLevel, string> = { LOW: "낮음", MID: "보통", HIGH: "높음" };
 const LEVEL_DOT_COUNT: Record<DeepPatternLevel, number> = { LOW: 1, MID: 2, HIGH: 3 };
@@ -43,7 +43,7 @@ function LevelRow({ label, level, colors }: { label: string; level: DeepPatternL
               key={i}
               style={[
                 styles(colors).levelDot,
-                { backgroundColor: i < filled ? "#6C5CE7" : colors.border },
+                { backgroundColor: i < filled ? accentViolet.primary : colors.border },
               ]}
             />
           ))}
@@ -154,13 +154,14 @@ export default function DeepPatternDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* 딥 패턴 화면군 고유 강조색(#6C5CE7) — destiny.tsx와 동일한 판단으로 brand 토큰 대상에서 제외. */}
+      {/* 딥 패턴 화면군 고유 강조색(accentViolet) — destiny.tsx와 동일한 판단으로 brand 토큰
+          대상에서 제외. [Phase 5c 보라색 통일, 2026-09-10] 이전엔 #6C5CE7을 직접 썼다. */}
       <BottomActionBar
         label={isSaving ? "저장 중..." : "이 번호 저장하기"}
         onPress={handleSave}
         disabled={isSaving}
-        color="#6C5CE7"
-        disabledColor="#C9C2FF"
+        color={accentViolet.primary}
+        disabledColor={accentViolet.light}
       />
     </View>
   );
@@ -212,7 +213,7 @@ function styles(colors: AppColors, tints?: AppTints) {
     disclaimerText: { fontSize: 10.5, color: colors.textMuted, lineHeight: 16 },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
-    emptyButton: { backgroundColor: "#6C5CE7", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+    emptyButton: { backgroundColor: accentViolet.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
     emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
   });
 }

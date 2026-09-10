@@ -5,7 +5,7 @@ import { BottomActionBar } from "../../src/components";
 import { DeepPatternLoadingBoard, PatternMixSlider } from "../../src/components/deepPattern";
 import { recommendDeepPatterns, refreshAtlasIfStale, snapFrequentPatternRatio } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
-import { useAppTheme, fontFamily, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, accentViolet, type AppColors } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 // v3 엔진(engine.ts)은 basin마다 빌드타임에 미리 검증해둔 대표 후보 목록(sampleCombos)에서
@@ -82,9 +82,16 @@ export default function DeepPatternIntroScreen() {
         <PatternMixSlider value={frequentMixRatio} onChange={setFrequentMixRatio} />
       </ScrollView>
 
-      {/* 딥 패턴 3개 화면(deep-pattern/-result/-detail)은 운명의 신(destiny.tsx)처럼 보라(#6C5CE7)를
-          이 기능군 고유 강조색으로 쓴다 — brand 토큰(파랑) 대상이 아니라 그대로 유지한다. */}
-      <BottomActionBar label="패턴 분석 시작하기" onPress={handleStart} color="#6C5CE7" disabledColor="#C9C2FF" />
+      {/* 딥 패턴 3개 화면(deep-pattern/-result/-detail)은 운명의 신(destiny.tsx)과 같은 보라를
+          이 기능군 고유 강조색으로 쓴다 — brand 토큰(파랑) 대상이 아니다. [Phase 5c 보라색 통일,
+          2026-09-10] 이전엔 이 화면군만 #6C5CE7이라는 별도 보라 값을 썼는데, destiny.tsx와
+          섞어 쓰면 두 화면을 오갈 때 "미묘하게 다른 보라"로 보여 accentViolet 하나로 합쳤다. */}
+      <BottomActionBar
+        label="패턴 분석 시작하기"
+        onPress={handleStart}
+        color={accentViolet.primary}
+        disabledColor={accentViolet.light}
+      />
     </View>
   );
 }
@@ -120,6 +127,6 @@ function createStyles(colors: AppColors) {
       backgroundColor: colors.border,
       overflow: "hidden",
     },
-    progressFill: { width: "64%", height: "100%", borderRadius: 99, backgroundColor: "#6C5CE7" },
+    progressFill: { width: "64%", height: "100%", borderRadius: 99, backgroundColor: accentViolet.primary },
   });
 }

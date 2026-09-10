@@ -2,7 +2,7 @@ import React from "react";
 import Svg, { Path, Rect, Text as SvgText } from "react-native-svg";
 import { getAllPaperCells, buildCanonicalPath, getPaperPosition, toPixel, getBoardSize } from "../../lib/deepPattern/coordinates";
 import { getBallColor } from "../../constants/lottery";
-import { useAppTheme } from "../../theme";
+import { useAppTheme, accentViolet } from "../../theme";
 
 const CELL = 26;
 const GAP = 4;
@@ -60,7 +60,7 @@ export function PatternBoard({ numbers }: { numbers: number[] }) {
           );
         })}
 
-      <Path d={pathD} fill="none" stroke="#6C5CE7" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d={pathD} fill="none" stroke={accentViolet.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
 
       {sortedNumbers.map((n) => {
         const { x, y } = toPixel(getPaperPosition(n), CELL_SIZE, MARGIN);

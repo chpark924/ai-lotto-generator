@@ -14,7 +14,7 @@ import { getGenerationHistory, getPreferences } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { CONSECUTIVE_RULE_LABELS, DESTINY_TARGET_OPTIONS } from "../../src/constants/lottery";
 import type { ConsecutiveRule, GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors } from "../../src/theme";
+import { useAppTheme, fontFamily, accentViolet, type AppColors } from "../../src/theme";
 
 const GENERATE_BUTTON_LABELS = ["이번 운명을 결정한다", "신의 번호를 내린다", "이번 주 운명을 연다"];
 
@@ -104,10 +104,11 @@ export default function DestinyScreen() {
         accessibilityLiveRegion="polite"
         accessibilityLabel="운명을 계산하는 중"
       >
-        {/* [Phase 5c] 이 화면 버튼들의 보라(#7C3AED)와 무관한 브랜드 블루 스피너가 떠 있던
-            것을 이 화면 전용 색 계열(같은 보라 계열의 밝은 톤 — 어두운 배경 위에서 읽히도록,
-            lab.tsx의 freqCountLight와 같은 값)로 맞췄다. */}
-        <ActivityIndicator size="large" color="#C4B5FD" />
+        {/* [Phase 5c] 이 화면 버튼들의 보라와 무관한 브랜드 블루 스피너가 떠 있던 것을 이
+            화면 전용 색 계열(어두운 배경 위에서 읽히도록 밝은 톤)로 맞췄다. [Phase 5c 보라색
+            통일, 2026-09-10] 이후 이 밝은 톤은 accentViolet.light로 토큰화됐다 — lab.tsx의
+            freqCountLight도 같은 토큰을 쓴다. */}
+        <ActivityIndicator size="large" color={accentViolet.light} />
         <Text style={styles.progressLabel}>운명을 계산하는 중...</Text>
       </View>
     );
@@ -181,7 +182,7 @@ export default function DestinyScreen() {
       <DisclaimerCard text="목표 당첨자 수는 실제 당첨자 수를 예측하거나 통제하지 않는 엔터테인먼트용 시나리오입니다. 일반적인 선택 편향을 근사한 값을 기반으로 구성됩니다." />
       </ScrollView>
 
-      <BottomActionBar label={buttonLabel} onPress={handleGenerate} color="#7C3AED" />
+      <BottomActionBar label={buttonLabel} onPress={handleGenerate} color={accentViolet.primary} />
     </View>
   );
 }
@@ -208,8 +209,10 @@ function createStyles(colors: AppColors) {
       borderColor: colors.border,
     },
     // 이 화면(운명의 신)은 다른 생성 화면들과 달리 보라색을 자기 고유 강조색으로 쓴다 —
-    // brand 토큰(파랑) 대상이 아니라 그대로 유지한다.
-    optionButtonActive: { backgroundColor: "#7C3AED", borderColor: "#7C3AED" },
+    // brand 토큰(파랑) 대상이 아니라 accentViolet(딥 패턴 화면군과 공유하는 보라 토큰,
+    // colors.ts 참고)을 쓴다. [Phase 5c 보라색 통일, 2026-09-10] 이전엔 이 화면만 #7C3AED를
+    // 직접 하드코딩했다.
+    optionButtonActive: { backgroundColor: accentViolet.primary, borderColor: accentViolet.primary },
     optionButtonText: { fontSize: 12, color: colors.textSecondary, fontWeight: "600" },
     optionButtonTextActive: { color: "#fff" },
     switchRow: {
@@ -219,7 +222,7 @@ function createStyles(colors: AppColors) {
       paddingVertical: 8,
     },
     switchLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: "600" },
-    toggleLink: { color: "#7C3AED", fontSize: 13, fontWeight: "600", marginVertical: 8 },
+    toggleLink: { color: accentViolet.primary, fontSize: 13, fontWeight: "600", marginVertical: 8 },
     // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
     progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0F172A" },
     progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", fontFamily: fontFamily.bold, marginTop: 16 },

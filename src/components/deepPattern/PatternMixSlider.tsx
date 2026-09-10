@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { useAppTheme, type AppColors } from "../../theme";
+import { useAppTheme, accentViolet, type AppColors } from "../../theme";
 
 const TRACK_HEIGHT = 4;
 const THUMB_SIZE = 15;
@@ -110,7 +110,7 @@ function createStyles(colors: AppColors) {
     trackFill: {
       height: "100%",
       borderRadius: TRACK_HEIGHT / 2,
-      backgroundColor: "#6C5CE7",
+      backgroundColor: accentViolet.primary,
     },
     thumb: {
       position: "absolute",
@@ -120,7 +120,7 @@ function createStyles(colors: AppColors) {
       borderRadius: THUMB_SIZE / 2,
       backgroundColor: "#fff",
       borderWidth: 1.5,
-      borderColor: "#6C5CE7",
+      borderColor: accentViolet.primary,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.12,

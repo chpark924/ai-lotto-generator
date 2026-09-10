@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Rect } from "react-native-svg";
 import type { DeepPatternLevel, DeepPatternRecommendation } from "../../lib/deepPattern/types";
-import { useAppTheme, type AppColors } from "../../theme";
+import { useAppTheme, accentViolet, type AppColors } from "../../theme";
 
 const CHART_WIDTH = 240;
 const CHART_HEIGHT = 140;
@@ -64,7 +64,7 @@ export function PatternPositionMap({ recommendation }: { recommendation: DeepPat
           strokeWidth={1}
           strokeDasharray="3,3"
         />
-        <Circle cx={dotX} cy={dotY} r={11} fill="#6C5CE7" opacity={0.18} />
+        <Circle cx={dotX} cy={dotY} r={11} fill={accentViolet.primary} opacity={0.18} />
         <Circle cx={dotX} cy={dotY} r={4.5} fill="#DC2626" />
       </Svg>
       <View style={styles.legendCol}>

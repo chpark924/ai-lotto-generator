@@ -11,7 +11,7 @@ import { recommendDeepPatterns } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternRecommendation } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, accentViolet, type AppColors, type AppTints } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 
@@ -169,7 +169,7 @@ function createStyles(colors: AppColors, tints?: AppTints) {
       padding: 14,
       marginBottom: 12,
     },
-    cardLead: { borderWidth: 1.5, borderColor: "#6C5CE7" },
+    cardLead: { borderWidth: 1.5, borderColor: accentViolet.primary },
     cardPressed: { opacity: 0.85 },
     cardBody: { flex: 1, minWidth: 0 },
     // 다크모드 대비 점검(2026-08-08 종합 재점검) — deep-pattern-detail.tsx의 vizTitle과 동일한
@@ -201,15 +201,16 @@ function createStyles(colors: AppColors, tints?: AppTints) {
       alignItems: "center",
     },
     btnGhostText: { color: colors.textPrimary, fontWeight: "700", fontSize: 13, fontFamily: fontFamily.bold },
-    // 이 화면군(딥 패턴)은 destiny.tsx처럼 보라(#6C5CE7)를 고유 강조색으로 쓴다 — brand 토큰 대상이 아니다.
-    btnPrimary: { flex: 1, backgroundColor: "#6C5CE7", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-    btnPrimaryDisabled: { backgroundColor: "#C9C2FF" },
+    // 이 화면군(딥 패턴)은 destiny.tsx와 같은 보라(accentViolet)를 고유 강조색으로 쓴다 —
+    // brand 토큰 대상이 아니다. [Phase 5c 보라색 통일, 2026-09-10] 이전엔 #6C5CE7을 직접 썼다.
+    btnPrimary: { flex: 1, backgroundColor: accentViolet.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+    btnPrimaryDisabled: { backgroundColor: accentViolet.light },
     btnPrimaryText: { color: "#fff", fontWeight: "800", fontSize: 13, fontFamily: fontFamily.bold },
     regeneratingBox: { alignItems: "center", paddingVertical: 40 },
     regeneratingText: { marginTop: 10, color: colors.textMuted, fontSize: 12, fontWeight: "600" },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
-    emptyButton: { backgroundColor: "#6C5CE7", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+    emptyButton: { backgroundColor: accentViolet.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
     emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
   });
 }

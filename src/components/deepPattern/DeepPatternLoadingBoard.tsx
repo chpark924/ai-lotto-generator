@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
+import { accentViolet } from "../../theme";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -48,7 +49,7 @@ export function DeepPatternLoadingBoard() {
         <AnimatedPath
           d={DECORATIVE_PATH}
           fill="none"
-          stroke="#6C5CE7"
+          stroke={accentViolet.primary}
           strokeWidth={2.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -62,7 +63,7 @@ export function DeepPatternLoadingBoard() {
             outputRange: [0, 1, 1],
             extrapolate: "clamp",
           });
-          return <AnimatedCircle key={i} cx={pt.x} cy={pt.y} r={4.5} fill="#6C5CE7" opacity={opacity} />;
+          return <AnimatedCircle key={i} cx={pt.x} cy={pt.y} r={4.5} fill={accentViolet.primary} opacity={opacity} />;
         })}
       </Svg>
     </View>
