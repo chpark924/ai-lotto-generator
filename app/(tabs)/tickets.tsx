@@ -11,6 +11,8 @@ import {
   updateTicketMatchedRank,
   clearTicketCheckResult,
   deleteTicket,
+  getPreferences,
+  getExclusionSets,
   type SavedTicket,
   type TicketStatus,
 } from "../../src/lib/storage";
@@ -86,6 +88,12 @@ export default function TicketsScreen() {
   const [manualEntry, setManualEntry] = useState<Record<string, boolean>>({});
   const isAutoChecking = useRef(false);
   const isHealing = useRef(false);
+  // QA 피드백 — 선호번호를 지정·저장해도 이 탭엔 아무 표시가 없어서(빈 상태 문구는 "저장한
+  // 번호[티켓]가 없다"는 뜻일 뿐 선호번호와 무관), 사용자가 "지정한 게 반영 안 됐다"고
+  // 오해했다(실제로는 선호번호·제외번호 세트 관리 화면에 들어가면 정상적으로 저장돼 있었음).
+  // 이 탭에서도 "선호번호 · 제외번호 세트 관리" 링크 바로 옆에 현재 설정된 개수를 보여줘서,
+  // 하위 화면에 들어가지 않아도 저장이 반영됐다는 걸 바로 확인할 수 있게 한다.
+  const [preferenceSummary, setPreferenceSummary] = useState({ preferredCount: 0, exclusionSetCount: 0 });
 
   // "이번 주"는 아직 추첨되지 않은 다음 회차(구매 대상), "다음 주"는 그 다음 회차.
   const thisWeekDrawNumber = estimateLatestDrawNumber() + 1;
@@ -192,6 +200,11 @@ export default function TicketsScreen() {
     return list;
   }, []);
 
+  const loadPreferenceSummary = useCallback(async () => {
+    const [prefs, sets] = await Promise.all([getPreferences(), getExclusionSets()]);
+    setPreferenceSummary({ preferredCount: prefs.preferredNumbers.length, exclusionSetCount: sets.length });
+  }, []);
+
   /**
    * QA_LOG 114번 — updateTicketDrawNumber(109번)의 "회차가 실제로 바뀔 때만 matchedRank를
    * 지운다"는 가드는 그 수정이 배포된 시점 이후의 회차 변경에만 적용된다. 그 전에 이미
@@ -276,7 +289,8 @@ export default function TicketsScreen() {
         const healedList = await healFutureTickets(list);
         autoCheckPendingTickets(healedList);
       });
-    }, [load, healFutureTickets, autoCheckPendingTickets])
+      loadPreferenceSummary();
+    }, [load, healFutureTickets, autoCheckPendingTickets, loadPreferenceSummary])
   );
 
   async function cycleStatus(ticket: SavedTicket) {
@@ -413,6 +427,19 @@ export default function TicketsScreen() {
     ]);
   }
 
+  // 선호번호/제외번호 세트가 하나라도 있으면 개수를 보여주고, 둘 다 없으면 굳이 "0개"를
+  // 보여줄 필요 없이 링크 텍스트만 노출한다(빈 상태에서 불필요한 정보로 읽히지 않도록).
+  const { preferredCount, exclusionSetCount } = preferenceSummary;
+  const preferenceSummaryLabel =
+    preferredCount === 0 && exclusionSetCount === 0
+      ? null
+      : [
+          preferredCount > 0 ? `선호번호 ${preferredCount}개` : null,
+          exclusionSetCount > 0 ? `제외번호 세트 ${exclusionSetCount}개` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") + " 설정됨";
+
   if (tickets.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -426,6 +453,7 @@ export default function TicketsScreen() {
         >
           <Text style={styles.prefLinkText}>선호번호 · 제외번호 세트 관리</Text>
         </Pressable>
+        {preferenceSummaryLabel ? <Text style={styles.prefSummaryText}>{preferenceSummaryLabel}</Text> : null}
       </View>
     );
   }
@@ -456,6 +484,7 @@ export default function TicketsScreen() {
           accessibilityLabel="선호번호 · 제외번호 세트 관리"
         >
           <Text style={styles.prefLinkText}>선호번호 · 제외번호 세트 관리 &gt;</Text>
+          {preferenceSummaryLabel ? <Text style={styles.prefSummaryText}>{preferenceSummaryLabel}</Text> : null}
         </Pressable>
       }
       renderSectionHeader={({ section }) => {
@@ -773,5 +802,8 @@ function createStyles(colors: AppColors) {
       paddingHorizontal: 16,
     },
     prefLinkText: { color: "#2563EB", fontSize: 12, fontWeight: "700" },
+    // 선호번호·제외번호 세트가 저장돼 있어도 이 탭엔 아무 표시가 없어 "지정한 게 반영 안
+    // 됐다"고 오해하게 만들던 문제(QA 피드백)를 막기 위한 요약 문구.
+    prefSummaryText: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
   });
 }

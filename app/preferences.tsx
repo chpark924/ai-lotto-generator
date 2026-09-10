@@ -1,19 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NumberGrid } from "../src/components";
+import { Ionicons } from "@expo/vector-icons";
+import { LottoBall, NumberGrid } from "../src/components";
 import { getPreferences, updatePreferences } from "../src/lib/storage/preferences";
 import {
   getExclusionSets,
   deleteExclusionSet,
   type ExclusionSet,
 } from "../src/lib/storage/exclusionSets";
-import { useAppTheme, type AppColors } from "../src/theme";
+import { useAppTheme, type AppColors, type AppTints } from "../src/theme";
 
 export default function PreferencesScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
   const [preferredNumbers, setPreferredNumbers] = useState<number[]>([]);
   const [exclusionSets, setExclusionSets] = useState<ExclusionSet[]>([]);
   const [dirty, setDirty] = useState(false);
@@ -38,13 +39,25 @@ export default function PreferencesScreen() {
     }
   }
 
-  async function handleDeleteSet(id: string) {
-    try {
-      await deleteExclusionSet(id);
-      setExclusionSets((prev) => prev.filter((s) => s.id !== id));
-    } catch {
-      Alert.alert("삭제 실패", "세트를 삭제하지 못했어요. 다시 시도해주세요.");
-    }
+  // QA 피드백 — 제외번호 세트는 확인 없이 바로 삭제됐다(다른 화면의 삭제 동작, 예: 내 번호
+  // 탭의 티켓 삭제는 전부 확인 Alert를 거친다). 실수로 눌러도 되돌릴 수 없다는 안내와 함께
+  // 확인 절차를 거치도록 다른 삭제 동작들과 통일한다.
+  function handleDeleteSet(set: ExclusionSet) {
+    Alert.alert("제외번호 세트 삭제", `"${set.name}" 세트를 삭제합니다. 삭제 후에는 되돌릴 수 없습니다.`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteExclusionSet(set.id);
+            setExclusionSets((prev) => prev.filter((s) => s.id !== set.id));
+          } catch {
+            Alert.alert("삭제 실패", "세트를 삭제하지 못했어요. 다시 시도해주세요.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -77,16 +90,30 @@ export default function PreferencesScreen() {
         exclusionSets.map((set) => (
           <View key={set.id} style={styles.setCard}>
             <View style={styles.setCardHeader}>
-              <Text style={styles.setName}>{set.name}</Text>
+              <View style={styles.setNameRow}>
+                <Text style={styles.setName} numberOfLines={1}>
+                  {set.name}
+                </Text>
+                <View style={styles.setCountBadge}>
+                  <Text style={styles.setCountText}>{set.numbers.length}개</Text>
+                </View>
+              </View>
               <Pressable
-                onPress={() => handleDeleteSet(set.id)}
+                style={styles.deleteButton}
+                onPress={() => handleDeleteSet(set)}
                 accessibilityRole="button"
                 accessibilityLabel={`${set.name} 세트 삭제`}
+                hitSlop={6}
               >
+                <Ionicons name="trash-outline" size={13} color={tints.red.fg} />
                 <Text style={styles.deleteText}>삭제</Text>
               </Pressable>
             </View>
-            <Text style={styles.setNumbers}>{set.numbers.join(", ")}</Text>
+            <View style={styles.setNumbersRow}>
+              {set.numbers.map((n) => (
+                <LottoBall key={n} number={n} size={26} />
+              ))}
+            </View>
           </View>
         ))
       )}
@@ -94,7 +121,7 @@ export default function PreferencesScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, tints: AppTints) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginTop: 20, marginBottom: 6 },
@@ -117,9 +144,25 @@ function createStyles(colors: AppColors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    setCardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-    setName: { fontSize: 13, fontWeight: "700", color: colors.textPrimary },
-    deleteText: { fontSize: 11, color: colors.textMuted },
-    setNumbers: { fontSize: 12, color: colors.textSecondary },
+    setCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    setNameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, marginRight: 8 },
+    setName: { fontSize: 13, fontWeight: "700", color: colors.textPrimary, flexShrink: 1 },
+    setCountBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+    setCountText: { fontSize: 10, fontWeight: "600", color: colors.textMuted },
+    // 다른 삭제 버튼과 톤을 맞춰(빨간 배경 칩 + 아이콘) "누를 수 있는 버튼"임을 명확히 하고,
+    // 텍스트만 있던 기존 방식보다 터치 영역도 넉넉하게 잡는다.
+    deleteButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: tints.red.bg,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    deleteText: { fontSize: 12, fontWeight: "700", color: tints.red.fg },
+    // 콤마로 나열된 숫자 텍스트 대신, 앱 전체에서 일관되게 쓰는 로또 공 컴포넌트로 보여줘서
+    // 한눈에 더 잘 들어오게 한다.
+    setNumbersRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   });
 }
