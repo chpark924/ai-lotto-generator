@@ -24,7 +24,7 @@ import {
   buildOfficialResultPageUrl,
   RANK_LABELS,
 } from "../../src/lib/draws";
-import { useAppTheme, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
 
 /** 자동/수동 확인이 실패했을 때, 동행복권 공식 결과 페이지를 브라우저로 열어 직접 확인할 수 있게 한다. */
 function openOfficialResultPage(drawNumber: number) {
@@ -689,7 +689,7 @@ function createStyles(colors: AppColors) {
     container: { flex: 1, backgroundColor: colors.background },
     list: { flex: 1 },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-    emptyText: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginBottom: 6 },
+    emptyText: { fontSize: 15, fontWeight: "700", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: colors.textMuted },
     // 저장한 카드마다 똑같은 흰 사각형이 촘촘히 붙어 있어서 눈에 잘 안 들어오고 피곤하다는
     // QA 피드백(2026-08-13) — 카드 하나하나는 조금 더 컴팩트하게(padding·내부 여백 축소).
@@ -740,7 +740,7 @@ function createStyles(colors: AppColors) {
       elevation: 1,
     },
     sectionHeaderAccent: { width: 4, height: 16, borderRadius: 2, marginRight: 8 },
-    sectionHeaderTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.textPrimary },
+    sectionHeaderTitle: { flex: 1, fontSize: 16, fontWeight: "800", fontFamily: fontFamily.bold, color: colors.textPrimary },
     sectionHeaderCountBadge: {
       backgroundColor: colors.surfaceAlt,
       borderRadius: 8,
