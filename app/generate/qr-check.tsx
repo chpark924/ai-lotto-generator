@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useRouter } from "expo-router";
 import { LottoBall, DisclaimerCard } from "../../src/components";
@@ -41,6 +42,7 @@ export default function QrCheckScreen() {
   const router = useRouter();
   const { colors, brand } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanLocked, setScanLocked] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -158,7 +160,10 @@ export default function QrCheckScreen() {
   if (result) {
     const winners = result.games.filter((g) => g.rank > 0);
     return (
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      // [Phase 5c 안전영역 재점검, 2026-09-10] "결과 공유"/"다시 스캔" 버튼이 하단 고정 바
+      // 없이 스크롤 콘텐츠 맨 아래에 있다 — 고정 32px만으로는 엣지투엣지로 그려지는 기기의
+      // 하단 제스처 바(insets.bottom)를 못 벗어날 수 있어 더해준다.
+      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
         <View style={styles.resultHeader}>
           <Text style={styles.resultRound}>제 {result.draw.drawNumber}회</Text>
           <Text style={styles.resultSummary}>

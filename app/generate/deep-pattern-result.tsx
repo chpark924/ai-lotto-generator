@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LottoBall, LottoBallLoader } from "../../src/components";
 import { PatternThumb } from "../../src/components/deepPattern";
@@ -27,6 +28,7 @@ export default function DeepPatternResultScreen() {
   const router = useRouter();
   const { colors, tints } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const insets = useSafeAreaInsets();
   const { batch, setBatch, selectIndex } = useDeepPatternStore();
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -80,7 +82,12 @@ export default function DeepPatternResultScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+    // [Phase 5c 안전영역 재점검, 2026-09-10] 이 화면은 하단 고정 버튼 바(BottomActionBar)
+    // 없이 "다시 생성"/"N게임 모두 저장" 버튼이 스크롤 콘텐츠 맨 아래에 그대로 놓여 있다 —
+    // 스크롤해서 볼 수는 있어도, 최하단까지 내렸을 때 그 여백(paddingBottom)이 기기
+    // 안전영역(insets.bottom)보다 작으면 엣지투엣지로 그려지는 안드로이드 제스처 바 등에
+    // 버튼이 가려진 채로 스크롤이 끝나버릴 수 있어 insets.bottom을 더한다.
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
       <Text style={styles.sub}>서로 다른 {batch.recommendations.length}개의 패턴에서 대표 조합을 골랐어요.</Text>
 
       {isRegenerating ? (

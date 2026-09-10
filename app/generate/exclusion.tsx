@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { NumberGrid, DisclaimerCard, BottomActionBar } from "../../src/components";
 import { buildBasicGenerationResult } from "../../src/lib/lottery/generator";
@@ -32,6 +33,7 @@ export default function ExclusionScreen() {
   const router = useRouter();
   const { colors, tints, brand } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ exclude?: string }>();
   const setResult = useGenerationStore((s) => s.setResult);
   const [selected, setSelected] = useState<number[]>(() => parseExcludeParam(params.exclude));
@@ -257,7 +259,16 @@ export default function ExclusionScreen() {
       </ScrollView>
 
       {toastMessage ? (
-        <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+        // [Phase 5c 안전영역 재점검, 2026-09-10] 아래 BottomActionBar가 기기 하단
+        // 제스처/내비게이션 바 높이(insets.bottom)만큼 자기 paddingBottom을 늘리는데, 이
+        // 토스트는 화면(container) 기준 고정 bottom 값이라 그 늘어난 만큼을 반영하지 못해
+        // 안전영역이 큰 기기(엣지투엣지 안드로이드 제스처 바 등)에서 버튼 바에 가려 보일 수
+        // 있었다 — insets.bottom을 그대로 더해 버튼 바 위 여백이 기기와 무관하게 항상
+        // 일정하게 유지되도록 한다.
+        <Animated.View
+          style={[styles.toast, { bottom: 92 + insets.bottom, opacity: toastOpacity }]}
+          pointerEvents="none"
+        >
           <Text style={styles.toastCheck}>✓</Text>
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
@@ -343,9 +354,10 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     saveButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", fontFamily: fontFamily.bold },
     // 저장 완료 토스트: 저장 직후 화면 하단(생성 버튼 위)에 잠깐 나타났다 사라짐. radius 20은
     // 카드 티어가 아니라 토스트 높이(~40px)의 절반에 맞춘 완전한 캡슐 모양이라 그대로 둔다.
+    // bottom 값은 기기 안전영역(insets.bottom)에 따라 달라져야 해서 여기서는 기본값을 주지
+    // 않고 위 JSX에서 인라인으로 계산해 넘긴다.
     toast: {
       position: "absolute",
-      bottom: 92,
       alignSelf: "center",
       flexDirection: "row",
       alignItems: "center",
