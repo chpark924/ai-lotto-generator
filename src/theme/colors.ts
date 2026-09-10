@@ -66,6 +66,12 @@ export interface AppTints {
   red: TintColors;
   purple: TintColors;
   slate: TintColors;
+  /**
+   * 브랜드 블루(brand.primary)를 옅게 깐 배경 + 그 위에 얹는 텍스트/아이콘 색 쌍.
+   * 칩·배지처럼 "브랜드 색을 은은하게" 써야 하는 곳에 쓴다(진한 CTA에는 brand.primary를
+   * 직접 쓴다). DESIGN_GUIDE.md 4절 — brand.soft 제안을 라이트/다크 쌍으로 구현한 것.
+   */
+  brand: TintColors;
 }
 
 export const lightTints: AppTints = {
@@ -75,6 +81,7 @@ export const lightTints: AppTints = {
   red: { bg: "#FEE2E2", fg: "#DC2626" },
   purple: { bg: "#EDE9FE", fg: "#5B21B6" },
   slate: { bg: "#F1F5F9", fg: "#475569" },
+  brand: { bg: "#EFF6FF", fg: "#2563EB" },
 };
 
 export const darkTints: AppTints = {
@@ -84,4 +91,30 @@ export const darkTints: AppTints = {
   red: { bg: "#7F1D1D", fg: "#FCA5A5" },
   purple: { bg: "#4C1D95", fg: "#DDD6FE" },
   slate: { bg: "#1E293B", fg: "#CBD5E1" },
+  brand: { bg: "#1E3A8A", fg: "#BFDBFE" },
+};
+
+/**
+ * 브랜드 액션 컬러(고정값). AppColors/AppTints와 달리 라이트/다크 테마에 따라
+ * 뒤집지 않는다 — 이 파일 상단 주석에서 이미 밝히듯, 이 앱은 브랜드 블루와
+ * "항상 어두운" 강조 영역(히어로 CTA, 헤더, 스플래시)을 테마 무관 고정값으로 다뤄왔다.
+ * 이 토큰은 그동안 화면마다 따로 하드코딩돼 흩어져 있던 브랜드 블루
+ * (#2563EB / #496DA3~#20385E 그라디언트 / #0F172A / #4338CA 네 갈래 — DESIGN_GUIDE.md 4절)를
+ * 하나의 이름 있는 세트로 정리한 것이다. 이 커밋은 토큰 정의만 추가하고, 기존 화면의
+ * 하드코딩 값 교체는 이후 단계(Phase 3·4)에서 화면별로 점진 진행한다.
+ */
+export interface BrandTokens {
+  /** 기본 브랜드 액션 색 — CTA 배경, 활성 탭 텍스트/아이콘, 주요 버튼. */
+  primary: string;
+  /** primary 요소의 눌림(pressed) 상태 — 한 단계 더 진한 색. */
+  primaryPressed: string;
+  /** 항상 어두운 상태를 유지하는 브랜드 강조 영역 — 히어로 CTA 그라디언트 끝단,
+   *  스택 헤더 배경, 스플래시, 홈 화면 "바로가기" 버튼 배경. */
+  dark: string;
+}
+
+export const brand: BrandTokens = {
+  primary: "#2563EB",
+  primaryPressed: "#1D4ED8",
+  dark: "#0F172A",
 };
