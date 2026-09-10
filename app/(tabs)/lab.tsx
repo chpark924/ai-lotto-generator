@@ -479,9 +479,10 @@ function createStyles(colors: AppColors, tints: AppTints) {
     container: { flex: 1, backgroundColor: colors.background },
     header: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, marginBottom: 16 },
     skeletonMb8: { marginBottom: 8 },
+    // [DESIGN_GUIDE.md Phase 3, 2026-09-10] radius 16→20 — 주요 콘텐츠 카드 티어(20px)로 통일.
     card: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 16,
       marginBottom: 12,
       borderWidth: 1,
@@ -512,9 +513,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
     // 블루 톤 배경(tints.indigo.bg, 다른 카드의 순백/서피스보다 살짝 톤이 다름) + 카드를 살짝
     // 띄워 보이게 하는 부드러운 그림자(shadow/elevation) + 상단 강조선 + 솔리드 배지를 함께 써서
     // "화면에서 붕 뜬 카드"처럼 도드라지게 하되 채도는 낮게 유지한다.
+    // [Phase 3] radius 16→20 (다른 항목과 동일 근거). 강조용 shadow(0.18/10/4)는 이 카드만의
+    // 의도된 "붕 뜬" 강조 장치라 Phase 3의 일반 shadow 절제 대상에서는 제외한다.
     officialCard: {
       backgroundColor: tints.indigo.bg,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 16,
       marginBottom: 12,
       borderWidth: 1,
@@ -536,10 +539,11 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 8,
     },
     officialBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
+    // [Phase 3] radius 10→12 — 칩/배지/작은 링크 버튼 티어(12px)로 통일.
     retryButton: {
       alignSelf: "flex-start",
       backgroundColor: tints.indigo.bg,
-      borderRadius: 10,
+      borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 8,
       minWidth: 72,
@@ -562,9 +566,10 @@ function createStyles(colors: AppColors, tints: AppTints) {
     transitionArrow: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
     transitionTopList: { flexDirection: "row", flexWrap: "wrap", gap: 10, flexShrink: 1 },
     // 이번 주 리포트 카드는 항상 어두운 브랜드 톤을 유지한다.
+    // [Phase 3] radius 16→20 (다른 항목과 동일 근거).
     weeklyCard: {
       backgroundColor: "#0F172A",
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 16,
       marginBottom: 12,
     },

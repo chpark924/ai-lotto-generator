@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { DeepPatternIcon } from "../../src/components/deepPattern";
 import { StatusBarSafeMask } from "../../src/components";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 const MENU_ITEMS: {
   title: string;
@@ -62,8 +62,8 @@ const MENU_ITEMS: {
 
 export default function GenerateHubScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
   // 상단 여백을 직접 챙겨줘야 한다.
   const insets = useSafeAreaInsets();
@@ -149,7 +149,7 @@ export default function GenerateHubScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     flexFill: { flex: 1 },
     container: { flex: 1, backgroundColor: colors.background },
@@ -176,10 +176,13 @@ function createStyles(colors: AppColors) {
       borderWidth: 1,
       borderColor: colors.border,
       // 입체감: 은은한 그림자로 카드가 배경 위에 살짝 떠 있는 느낌을 준다.
+      // [DESIGN_GUIDE.md Phase 3, 2026-09-10] 원안 권장치(0 2px 8px rgba(16,24,40,0.04))에
+      // 비해 기존 값이 조금 더 진해 소폭만 절제했다(opacity 0.06→0.05, radius 10→8,
+      // offset height 4→3) — 방향은 유지하고 "카드가 살짝 떠 있는" 느낌 자체는 그대로 둔다.
       shadowColor: "#0F172A",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.06,
-      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
       elevation: 2,
     },
     // QA_LOG 98번 — 기존엔 눌렀을 때 배경이 colors.surfaceAlt(거의 흰색에 가까운
@@ -200,22 +203,29 @@ function createStyles(colors: AppColors) {
     cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" },
     cardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
     cardDesc: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+    // [DESIGN_GUIDE.md Phase 4, 2026-09-10] "추천/HOT/NEW" 셋은 서로 다른 정보(에디터
+    // 추천·인기·신규)라 색으로 구분하는 것 자체는 유지하되, 그동안 각자 따로 하드코딩돼
+    // 있던 임의의 hex 대신 앱이 이미 쓰는 브랜드·의미 토큰(brand.primary, tints.red,
+    // tints.purple)에서 값을 가져오도록 출처만 정리했다 — 배지 세 개가 "각자 다른 색을
+    // 마음대로 고른 것"이 아니라 "앱의 정해진 팔레트 안에서 의미별로 고른 것"이 되도록.
+    // (NEW의 보라색은 #6C5CE7→#5B21B6로 미세 조정 — tints.purple.fg와 동일한 값으로,
+    // 다른 화면의 보라 배지들과도 같은 보라를 쓰게 된다.)
     recommendedBadge: {
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,
     },
     recommendedBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
     hotBadge: {
-      backgroundColor: "#DC2626",
+      backgroundColor: tints.red.fg,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,
     },
     hotBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
     newBadge: {
-      backgroundColor: "#6C5CE7",
+      backgroundColor: tints.purple.fg,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,

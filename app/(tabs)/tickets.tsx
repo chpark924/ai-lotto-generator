@@ -697,9 +697,10 @@ function createStyles(colors: AppColors) {
     // 그 자체로 그룹 구분 역할을 해줘 예전만큼 넓게 벌리지 않아도 각 카드가 눈에 들어온다
     // — 같은 섹션(회차) 안에서는 살짝 더 붙여 "한 묶음"으로 읽히게, 대신 다음 섹션과는
     // 헤더가 확실히 갈라준다.
+    // [DESIGN_GUIDE.md Phase 3, 2026-09-10] radius 16→20 — 주요 콘텐츠 카드 티어(20px)로 통일.
     card: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 14,
       marginBottom: 12,
       borderWidth: 1,
@@ -792,10 +793,11 @@ function createStyles(colors: AppColors) {
     deleteButton: { paddingVertical: 6, paddingHorizontal: 2 },
     deleteButtonText: { color: colors.textMuted, fontSize: 11 },
     prefLinkRow: { paddingVertical: 10, marginBottom: 4 },
+    // [Phase 3] radius 10→12 — 칩/배지/작은 링크 카드 티어(12px)로 통일.
     prefLinkButton: {
       marginTop: 16,
       backgroundColor: colors.surface,
-      borderRadius: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,
       paddingVertical: 10,

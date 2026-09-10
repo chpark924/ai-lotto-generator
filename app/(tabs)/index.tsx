@@ -8,7 +8,7 @@ import { estimateLatestDrawNumber, getRecentDrawsSafe, getLongestAbsentNumbers, 
 import { getGenerationHistory } from "../../src/lib/storage";
 import { ENTERTAINMENT_NOTICE } from "../../src/constants/messages";
 import { LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, StatusBarSafeMask } from "../../src/components";
-import { useAppTheme, type AppColors } from "../../src/theme";
+import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 
 function daysUntilNextSaturday(): number {
   const now = new Date();
@@ -19,8 +19,8 @@ function daysUntilNextSaturday(): number {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
   // 94번 항목 — 탭 상단 네비게이션 헤더를 완전히 숨겼기 때문에(app/(tabs)/_layout.tsx),
   // 화면이 상태표시줄/카메라 펀치홀 바로 아래부터 시작하지 않도록 직접 안전영역 상단
   // 여백을 챙겨줘야 한다(예전엔 헤더가 이 역할을 대신 해줬음).
@@ -112,24 +112,33 @@ export default function HomeScreen() {
             </Text>
           )}
           <Text style={styles.heroTitle}>이번 주 운명을 만들어보세요</Text>
-          <Pressable
-            style={styles.ctaButtonWrapper}
-            android_ripple={{ color: "#0F1F38" }}
-            onPress={() => router.push("/generate/ai-search")}
-            accessibilityRole="button"
-            accessibilityLabel="AI로 번호 만들기, 기기 안에서 계산되는 온디바이스 규칙 엔진"
-          >
-            {({ pressed }) => (
-              <LinearGradient
-                colors={["#496DA3", "#20385E"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={[styles.ctaButton, pressed && styles.ctaButtonPressed]}
-              >
-                <Text style={styles.ctaButtonText}>AI로 번호 만들기</Text>
-              </LinearGradient>
-            )}
-          </Pressable>
+          {/* [DESIGN_GUIDE.md Phase 4, 2026-09-10] 그라디언트를 brand.primary→brand.dark
+              기준으로 재정의(값 자체는 기존 남색 계열 느낌 유지, 출처만 토큰화), 높이를
+              paddingVertical 16→18(총 높이 약 48~50px→56px 근사)로 키우고, 브랜드색 기준
+              약한 그림자를 추가해 "가장 중요한 액션"이라는 존재감을 키웠다(1절 원칙 ②와
+              일치하는 정도의 절제된 depth). Sparkle 아이콘은 이 버튼이 실제로 AI 기능으로
+              연결된다는 의미가 있어 채택, 화살표는 선택사항이라 이번엔 추가하지 않았다. */}
+          <View style={styles.ctaButtonShadow}>
+            <Pressable
+              style={styles.ctaButtonWrapper}
+              android_ripple={{ color: "#0F1F38" }}
+              onPress={() => router.push("/generate/ai-search")}
+              accessibilityRole="button"
+              accessibilityLabel="AI로 번호 만들기, 기기 안에서 계산되는 온디바이스 규칙 엔진"
+            >
+              {({ pressed }) => (
+                <LinearGradient
+                  colors={[brand.primary, brand.dark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={[styles.ctaButton, pressed && styles.ctaButtonPressed]}
+                >
+                  <Ionicons name="sparkles" size={15} color="#fff" style={styles.ctaButtonIcon} />
+                  <Text style={styles.ctaButtonText}>AI로 번호 만들기</Text>
+                </LinearGradient>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.quickMenuRow}>
@@ -275,7 +284,7 @@ function QuickMenuItem({
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, brand: BrandTokens) {
   return StyleSheet.create({
     swipeArea: { flex: 1 },
     container: { flex: 1, backgroundColor: colors.background },
@@ -301,13 +310,26 @@ function createStyles(colors: AppColors) {
     heroSkeletonSubtitle: { marginBottom: 8 },
     skeletonTitle: { marginBottom: 12 },
     heroTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 18 },
+    // shadow는 overflow:"hidden"인 ctaButtonWrapper 안에 두면 잘려서 안 보이므로,
+    // 그림자 전용 바깥 래퍼를 따로 둔다(radius는 겹치는 값을 그대로 맞춰준다).
+    ctaButtonShadow: {
+      borderRadius: 16,
+      shadowColor: brand.primary,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.22,
+      shadowRadius: 14,
+      elevation: 5,
+    },
     ctaButtonWrapper: { borderRadius: 16, overflow: "hidden" },
     ctaButton: {
       borderRadius: 16,
-      paddingVertical: 16,
+      paddingVertical: 18,
+      flexDirection: "row",
+      justifyContent: "center",
       alignItems: "center",
     },
     ctaButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+    ctaButtonIcon: { marginRight: 6 },
     ctaButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
     quickMenuRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
     quickMenuItem: {
@@ -336,9 +358,11 @@ function createStyles(colors: AppColors) {
     // 62번 QA에서 화면 전체 여백을 넓혔는데, "내가 자주 선택한 번호"/"최근 오래 나오지 않은
     // 번호" 카드는 오히려 너무 커진 느낌이라는 후속 피드백을 받아 이 두 카드(공용 `card`
     // 스타일)만 다시 소폭 촘촘하게 조정했다(히어로 카드·퀵메뉴 등 다른 영역은 그대로 유지).
+    // [DESIGN_GUIDE.md Phase 3, 2026-09-10] radius를 16→20으로 — 히어로 카드·
+    // "번호 만들기" 탭 카드와 같은 "주요 콘텐츠 카드" 티어(20px)로 통일한다.
     card: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 14,
       marginBottom: 16,
       borderWidth: 1,
@@ -357,9 +381,10 @@ function createStyles(colors: AppColors) {
       gap: 8,
     },
     // 아래 두 버튼도 히어로 카드와 마찬가지로 항상 어두운 브랜드 톤을 유지한다.
+    // [Phase 3] radius 10→12 — 칩/배지/작은 링크 버튼 티어(12px)로 통일.
     shortcutButton: {
       backgroundColor: "#0F172A",
-      borderRadius: 10,
+      borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 8,
     },

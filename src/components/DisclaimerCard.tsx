@@ -22,9 +22,12 @@ export function DisclaimerCard({ text, style }: { text: string; style?: StylePro
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
+    // [DESIGN_GUIDE.md Phase 3, 2026-09-10] radius 10→12 — 앱 전역 칩/배지/작은 링크 카드
+    // 티어(12px)로 통일. 이 컴포넌트를 쓰는 모든 화면(로또 연구소, AI 조합탐색, 주사위 등)에
+    // 공통 적용된다.
     card: {
       backgroundColor: colors.surfaceAlt,
-      borderRadius: 10,
+      borderRadius: 12,
       padding: 12,
       marginVertical: 8,
     },
