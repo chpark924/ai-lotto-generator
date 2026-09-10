@@ -5,7 +5,7 @@ import type { ResultBadge } from "../lib/lottery/resultBadges";
 import { buildGameAccessibilitySummary } from "../lib/lottery/accessibilitySummary";
 import { SCORE_EXPLANATION_NOTICE } from "../constants/messages";
 import { LottoBall } from "./LottoBall";
-import { useAppTheme, type AppColors, type AppTints } from "../theme";
+import { useAppTheme, brand, fontFamily, type AppColors, type AppTints } from "../theme";
 
 export function GeneratedGameCard({
   game,
@@ -94,9 +94,12 @@ function MetaChip({ label, styles }: { label: string; styles: ReturnType<typeof 
 
 function createStyles(colors: AppColors, tints: AppTints) {
   return StyleSheet.create({
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] 이 공유 컴포넌트는 Phase 1-4 롤아웃 당시
+    // 빠져 있었다 — radius 16→20(리스트 카드 등급). 결과 화면 등 이 컴포넌트를 쓰는 모든
+    // 화면에 공통 적용된다.
     card: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 16,
       marginVertical: 8,
       shadowColor: "#000",
@@ -111,7 +114,8 @@ function createStyles(colors: AppColors, tints: AppTints) {
       marginBottom: 10,
     },
     scoreBlock: { marginBottom: 8 },
-    score: { fontSize: 13, color: "#2563EB", fontWeight: "700", marginBottom: 4 },
+    // [DESIGN_GUIDE.md 4절 / Phase 5c, 2026-09-10] "#2563EB" 고정값→brand.primary 토큰.
+    score: { fontSize: 13, color: brand.primary, fontWeight: "700", fontFamily: fontFamily.bold, marginBottom: 4 },
     scoreTrack: {
       height: 6,
       borderRadius: 3,
@@ -121,15 +125,16 @@ function createStyles(colors: AppColors, tints: AppTints) {
     scoreFill: {
       height: 6,
       borderRadius: 3,
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
     },
     scoreCaption: { fontSize: 10, color: colors.textMuted, lineHeight: 14, marginTop: 4 },
     metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 8→12 — 칩/배지 등급.
     chip: {
       backgroundColor: tints.indigo.bg,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 12,
     },
     chipText: { fontSize: 11, color: tints.indigo.fg },
     // 기본 메타 정보(홀짝/합계 등)와 구분되도록 초록색 톤을 써서 "전문 분석 배지"임을
@@ -138,11 +143,12 @@ function createStyles(colors: AppColors, tints: AppTints) {
     // 쓰고 있어서 피했다 — 사카이 분석 패턴 배지는 모드 무관하게 뜰 수 있어, 운명의 신
     // 결과 화면에서 상단 안내 배너와 카드 안 배지가 같은 색으로 겹쳐 보일 수 있기 때문.
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+    // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 8→12 — 칩/배지 등급.
     badgeChip: {
       backgroundColor: tints.green.bg,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 12,
     },
     badgeChipText: { fontSize: 11, color: tints.green.fg, fontWeight: "600" },
     explanation: { marginTop: 10, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },

@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, type AppColors } from "../theme";
+import { useAppTheme, brand, fontFamily, type AppColors } from "../theme";
 
 /**
  * 화면 하단에 항상 고정되는 주요 액션 버튼 바.
@@ -16,7 +16,7 @@ export function BottomActionBar({
   label,
   onPress,
   disabled = false,
-  color = "#2563EB",
+  color = brand.primary,
   disabledColor = "#93C5FD",
 }: {
   label: string;
@@ -57,12 +57,15 @@ function createStyles(colors: AppColors) {
       borderTopWidth: 1,
       borderTopColor: colors.border,
     },
+    // [DESIGN_GUIDE.md 4절/7절 / Phase 5c, 2026-09-10] 이 공유 컴포넌트는 Phase 1-4 롤아웃
+    // 당시 빠져 있었다 — 기본 색 "#2563EB"→brand.primary 토큰, radius 14→12(버튼 등급)로 맞춘다.
+    // 홈/번호 만들기/로또 연구소 등 이 컴포넌트를 쓰는 모든 화면에 공통 적용된다.
     button: {
-      borderRadius: 14,
+      borderRadius: 12,
       paddingVertical: 16,
       alignItems: "center",
     },
     buttonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-    buttonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+    buttonText: { color: "#fff", fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
   });
 }

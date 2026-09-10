@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ProbabilitySummary, SimulationSummary } from "../lib/lottery/types";
 import { COVERAGE_NOTICE } from "../constants/messages";
+import { brand } from "../theme";
 
 export function ProbabilityCard({
   probability,
@@ -41,9 +42,12 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  // [DESIGN_GUIDE.md 4절/7절 / Phase 5c, 2026-09-10] 이 공유 컴포넌트는 Phase 1-4 롤아웃 당시
+  // 빠져 있었다 — 이 카드는 항상 어두운 톤을 유지하므로(theme 무관) "#0F172A" 고정값→brand.dark
+  // 토큰으로 정리하고, radius 14→20(결과 화면 상단의 주요 콘텐츠 카드 등급)으로 맞춘다.
   card: {
-    backgroundColor: "#0F172A",
-    borderRadius: 14,
+    backgroundColor: brand.dark,
+    borderRadius: 20,
     padding: 16,
     marginVertical: 8,
   },
