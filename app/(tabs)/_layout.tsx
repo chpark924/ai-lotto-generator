@@ -1,32 +1,39 @@
-import { Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useAppTheme } from "../../src/theme";
 
 /**
- * 하단 탭 아이콘 전부 입체(글로시) 스타일 풀컬러 PNG로 통일했다(assets/tab-icons/).
- * 토스/카카오뱅크/네이버 등 주요 앱들처럼, 아이콘 자체는 항상 고유 색을 유지하고
- * 선택 상태는 라벨 텍스트 색(tabBarActiveTintColor/InactiveTintColor)만으로 구분한다 —
- * 그래서 여기서는 tintColor를 입히지 않고 원본 색 그대로 렌더링한다.
+ * [DESIGN_GUIDE.md Phase 2, 2026-09-10] 하단 탭 아이콘을 기존 "입체(글로시) 풀컬러 PNG"
+ * (assets/tab-icons/*.png)에서 2D 선 아이콘(Ionicons)으로 교체했다. 가이드 11절이 지적한
+ * 대로, 3D/글로시 스타일은 "번호 만들기" 탭의 숏컷 아이콘·홈 히어로처럼 실제로 제작
+ * 리소스를 들인 곳에서만 써야 "고급스럽다"는 인상을 만든다 — 하단 내비게이션처럼 항상
+ * 떠 있는 자리에까지 풀컬러 글로시 아이콘을 쓰면 그 소수의 "진짜 제작한" 그래픽과
+ * 구분이 안 돼 오히려 특별함이 옅어진다. 그래서 여기는 새 에셋 제작 없이 이미 쓰고
+ * 있는 Ionicons만으로 정리하고, 선택 상태는 아이콘 채움(outline→filled)과 색
+ * (tabBarActiveTintColor/InactiveTintColor) 두 가지로 함께 표현한다.
+ * (기존 홈 아이콘의 다크모드 전용 반전 버전이 필요했던 이유 — 로고 자체가 고정 색
+ * PNG라 어두운 탭바 배경 위에서 대비가 낮았던 문제 — 도 색을 테마별 tint로 그리는
+ * Ionicons로 바꾸면서 자연히 해소된다.)
  */
-function TabIcon({ source, size }: { source: number; size: number }) {
-  return (
-    <Image
-      source={source}
-      resizeMode="contain"
-      style={{ width: size + 6, height: size + 6 }}
-    />
-  );
+function TabIcon({
+  name,
+  focusedName,
+  focused,
+  color,
+  size,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  focusedName: keyof typeof Ionicons.glyphMap;
+  focused: boolean;
+  color: string;
+  size: number;
+}) {
+  return <Ionicons name={focused ? focusedName : name} size={size} color={color} />;
 }
 
-// 홈 브랜드 로고는 원래 진한 차콜 색이라, 다크모드의 어두운 탭바 배경(#161F32)
-// 위에서는 거의 안 보일 만큼 대비가 낮다. 그래서 다크모드 전용으로 톤을 밝게 뒤집은
-// 버전을 따로 준비해 스킴에 따라 골라 쓴다(형태·오렌지 포인트는 동일, 명암만 반전).
-const homeIconLight = require("../../assets/tab-icons/home.png");
-const homeIconDark = require("../../assets/tab-icons/home-dark.png");
-
 export default function TabsLayout() {
-  const { colors, scheme } = useAppTheme();
+  const { colors, scheme, brand } = useAppTheme();
   return (
     <>
       {/* QA_LOG 104번 — 루트 레이아웃(app/_layout.tsx)의 <StatusBar style="light" />는
@@ -52,7 +59,8 @@ export default function TabsLayout() {
           // 그 화면들은 최상단에 제목 텍스트가 아예 없어진다 — "깨끗하게 쓰자"는 요청에 맞는
           // 의도된 결과.
           headerShown: false,
-          tabBarActiveTintColor: "#2563EB",
+          // [Phase 1] 기존 하드코딩 "#2563EB" → brand.primary 토큰으로 교체(값은 동일, 출처만 정리).
+          tabBarActiveTintColor: brand.primary,
           tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         }}
@@ -61,8 +69,8 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: "홈",
-            tabBarIcon: ({ size }) => (
-              <TabIcon source={scheme === "dark" ? homeIconDark : homeIconLight} size={size} />
+            tabBarIcon: ({ focused, color, size }) => (
+              <TabIcon name="home-outline" focusedName="home" focused={focused} color={color} size={size} />
             ),
           }}
         />
@@ -70,8 +78,14 @@ export default function TabsLayout() {
           name="generate"
           options={{
             title: "번호 만들기",
-            tabBarIcon: ({ size }) => (
-              <TabIcon source={require("../../assets/tab-icons/generate.png")} size={size} />
+            tabBarIcon: ({ focused, color, size }) => (
+              <TabIcon
+                name="color-wand-outline"
+                focusedName="color-wand"
+                focused={focused}
+                color={color}
+                size={size}
+              />
             ),
           }}
         />
@@ -79,8 +93,8 @@ export default function TabsLayout() {
           name="lab"
           options={{
             title: "로또 연구소",
-            tabBarIcon: ({ size }) => (
-              <TabIcon source={require("../../assets/tab-icons/lab.png")} size={size} />
+            tabBarIcon: ({ focused, color, size }) => (
+              <TabIcon name="flask-outline" focusedName="flask" focused={focused} color={color} size={size} />
             ),
           }}
         />
@@ -88,8 +102,8 @@ export default function TabsLayout() {
           name="tickets"
           options={{
             title: "내 번호",
-            tabBarIcon: ({ size }) => (
-              <TabIcon source={require("../../assets/tab-icons/tickets.png")} size={size} />
+            tabBarIcon: ({ focused, color, size }) => (
+              <TabIcon name="ticket-outline" focusedName="ticket" focused={focused} color={color} size={size} />
             ),
           }}
         />
