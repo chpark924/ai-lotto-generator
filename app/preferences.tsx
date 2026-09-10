@@ -9,12 +9,12 @@ import {
   deleteExclusionSet,
   type ExclusionSet,
 } from "../src/lib/storage/exclusionSets";
-import { useAppTheme, type AppColors, type AppTints } from "../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../src/theme";
 
 export default function PreferencesScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
   const [preferredNumbers, setPreferredNumbers] = useState<number[]>([]);
   const [exclusionSets, setExclusionSets] = useState<ExclusionSet[]>([]);
   const [dirty, setDirty] = useState(false);
@@ -121,13 +121,14 @@ export default function PreferencesScreen() {
   );
 }
 
-function createStyles(colors: AppColors, tints: AppTints) {
+function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.textPrimary, marginTop: 20, marginBottom: 6 },
     sectionSub: { fontSize: 12, color: colors.textMuted, marginBottom: 10 },
+    // [Phase 5c 브랜드 토큰 확장, 2026-09-10] #2563EB 하드코딩 → brand.primary.
     saveButton: {
-      backgroundColor: "#2563EB",
+      backgroundColor: brand.primary,
       borderRadius: 12,
       paddingVertical: 12,
       alignItems: "center",

@@ -88,6 +88,12 @@ CTA 그라디언트(`#496DA3`→`#20385E`)와 indigo 틴트(`#4338CA`)는 위 �
 
 `src/theme/colors.ts`의 배경·서피스·텍스트 3단계(Primary/Secondary/Muted)·테두리 토큰은 원안의 "Base/Text" 구성과 이미 거의 동일한 철학이라 **그대로 유지**한다. 원안이 제안한 `#F7F8FA`(배경)/`#171B24`(텍스트 Primary) 같은 구체적 수치도 지금 값(`#F8FAFC`/`#0F172A`)과 사실상 같은 톤이라 굳이 바꿀 실익이 적다.
 
+### 추가 (2026-09-10, Phase 5c) — `brand` 토큰 실제 반영 완료 + `accentViolet` 신설
+
+위 표의 `brand.primary`/`brand.dark` 제안은 이후 Phase 1~4·5c에 걸쳐 실제로 `src/theme/colors.ts`에 반영되어 전 화면(탭 허브 4개, `preferences.tsx`, `ErrorBoundary.tsx`, 스택 헤더 포함)의 `#2563EB`/`#1D4ED8`/`#0F172A` 하드코딩을 대체했다(`brand.soft`는 `tints.brand`로 이름만 다르게 구현). `app.json`의 스플래시 배경(`#0F172A`)은 JSON 설정 파일이라 토큰을 import할 수 없어 값만 `brand.dark`와 일치시키고 하드코딩으로 남겨뒀다.
+
+별도로, "번호 만들기" 하위 두 기능(운명의 신·딥 패턴)이 brand와 무관하게 각자 다른 보라(`#7C3AED`/`#6C5CE7`)를 쓰던 것을 `accentViolet`(`primary: #7C3AED`, `light: #C4B5FD`) 하나로 통일했다 — 근거와 값 출처는 `colors.ts`의 `accentViolet` 선언부 주석 참고. `tints.purple`(배지·라벨용, 라이트/다크로 뒤집힘)은 별개 용도로 그대로 유지한다.
+
 ---
 
 ## 5. Typography

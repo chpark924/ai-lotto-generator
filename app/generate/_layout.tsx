@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { fontFamily } from "../../src/theme";
+import { fontFamily, brand } from "../../src/theme";
 
 /**
  * "번호 만들기"의 각 기능 화면들(제외해보기/AI 조합탐색/행운번호/45면체 주사위/운명의 신/
@@ -26,7 +26,8 @@ export default function GenerateLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: "#0F172A" },
+        // [Phase 5c 브랜드 토큰 확장, 2026-09-10] "#0F172A" 하드코딩 → brand.dark.
+        headerStyle: { backgroundColor: brand.dark },
         headerTintColor: "#fff",
         // [DESIGN_GUIDE.md 5절 / Phase 5c, 2026-09-10] 이 안의 10개 화면(제외하고 생성/
         // AI 조합탐색/행운번호/45면체 주사위/운명의 신/딥 패턴 탐색 3개/생성 결과/QR 확인)이

@@ -388,8 +388,10 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     },
     // 아래 두 버튼도 히어로 카드와 마찬가지로 항상 어두운 브랜드 톤을 유지한다.
     // [Phase 3] radius 10→12 — 칩/배지/작은 링크 버튼 티어(12px)로 통일.
+    // [Phase 5c 브랜드 토큰 확장, 2026-09-10] 이 화면은 이미 brand를 createStyles로 받고
+    // 있었는데(위 shadowColor: brand.primary 참고) 이 버튼만 #0F172A 하드코딩이 남아 있었다.
     shortcutButton: {
-      backgroundColor: "#0F172A",
+      backgroundColor: brand.dark,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 8,

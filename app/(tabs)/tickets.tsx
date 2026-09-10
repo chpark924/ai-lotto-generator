@@ -24,7 +24,7 @@ import {
   buildOfficialResultPageUrl,
   RANK_LABELS,
 } from "../../src/lib/draws";
-import { useAppTheme, fontFamily, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 자동/수동 확인이 실패했을 때, 동행복권 공식 결과 페이지를 브라우저로 열어 직접 확인할 수 있게 한다. */
 function openOfficialResultPage(drawNumber: number) {
@@ -73,8 +73,8 @@ function getStatusBadgeStyle(tints: AppTints, status: TicketStatus): { backgroun
 
 export default function TicketsScreen() {
   const router = useRouter();
-  const { colors, tints } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints, brand } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, brand), [colors, brand]);
   // 94번 항목 — 탭 상단 네비게이션 헤더를 숨겼기 때문에(app/(tabs)/_layout.tsx) 안전영역
   // 상단 여백을 직접 챙겨줘야 한다.
   const insets = useSafeAreaInsets();
@@ -684,7 +684,7 @@ export default function TicketsScreen() {
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     list: { flex: 1 },
@@ -716,7 +716,7 @@ function createStyles(colors: AppColors) {
     },
     // 110번 — "회차 변경" 편집 중인 카드를 테두리 색으로 구분.
     cardEditing: {
-      borderColor: "#2563EB",
+      borderColor: brand.primary,
       borderWidth: 2,
     },
     // QA_LOG 99/100번 — 회차별 그룹의 상단에 고정(sticky)되는 헤더. 배경을 화면 배경색과
@@ -769,17 +769,17 @@ function createStyles(colors: AppColors) {
       fontSize: 12,
       color: colors.textPrimary,
     },
-    smallButton: { backgroundColor: "#0F172A", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+    smallButton: { backgroundColor: brand.dark, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
     smallButtonText: { color: "#fff", fontSize: 11, fontWeight: "700" },
     drawSummaryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     // "당첨 확인"이 이 카드에서 지금 가장 중요한 행동이라는 걸 색으로도 드러낸다.
-    checkButton: { backgroundColor: "#2563EB", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, flex: 1 },
+    checkButton: { backgroundColor: brand.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, flex: 1 },
     checkButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center" },
     linkButton: { paddingHorizontal: 4, paddingVertical: 8 },
     linkButtonText: { color: colors.textMuted, fontSize: 11, fontWeight: "600", textDecorationLine: "underline" },
     quickPickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
     quickPickButton: {
-      backgroundColor: "#0F172A",
+      backgroundColor: brand.dark,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 8,
@@ -789,7 +789,7 @@ function createStyles(colors: AppColors) {
     // paddingVertical만으로는 44pt 최소 터치 타겟에 못 미쳐(텍스트 링크라 실제 박스가 작음),
     // 실제 박스는 그대로 작게 유지하고 hitSlop으로 터치 영역만 넓힌다(위 JSX 참고).
     shareButton: { paddingVertical: 6, paddingHorizontal: 2 },
-    shareButtonText: { color: "#2563EB", fontSize: 11, fontWeight: "700" },
+    shareButtonText: { color: brand.primary, fontSize: 11, fontWeight: "700" },
     deleteButton: { paddingVertical: 6, paddingHorizontal: 2 },
     deleteButtonText: { color: colors.textMuted, fontSize: 11 },
     prefLinkRow: { paddingVertical: 10, marginBottom: 4 },
@@ -803,7 +803,7 @@ function createStyles(colors: AppColors) {
       paddingVertical: 10,
       paddingHorizontal: 16,
     },
-    prefLinkText: { color: "#2563EB", fontSize: 12, fontWeight: "700" },
+    prefLinkText: { color: brand.primary, fontSize: 12, fontWeight: "700" },
     // 선호번호·제외번호 세트가 저장돼 있어도 이 탭엔 아무 표시가 없어 "지정한 게 반영 안
     // 됐다"고 오해하게 만들던 문제(QA 피드백)를 막기 위한 요약 문구.
     prefSummaryText: { color: colors.textMuted, fontSize: 11, marginTop: 4 },

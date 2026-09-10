@@ -1,6 +1,6 @@
 import React from "react";
 import { Appearance, Pressable, StyleSheet, Text, View } from "react-native";
-import { darkColors, lightColors } from "../theme/colors";
+import { brand, darkColors, lightColors } from "../theme/colors";
 
 type Props = { children: React.ReactNode };
 type State = { hasError: boolean; error: Error | null };
@@ -76,8 +76,11 @@ function createStyles(background: string, textPrimary: string, textMuted: string
       lineHeight: 20,
       marginBottom: 20,
     },
+    // [Phase 5c 브랜드 토큰 확장, 2026-09-10] 이 화면은 ThemeProvider보다 바깥에 있어
+    // useAppTheme() 훅은 못 쓰지만, brand는 테마 무관 고정 상수라 직접 import해 쓸 수 있다
+    // (colors.ts 상단 주석 참고 — destiny.tsx 등 다른 화면도 같은 방식으로 brand를 직접 쓴다).
     retryButton: {
-      backgroundColor: "#0F172A",
+      backgroundColor: brand.dark,
       borderRadius: 14,
       paddingHorizontal: 24,
       paddingVertical: 14,
