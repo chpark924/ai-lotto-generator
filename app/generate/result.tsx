@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -49,6 +49,20 @@ export default function ResultScreen() {
   const [explanations, setExplanations] = useState<Record<string, string>>({});
   const [badgesByGameId, setBadgesByGameId] = useState<Record<string, ResultBadge[]>>({});
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // QA 피드백 — "같은 조건으로 다시 생성"을 눌렀을 때 화면 맨 아래 로딩 표시(LottoBallLoader)가
+  // 기기 하단 내비게이션 바에 가려 잘려 보임. 버튼(한 줄 텍스트)보다 로딩 블록(공 5개 행 +
+  // 문구)이 더 높은데, 탭 시점엔 이미 사용자가 화면을 맨 아래(버튼이 보이는 지점)까지 스크롤해
+  // 둔 상태다. 콘텐츠 높이만 늘어나고 스크롤 위치는 그대로 유지되니, 새로 늘어난 아랫부분(로딩
+  // 문구·안전영역 여백)이 예전 스크롤 최하단보다 더 아래로 밀려나 화면 밖(사실상 기기
+  // 내비게이션 바 영역)으로 넘어가 버린다. 로딩 상태로 바뀔 때마다 명시적으로 맨 아래로
+  // 스크롤해 새로 생긴 콘텐츠가 항상 안전영역 안에 들어오도록 한다.
+  useEffect(() => {
+    if (isRegenerating) {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [isRegenerating]);
 
   const canRegenerate =
     lastRequest?.mode === "AI_SEARCH" || lastRequest?.mode === "EXCLUSION" || lastRequest?.mode === "PURE_RANDOM";
@@ -154,6 +168,7 @@ export default function ResultScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
     >
