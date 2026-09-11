@@ -5,7 +5,7 @@ import { BottomActionBar } from "../../src/components";
 import { DeepPatternLoadingBoard, PatternMixSlider } from "../../src/components/deepPattern";
 import { recommendDeepPatterns, refreshAtlasIfStale, snapFrequentPatternRatio } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
-import { useAppTheme, fontFamily, accentViolet, type AppColors } from "../../src/theme";
+import { useAppTheme, accentViolet, type AppColors } from "../../src/theme";
 
 const RECOMMENDATION_COUNT = 5;
 // v3 엔진(engine.ts)은 basin마다 빌드타임에 미리 검증해둔 대표 후보 목록(sampleCombos)에서
@@ -116,7 +116,6 @@ function createStyles(colors: AppColors) {
     loadingTitle: {
       fontSize: 15,
       fontWeight: "800",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginBottom: 18,
     },

@@ -24,7 +24,7 @@ import {
   TRANSITION_FREQUENCY_NOTICE,
   FIRST_PRIZE_EXPECTATION_NOTICE,
 } from "../../src/constants/messages";
-import { useAppTheme, fontFamily, accentViolet, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, accentViolet, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 번호별 출현 빈도·패턴 통계의 기준 표본 크기 (최근 52주 = 1년치 회차). */
 const RECENT_DRAW_SAMPLE_SIZE = 52;
@@ -477,7 +477,7 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
 function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { fontSize: 22, fontWeight: "800", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 16 },
+    header: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, marginBottom: 16 },
     skeletonMb8: { marginBottom: 8 },
     // [DESIGN_GUIDE.md Phase 3, 2026-09-10] radius 16→20 — 주요 콘텐츠 카드 티어(20px)로 통일.
     card: {
@@ -506,7 +506,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       marginTop: 0,
       marginBottom: 12,
     },
-    cardTitle: { fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 8 },
+    cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardSub: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
     // "제 N회 당첨결과" 카드 전용 — 채도 높은 초록 박스(91번 이전)는 촌스러웠고, 다른 카드와
     // 완전히 같은 흰 배경(91번)은 반대로 눈에 안 띈다는 후속 피드백 — 그 중간으로, 옅은 브랜드
@@ -577,7 +577,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       padding: 16,
       marginBottom: 12,
     },
-    weeklyTitle: { fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold, color: "#fff", marginBottom: 6 },
+    weeklyTitle: { fontSize: 14, fontWeight: "700", color: "#fff", marginBottom: 6 },
     weeklyText: { fontSize: 12, color: "#CBD5E1", lineHeight: 18, marginBottom: 10 },
     row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
     rowLabel: { fontSize: 12, color: colors.textMuted, flexShrink: 1, marginRight: 8 },

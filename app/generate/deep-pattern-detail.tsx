@@ -9,7 +9,7 @@ import { saveTicket } from "../../src/lib/storage";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternLevel } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, accentViolet, type AppColors, type AppTints } from "../../src/theme";
+import { useAppTheme, accentViolet, type AppColors, type AppTints } from "../../src/theme";
 
 const LEVEL_LABEL: Record<DeepPatternLevel, string> = { LOW: "낮음", MID: "보통", HIGH: "높음" };
 const LEVEL_DOT_COUNT: Record<DeepPatternLevel, number> = { LOW: 1, MID: 2, HIGH: 3 };
@@ -182,7 +182,7 @@ function styles(colors: AppColors, tints?: AppTints) {
     // 위에서 대비비 약 2.6:1로 WCAG AA(4.5:1) 미달이었다. tints.purple은 라이트/다크 각각에
     // 맞게 이미 검증된 값(라이트 #5B21B6, 다크 #DDD6FE)이라 이걸로 교체한다. LevelRow처럼
     // 이 스타일을 쓰지 않는 호출부는 tints 없이도(undefined) 그대로 동작하도록 optional로 뒀다.
-    vizTitle: { fontSize: 13, fontWeight: "800", fontFamily: fontFamily.bold, color: tints ? tints.purple.fg : "#5847D6" },
+    vizTitle: { fontSize: 13, fontWeight: "800", color: tints ? tints.purple.fg : "#5847D6" },
     vizSub: { fontSize: 10.5, color: colors.textMuted },
     metricRow: {
       flexDirection: "row",
@@ -193,7 +193,7 @@ function styles(colors: AppColors, tints?: AppTints) {
       borderBottomColor: colors.border,
     },
     metricLabel: { fontSize: 12.5, color: colors.textSecondary },
-    metricVal: { fontSize: 12.5, fontWeight: "800", fontFamily: fontFamily.bold, color: colors.textPrimary },
+    metricVal: { fontSize: 12.5, fontWeight: "800", color: colors.textPrimary },
     metricCaption: { fontSize: 10.5, color: colors.textMuted, lineHeight: 15, paddingTop: 8, paddingBottom: 2 },
     levelDot: { width: 6, height: 6, borderRadius: 3 },
     nearestCard: {
@@ -214,6 +214,6 @@ function styles(colors: AppColors, tints?: AppTints) {
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
     emptyButton: { backgroundColor: accentViolet.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-    emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
+    emptyButtonText: { color: "#fff", fontWeight: "700" },
   });
 }

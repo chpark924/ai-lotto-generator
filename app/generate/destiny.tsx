@@ -14,7 +14,7 @@ import { getGenerationHistory, getPreferences } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { CONSECUTIVE_RULE_LABELS, DESTINY_TARGET_OPTIONS } from "../../src/constants/lottery";
 import type { ConsecutiveRule, GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, accentViolet, type AppColors } from "../../src/theme";
+import { useAppTheme, accentViolet, type AppColors } from "../../src/theme";
 
 const GENERATE_BUTTON_LABELS = ["이번 운명을 결정한다", "신의 번호를 내린다", "이번 주 운명을 연다"];
 
@@ -193,7 +193,6 @@ function createStyles(colors: AppColors) {
     sectionTitle: {
       fontSize: 14,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginTop: 16,
       marginBottom: 8,
@@ -225,6 +224,6 @@ function createStyles(colors: AppColors) {
     toggleLink: { color: accentViolet.primary, fontSize: 13, fontWeight: "600", marginVertical: 8 },
     // 진행률 화면은 항상 어두운 브랜드 톤을 유지한다.
     progressContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0F172A" },
-    progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", fontFamily: fontFamily.bold, marginTop: 16 },
+    progressLabel: { color: "#fff", fontSize: 15, fontWeight: "700", marginTop: 16 },
   });
 }

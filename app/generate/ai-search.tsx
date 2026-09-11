@@ -25,7 +25,7 @@ import {
   SEARCH_STRENGTH_OPTIONS,
   SUM_AVERAGE_PREFERENCE_OPTIONS,
 } from "../../src/constants/lottery";
-import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 실제 최근 당첨번호 합계 평균을 계산할 때 쓰는 표본 크기 (최근 52주 = 1년치 회차). lab.tsx와 동일 기준. */
 const RECENT_SUM_SAMPLE_SIZE = 52;
@@ -481,7 +481,6 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     sectionTitle: {
       fontSize: 14,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginTop: 16,
       marginBottom: 8,
@@ -516,8 +515,8 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       textAlign: "center",
       marginBottom: 20,
     },
-    progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", fontFamily: fontFamily.bold, marginTop: 16 },
-    progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", fontFamily: fontFamily.bold, marginTop: 8 },
+    progressLabel: { color: "#fff", fontSize: 16, fontWeight: "700", marginTop: 16 },
+    progressPercent: { color: "#93C5FD", fontSize: 28, fontWeight: "800", marginTop: 8 },
     progressBarTrack: {
       width: "100%",
       height: 6,

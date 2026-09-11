@@ -12,7 +12,7 @@ import {
   RANK_LABELS,
   type WinningDraw,
 } from "../../src/lib/draws";
-import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 
 const GAME_TYPE_LABELS: Record<ParsedLottoQrGame["gameType"], string> = {
   MANUAL: "수동",
@@ -267,7 +267,6 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     permissionTitle: {
       fontSize: 17,
       fontWeight: "800",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       textAlign: "center",
     },
@@ -279,11 +278,11 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       paddingHorizontal: 24,
       marginTop: 8,
     },
-    permissionButtonText: { color: "#fff", fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
+    permissionButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
     backLink: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: 8, textDecorationLine: "underline" },
     resultHeader: { alignItems: "center", marginBottom: 16 },
     resultRound: { fontSize: 14, color: colors.textMuted, fontWeight: "600", marginBottom: 4 },
-    resultSummary: { fontSize: 20, color: colors.textPrimary, fontWeight: "800", fontFamily: fontFamily.bold },
+    resultSummary: { fontSize: 20, color: colors.textPrimary, fontWeight: "800" },
     // [DESIGN_GUIDE.md 7절 / Phase 5c, 2026-09-10] radius 16→20(주요 콘텐츠 카드 티어).
     gameCard: {
       backgroundColor: colors.surface,
@@ -300,7 +299,7 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     resultActionRow: { flexDirection: "row", gap: 8, marginTop: 8 },
     primaryButton: { flex: 1, backgroundColor: brand.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-    primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
+    primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
     secondaryButton: {
       flex: 1,
       backgroundColor: colors.surface,
@@ -310,6 +309,6 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       paddingVertical: 14,
       alignItems: "center",
     },
-    secondaryButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold },
+    secondaryButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: "700" },
   });
 }

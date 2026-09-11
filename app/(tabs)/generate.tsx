@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { DeepPatternIcon } from "../../src/components/deepPattern";
 import { StatusBarSafeMask } from "../../src/components";
-import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 const MENU_ITEMS: {
   title: string;
@@ -153,7 +153,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
   return StyleSheet.create({
     flexFill: { flex: 1 },
     container: { flex: 1, backgroundColor: colors.background },
-    header: { fontSize: 22, fontWeight: "800", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 4 },
+    header: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, marginBottom: 4 },
     subHeader: { fontSize: 13, color: colors.textMuted, marginBottom: 14 },
     // 리스트가 아직 안 끝났다는 걸 문구 없이 암시하는 하단 페이드. ScrollView 위에 겹쳐서
     // 마지막 카드의 아랫부분이 배경색으로 자연스럽게 흐려지도록(터치는 통과시킴, pointerEvents="none").
@@ -201,7 +201,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     cardIconWrap: { marginRight: 12 },
     cardBody: { flex: 1, marginRight: 8 },
     cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" },
-    cardTitle: { fontSize: 16, fontWeight: "700", fontFamily: fontFamily.bold, color: colors.textPrimary },
+    cardTitle: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
     cardDesc: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
     // [DESIGN_GUIDE.md Phase 4, 2026-09-10] "추천/HOT/NEW" 셋은 서로 다른 정보(에디터
     // 추천·인기·신규)라 색으로 구분하는 것 자체는 유지하되, 그동안 각자 따로 하드코딩돼

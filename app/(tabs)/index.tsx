@@ -8,7 +8,7 @@ import { estimateLatestDrawNumber, getRecentDrawsSafe, getLongestAbsentNumbers, 
 import { getGenerationHistory } from "../../src/lib/storage";
 import { ENTERTAINMENT_NOTICE } from "../../src/constants/messages";
 import { LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, StatusBarSafeMask } from "../../src/components";
-import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 
 function daysUntilNextSaturday(): number {
   const now = new Date();
@@ -313,7 +313,6 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       color: colors.textPrimary,
       fontSize: 20,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       marginBottom: 18,
     },
     // shadow는 overflow:"hidden"인 ctaButtonWrapper 안에 두면 잘려서 안 보이므로,
@@ -336,7 +335,7 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     },
     ctaButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
     ctaButtonIcon: { marginRight: 6 },
-    ctaButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold, fontSize: 15 },
+    ctaButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
     quickMenuRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
     quickMenuItem: {
       flex: 1,
@@ -374,7 +373,7 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    cardTitle: { fontSize: 14, fontWeight: "700", fontFamily: fontFamily.bold, color: colors.textPrimary, marginBottom: 8 },
+    cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardCaption: { fontSize: 12, color: colors.textMuted, flexShrink: 1 },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     // "내가 자주 선택한 번호"·"최근 오래 나오지 않은 번호" 카드가 공용으로 쓰는 하단
@@ -397,7 +396,7 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       paddingVertical: 8,
     },
     shortcutButtonPressed: { backgroundColor: "#1E293B", transform: [{ scale: 0.97 }] },
-    shortcutButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", fontFamily: fontFamily.bold },
+    shortcutButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
     footerNotice: { fontSize: 11, color: colors.textMuted, textAlign: "center", marginTop: 16, marginBottom: 28 },
   });
 }

@@ -18,7 +18,7 @@ import {
   type SakaiAnalysisInputs,
 } from "../../src/lib/lottery/resultBadges";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 /** 결과 설명에 쓸 "최근 4주(회차) 실제 당첨번호" 합집합. 못 불러오면 null. */
 const RECENT_WEEKS_FOR_EXPLANATION = 4;
@@ -314,7 +314,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       paddingVertical: 14,
       backgroundColor: colors.surface,
     },
-    purchaseButtonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
+    purchaseButtonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
     purchaseCaption: {
       color: colors.textMuted,
       fontSize: 11,
@@ -339,7 +339,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       alignItems: "center",
       marginTop: 8,
     },
-    regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
+    regenerateButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
     regenerateLoadingContainer: {
       backgroundColor: brand.dark,
       borderRadius: 12,
@@ -347,11 +347,11 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       alignItems: "center",
       marginTop: 8,
     },
-    regenerateLoadingText: { color: "#fff", fontWeight: "700", fontSize: 13, marginTop: 8, fontFamily: fontFamily.bold },
+    regenerateLoadingText: { color: "#fff", fontWeight: "700", fontSize: 13, marginTop: 8 },
     emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     emptyText: { color: colors.textMuted, fontSize: 14, marginBottom: 16 },
     // [DESIGN_GUIDE.md 4절 / Phase 5c, 2026-09-10] "#2563EB" 고정값→brand.primary 토큰.
     emptyButton: { backgroundColor: brand.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-    emptyButtonText: { color: "#fff", fontWeight: "700", fontFamily: fontFamily.bold },
+    emptyButtonText: { color: "#fff", fontWeight: "700" },
   });
 }

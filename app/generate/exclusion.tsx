@@ -10,7 +10,7 @@ import { getRecentDraws, RecentDrawsFetchError } from "../../src/lib/draws";
 import { getExclusionSets, saveExclusionSet, type ExclusionSet } from "../../src/lib/storage";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { ALL_COMBINATIONS_EQUAL_NOTICE } from "../../src/constants/messages";
-import { useAppTheme, fontFamily, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 const RECENT_WEEK_OPTIONS = [1, 3, 5, 10];
 const MAX_SET_NAME_LENGTH = 20;
@@ -292,7 +292,6 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     sectionTitle: {
       fontSize: 14,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginTop: 16,
       marginBottom: 8,
@@ -351,7 +350,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     // 저장 버튼/토스트는 항상 어두운 브랜드 톤을 유지한다.
     saveButton: { backgroundColor: brand.dark, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
     saveButtonDisabled: { backgroundColor: "#94A3B8" },
-    saveButtonText: { color: "#fff", fontSize: 12, fontWeight: "700", fontFamily: fontFamily.bold },
+    saveButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
     // 저장 완료 토스트: 저장 직후 화면 하단(생성 버튼 위)에 잠깐 나타났다 사라짐. radius 20은
     // 카드 티어가 아니라 토스트 높이(~40px)의 절반에 맞춘 완전한 캡슐 모양이라 그대로 둔다.
     // bottom 값은 기기 안전영역(insets.bottom)에 따라 달라져야 해서 여기서는 기본값을 주지

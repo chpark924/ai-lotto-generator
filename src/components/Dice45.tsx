@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { useAppTheme } from "../theme";
 
 const SIZE = 132;
 const GLOW_SIZE = SIZE + 44;
@@ -32,6 +33,13 @@ export function Dice45({
    */
   onSpinningChange?: (spinning: boolean) => void;
 }) {
+  // [2026-09-11 다크모드 점검] 구슬 자체(sphere)는 항상 어두운 톤(#0B1220)을 유지하는
+  // 테마 무관 장식이라 그대로 두지만, 그 아래 캡션("굴리는 중...", "방금 N 확정")은 화면의
+  // colors.background(라이트/다크로 바뀜) 위에 그려진다. 기존엔 라이트 테마의
+  // textMuted(#64748B)가 고정돼 있어서, 다크 모드 화면 배경(#0B1220) 위에서 대비비가
+  // 약 3.9:1로 WCAG AA(4.5:1) 기준에 못 미쳤다 — colors.textMuted를 써서 다크에서는
+  // 더 밝은 값(#94A3B8, 대비비 약 7.4:1)으로 자동 전환되게 한다.
+  const { colors } = useAppTheme();
   const idleRotate = useRef(new Animated.Value(0)).current;
   const spinRotate = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -178,7 +186,9 @@ export function Dice45({
       </Animated.View>
 
       {isSpinning || number !== null ? (
-        <Text style={styles.caption}>{isSpinning ? "굴리는 중..." : `방금 ${number} 확정`}</Text>
+        <Text style={[styles.caption, { color: colors.textMuted }]}>
+          {isSpinning ? "굴리는 중..." : `방금 ${number} 확정`}
+        </Text>
       ) : null}
     </View>
   );
@@ -245,5 +255,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 16,
     textShadowOffset: { width: 0, height: 0 },
   },
-  caption: { marginTop: 10, fontSize: 12, fontWeight: "600", color: "#64748B" },
+  // color는 위에서 colors.textMuted로 동적으로 덮어쓴다(다크모드 대비 확보) — 여기 남겨둔
+  // 값은 없다(정적 기본값이 필요 없도록 매 렌더에서 인라인으로 명시).
+  caption: { marginTop: 10, fontSize: 12, fontWeight: "600" },
 });

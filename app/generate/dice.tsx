@@ -7,7 +7,7 @@ import { buildGameMetadata } from "../../src/lib/lottery/pattern";
 import { calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "../../src/lib/lottery/probability";
 import { useGenerationStore } from "../../src/state/generationStore";
 import type { GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 
 export default function DiceScreen() {
   const router = useRouter();
@@ -236,7 +236,6 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     title: {
       fontSize: 16,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginBottom: 16,
       textAlign: "center",

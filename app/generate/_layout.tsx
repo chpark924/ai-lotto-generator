@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { fontFamily, brand } from "../../src/theme";
+import { brand } from "../../src/theme";
 
 /**
  * "번호 만들기"의 각 기능 화면들(제외해보기/AI 조합탐색/행운번호/45면체 주사위/운명의 신/
@@ -29,11 +29,10 @@ export default function GenerateLayout() {
         // [Phase 5c 브랜드 토큰 확장, 2026-09-10] "#0F172A" 하드코딩 → brand.dark.
         headerStyle: { backgroundColor: brand.dark },
         headerTintColor: "#fff",
-        // [DESIGN_GUIDE.md 5절 / Phase 5c, 2026-09-10] 이 안의 10개 화면(제외하고 생성/
-        // AI 조합탐색/행운번호/45면체 주사위/운명의 신/딥 패턴 탐색 3개/생성 결과/QR 확인)이
-        // 전부 이 한 곳의 네비게이션 헤더를 공유해서 쓰기 때문에, 여기 한 줄만 바꿔도 10개
-        // 화면 제목이 한 번에 Pretendard로 바뀐다 — 화면마다 따로 손댈 필요가 없다.
-        headerTitleStyle: { fontFamily: fontFamily.bold },
+        // [2026-09-11 원복] Phase 5c에서 이 10개 화면 헤더 제목을 Pretendard로 통일하려고
+        // headerTitleStyle에 fontFamily를 지정했었는데, 실기기 확인 후 폰트 자체를 원복하며
+        // 이 지정도 함께 제거했다 — React Navigation 기본 헤더 제목 스타일(시스템 폰트)로
+        // 돌아간다.
       }}
     >
       <Stack.Screen name="exclusion" options={{ title: "제외하고 생성" }} />

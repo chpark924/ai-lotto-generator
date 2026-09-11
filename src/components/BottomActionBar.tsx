@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, brand, fontFamily, type AppColors } from "../theme";
+import { useAppTheme, brand, type AppColors } from "../theme";
 
 /**
  * 화면 하단에 항상 고정되는 주요 액션 버튼 바.
@@ -66,6 +66,6 @@ function createStyles(colors: AppColors) {
       alignItems: "center",
     },
     buttonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-    buttonText: { color: "#fff", fontWeight: "700", fontSize: 15, fontFamily: fontFamily.bold },
+    buttonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   });
 }

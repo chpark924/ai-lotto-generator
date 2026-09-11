@@ -8,7 +8,7 @@ import { calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "../../sr
 import { getPreferences, updatePreferences } from "../../src/lib/storage/preferences";
 import { useGenerationStore } from "../../src/state/generationStore";
 import type { GeneratedGame, GenerationRequest } from "../../src/lib/lottery/types";
-import { useAppTheme, fontFamily, type AppColors, type BrandTokens } from "../../src/theme";
+import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 
 const RATIO_OPTIONS = [
   { label: "운명 30%", value: 0.3 },
@@ -189,7 +189,6 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     sectionTitle: {
       fontSize: 14,
       fontWeight: "700",
-      fontFamily: fontFamily.bold,
       color: colors.textPrimary,
       marginTop: 16,
       marginBottom: 8,

@@ -5,7 +5,7 @@ import type { ResultBadge } from "../lib/lottery/resultBadges";
 import { buildGameAccessibilitySummary } from "../lib/lottery/accessibilitySummary";
 import { SCORE_EXPLANATION_NOTICE } from "../constants/messages";
 import { LottoBall } from "./LottoBall";
-import { useAppTheme, brand, fontFamily, type AppColors, type AppTints } from "../theme";
+import { useAppTheme, brand, type AppColors, type AppTints } from "../theme";
 
 export function GeneratedGameCard({
   game,
@@ -115,7 +115,7 @@ function createStyles(colors: AppColors, tints: AppTints) {
     },
     scoreBlock: { marginBottom: 8 },
     // [DESIGN_GUIDE.md 4절 / Phase 5c, 2026-09-10] "#2563EB" 고정값→brand.primary 토큰.
-    score: { fontSize: 13, color: brand.primary, fontWeight: "700", fontFamily: fontFamily.bold, marginBottom: 4 },
+    score: { fontSize: 13, color: brand.primary, fontWeight: "700", marginBottom: 4 },
     scoreTrack: {
       height: 6,
       borderRadius: 3,
