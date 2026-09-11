@@ -537,13 +537,21 @@ export default function TicketsScreen() {
               </Text>
             </Pressable>
             {item.matchedRank !== undefined ? (
-              <Text style={styles.rankText}>{RANK_LABELS[item.matchedRank]}</Text>
+              // [2026-09-11 다크모드 점검] 고정값 "#DC2626"은 다크 모드 카드 배경
+              // (colors.surface, #161F32) 위에서 대비비가 약 3.4:1로 WCAG AA(4.5:1) 미달이었다
+              // (라이트 배경에서는 약 4.8:1로 기준을 겨우 만족). statusBadgeText가 이미 쓰던
+              // 것과 같은 패턴(정적 스타일 + tints 인라인 오버라이드)으로 tints.red.fg를 써서
+              // 다크에서는 더 밝은 값(#FCA5A5, 대비비 약 8.7:1)으로 자동 전환되게 한다.
+              <Text style={[styles.rankText, { color: tints.red.fg }]}>{RANK_LABELS[item.matchedRank]}</Text>
             ) : null}
           </View>
 
+          {/* [2026-09-11] 사용자가 직접 선택/저장한 번호이므로("선택한 숫자에 해당하는 볼")
+              로또 연구소 "실제 당첨결과"와 같은 이유로 입체 효과를 준다 — LottoBall.tsx
+              상단 주석·QA_LOG 132번 참고. */}
           <View style={styles.ballRow}>
             {item.game.numbers.map((n) => (
-              <LottoBall key={n} number={n} size={32} />
+              <LottoBall key={n} number={n} size={32} variant="glossy" />
             ))}
           </View>
 
@@ -755,7 +763,8 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     statusBadge: { backgroundColor: colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
     statusBadgeText: { fontSize: 11, fontWeight: "700" },
-    rankText: { fontSize: 13, fontWeight: "800", color: "#DC2626" },
+    // color는 렌더링 시 tints.red.fg로 동적으로 덮어쓴다(다크모드 대비 확보, 위 참고).
+    rankText: { fontSize: 13, fontWeight: "800" },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
     drawRow: { flexDirection: "row", gap: 6, alignItems: "center" },
     drawInput: {
