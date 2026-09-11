@@ -1,39 +1,75 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Image, type ImageSourcePropType } from "react-native";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useAppTheme } from "../../src/theme";
 
 /**
- * [DESIGN_GUIDE.md Phase 2, 2026-09-10] 하단 탭 아이콘을 기존 "입체(글로시) 풀컬러 PNG"
- * (assets/tab-icons/*.png)에서 2D 선 아이콘(Ionicons)으로 교체했다. 가이드 11절이 지적한
- * 대로, 3D/글로시 스타일은 "번호 만들기" 탭의 숏컷 아이콘·홈 히어로처럼 실제로 제작
- * 리소스를 들인 곳에서만 써야 "고급스럽다"는 인상을 만든다 — 하단 내비게이션처럼 항상
- * 떠 있는 자리에까지 풀컬러 글로시 아이콘을 쓰면 그 소수의 "진짜 제작한" 그래픽과
- * 구분이 안 돼 오히려 특별함이 옅어진다. 그래서 여기는 새 에셋 제작 없이 이미 쓰고
- * 있는 Ionicons만으로 정리하고, 선택 상태는 아이콘 채움(outline→filled)과 색
- * (tabBarActiveTintColor/InactiveTintColor) 두 가지로 함께 표현한다.
- * (기존 홈 아이콘의 다크모드 전용 반전 버전이 필요했던 이유 — 로고 자체가 고정 색
- * PNG라 어두운 탭바 배경 위에서 대비가 낮았던 문제 — 도 색을 테마별 tint로 그리는
- * Ionicons로 바꾸면서 자연히 해소된다.)
+ * [2026-09-11 원복] Phase 2(2026-09-10)에서 이 탭바 아이콘을 기존 "입체(글로시) 풀컬러
+ * PNG"(assets/tab-icons/*.png)에서 2D 선 아이콘(Ionicons)으로 바꿨었는데, 실기기로 직접
+ * 확인한 뒤 원래 PNG 쪽으로 되돌리기로 했다. 다만 그대로 복원하지 않고 한 가지를
+ * 더했다 — 예전엔 탭이 선택돼도 아이콘 자체는 항상 같은 색이었고(하단 텍스트만
+ * tabBarActiveTintColor로 파랗게 바뀜) 아이콘은 늘 고정 컬러였는데, 이번엔 아이콘도
+ * 미선택 시 회색, 선택 시 각 탭 고유 색이 보이도록 `focused`에 따라 이미지 자체를
+ * 바꿔 끼운다(벡터 아이콘의 color prop처럼 런타임 tint를 주는 게 아니라, 회색 버전 PNG와
+ * 컬러 버전 PNG 두 장을 준비해 교체하는 방식 — 래스터 이미지라 동적 tint가 안 된다).
+ *
+ * 회색 버전(assets/tab-icons/grey-*.png)은 원본 PNG를 채도만 제거해(명암·그라디언트는
+ * 그대로 유지) 새로 만들었다. 로또 연구소(lab.png) 원본은 보라 계열 그라디언트였는데,
+ * 사용자가 선택 시 다크 네이비(brand.dark 계열) 쪽을 원해 같은 방식(명암 유지, 색상만
+ * 교체)으로 새로 그렸다 — 번호 만들기(generate.png)·내 번호(tickets.png)는 원래도 보라
+ * 계열이라 그대로 뒀다(겹치는 보라를 사용자가 확인·승인).
+ *
+ * 홈 아이콘만 라이트/다크 테마별로 별도 파일(-dark 접미사)이 필요하다 — 로고 자체가
+ * 고정 색 PNG라, 어두운 탭바 배경 위에서 라이트용 파일(짙은 남색 하우스)을 그대로 쓰면
+ * 대비가 낮아지는 문제가 있어서다(기존에도 있던 문제, Phase 2 이전부터의 이유).
+ * 나머지 3개 아이콘은 테마 무관 단일 컬러 버전 하나만 쓴다(기존 관례와 동일).
  */
+const ICONS: Record<
+  "home" | "generate" | "lab" | "tickets",
+  { grey: ImageSourcePropType; color: ImageSourcePropType }
+> = {
+  home: {
+    grey: require("../../assets/tab-icons/grey-home.png"),
+    color: require("../../assets/tab-icons/home.png"),
+  },
+  generate: {
+    grey: require("../../assets/tab-icons/grey-generate.png"),
+    color: require("../../assets/tab-icons/generate.png"),
+  },
+  lab: {
+    grey: require("../../assets/tab-icons/grey-lab.png"),
+    color: require("../../assets/tab-icons/lab.png"),
+  },
+  tickets: {
+    grey: require("../../assets/tab-icons/grey-tickets.png"),
+    color: require("../../assets/tab-icons/tickets.png"),
+  },
+};
+// 홈만 다크모드 전용 컬러/회색 쌍이 따로 있다.
+const HOME_DARK = {
+  grey: require("../../assets/tab-icons/grey-home-dark.png"),
+  color: require("../../assets/tab-icons/home-dark.png"),
+};
+
 function TabIcon({
-  name,
-  focusedName,
+  tab,
   focused,
-  color,
   size,
+  darkTheme,
 }: {
-  name: keyof typeof Ionicons.glyphMap;
-  focusedName: keyof typeof Ionicons.glyphMap;
+  tab: keyof typeof ICONS;
   focused: boolean;
-  color: string;
   size: number;
+  darkTheme: boolean;
 }) {
-  return <Ionicons name={focused ? focusedName : name} size={size} color={color} />;
+  const set = tab === "home" && darkTheme ? HOME_DARK : ICONS[tab];
+  const source = focused ? set.color : set.grey;
+  return <Image source={source} style={{ width: size, height: size }} resizeMode="contain" />;
 }
 
 export default function TabsLayout() {
   const { colors, scheme, brand } = useAppTheme();
+  const darkTheme = scheme === "dark";
   return (
     <>
       {/* QA_LOG 104번 — 루트 레이아웃(app/_layout.tsx)의 <StatusBar style="light" />는
@@ -59,7 +95,8 @@ export default function TabsLayout() {
           // 그 화면들은 최상단에 제목 텍스트가 아예 없어진다 — "깨끗하게 쓰자"는 요청에 맞는
           // 의도된 결과.
           headerShown: false,
-          // [Phase 1] 기존 하드코딩 "#2563EB" → brand.primary 토큰으로 교체(값은 동일, 출처만 정리).
+          // 하단 라벨 텍스트 색은 기존과 동일하게 유지한다 — 선택 시 brand.primary(파랑)
+          // 하나로 통일, 아이콘 자체의 색(탭마다 다름)과는 별개다. 위 TabIcon 주석 참고.
           tabBarActiveTintColor: brand.primary,
           tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
@@ -69,8 +106,8 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: "홈",
-            tabBarIcon: ({ focused, color, size }) => (
-              <TabIcon name="home-outline" focusedName="home" focused={focused} color={color} size={size} />
+            tabBarIcon: ({ focused, size }) => (
+              <TabIcon tab="home" focused={focused} size={size} darkTheme={darkTheme} />
             ),
           }}
         />
@@ -78,14 +115,8 @@ export default function TabsLayout() {
           name="generate"
           options={{
             title: "번호 만들기",
-            tabBarIcon: ({ focused, color, size }) => (
-              <TabIcon
-                name="color-wand-outline"
-                focusedName="color-wand"
-                focused={focused}
-                color={color}
-                size={size}
-              />
+            tabBarIcon: ({ focused, size }) => (
+              <TabIcon tab="generate" focused={focused} size={size} darkTheme={darkTheme} />
             ),
           }}
         />
@@ -93,8 +124,8 @@ export default function TabsLayout() {
           name="lab"
           options={{
             title: "로또 연구소",
-            tabBarIcon: ({ focused, color, size }) => (
-              <TabIcon name="flask-outline" focusedName="flask" focused={focused} color={color} size={size} />
+            tabBarIcon: ({ focused, size }) => (
+              <TabIcon tab="lab" focused={focused} size={size} darkTheme={darkTheme} />
             ),
           }}
         />
@@ -102,8 +133,8 @@ export default function TabsLayout() {
           name="tickets"
           options={{
             title: "내 번호",
-            tabBarIcon: ({ focused, color, size }) => (
-              <TabIcon name="ticket-outline" focusedName="ticket" focused={focused} color={color} size={size} />
+            tabBarIcon: ({ focused, size }) => (
+              <TabIcon tab="tickets" focused={focused} size={size} darkTheme={darkTheme} />
             ),
           }}
         />
