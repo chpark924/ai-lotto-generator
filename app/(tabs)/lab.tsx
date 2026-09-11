@@ -241,12 +241,15 @@ export default function LabScreen() {
           </View>
           <Text style={styles.cardTitle}>제 {latestDraw.drawNumber}회 당첨결과</Text>
           <Text style={styles.cardSub}>{latestDraw.drawDate}</Text>
+          {/* [2026-09-11] 이 카드만 실제 공식 발표 데이터라, 공 자체에도 살짝 입체감(가장자리
+              셰이딩+하이라이트)을 줘서 아래 통계 카드들의 평면 공과 질감으로 구분되게 한다 —
+              사용자 요청("실제 당첨결과이므로 차이를 두고 싶다"). LottoBall.tsx 상단 주석 참고. */}
           <View style={styles.ballRow}>
             {latestDraw.numbers.map((n) => (
-              <LottoBall key={n} number={n} size={32} />
+              <LottoBall key={n} number={n} size={32} variant="glossy" />
             ))}
             <Text style={styles.plusText}>+</Text>
-            <LottoBall number={latestDraw.bonusNumber} size={32} />
+            <LottoBall number={latestDraw.bonusNumber} size={32} variant="glossy" />
           </View>
         </View>
       ) : (
