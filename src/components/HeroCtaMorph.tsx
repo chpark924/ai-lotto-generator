@@ -3,12 +3,12 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { brand } from "../theme";
 
@@ -24,10 +24,14 @@ import { brand } from "../theme";
  * stretch를 막아 변형 방향을 오른쪽으로만 유지), height는 처음부터 끝까지 고정(`CTA_HEIGHT`)
  * 이라 radius=height/2가 그대로 유지되며 "원 → 캡슐"이 자연스럽게 이어진다.
  *
- * 배경(Layer 1)은 스펙이 요구한 "정적인 기하학적 그래픽 에셋"을 실제 이미지 생성 도구 없이는
- * 그대로 재현할 수 없어, LinearGradient + 반투명 블롭(blob) 2개로 근사했다 — 파스텔 블루~
- * 라벤더 톤의 은은한 배경이라는 방향성은 유지하되, 레퍼런스의 정확한 리본 형태 그래픽은
- * 아니다(README 격 안내를 QA_LOG에 남겨둔다).
+ * [2026-09-13 업데이트] 배경(Layer 1)은 처음엔 LinearGradient+블롭 2개로 근사했었는데,
+ * 사용자가 실제 목업에 쓰인 원본 배경 에셋(리본+다이아몬드 패턴, 정적 그래픽)을 보내줘서
+ * 그 파일(`assets/hero/hero-bg.jpg`)을 그대로 배경 이미지로 쓰도록 교체했다 — 이제 근사치가
+ * 아니라 레퍼런스와 동일한 실제 그래픽이다. 같은 자료에 CTA 오브젝트(구체→캡슐) 자체의
+ * PNG 렌더도 있었지만, 그건 배경 제거 과정에서 가장자리에 지글거리는 색 노이즈가 남아있어
+ * (투명 배경에 무지개색 얼룩) 그대로 화면에 쓰면 오히려 지저분해 보인다 — 그래서 오브젝트는
+ * 계속 아래 `Animated.View` 기반 보간으로 그리되, 그 PNG에서 실제 색상 값(스포이드로 추출)을
+ * 가져와 `COLOR_STOPS_OUTPUT`을 더 정확하게 맞췄다.
  */
 
 const ORB_SIZE = 60;
@@ -38,14 +42,20 @@ const MORPH_DURATION_MS = 750;
 // 색이 바뀌는" 느낌을 주기 위해 단일 backgroundColor 보간 하나로만 구현한다(별도 레이어 없음).
 // 마지막 두 단계(미디움 블루 / 딥 네이비)는 임의 색 대신 앱의 실제 브랜드 토큰
 // (brand.primary/brand.dark)을 그대로 써서, 완성된 버튼이 앱의 다른 CTA들과 같은 톤이 되게 한다.
+// [2026-09-13] 이 색상 값들은 이제 추측이 아니라, 사용자가 보내준 실제 CTA 오브젝트
+// PNG에서 스포이드로 직접 추출한 값이다(하이라이트 #FDFCFC, 오렌지 영역 #FEE599, 전환부
+// 라벤더-핑크 #E2C4F8, 옅은 라벤더 블루 #B6D7FD). 마지막 두 단계는 그대로 앱 브랜드 토큰을
+// 써서 완성된 버튼이 다른 CTA들과 같은 톤을 유지한다.
 const COLOR_STOPS_INPUT = [0, 0.22, 0.45, 0.7, 1];
 const COLOR_STOPS_OUTPUT = [
-  "#F6E7C9", // Pale Champagne
-  "#E7D6D6", // Champagne + Lavender
-  "#B9C4E8", // Pale Lavender Blue
+  "#FFE7A6", // Pale Champagne (실제 에셋 오렌지 영역 기준)
+  "#E2C4F8", // Champagne + Lavender (실제 에셋 전환부 기준)
+  "#B6D7FD", // Pale Lavender Blue (실제 에셋 파란 영역 하이라이트 기준)
   brand.primary, // Medium Blue — 브랜드 토큰
   brand.dark, // Deep Navy — 브랜드 토큰
 ];
+
+const HERO_BG = require("../../assets/hero/hero-bg.jpg");
 
 export function HeroCtaMorph({
   subtitle,
@@ -152,14 +162,11 @@ export function HeroCtaMorph({
 
   return (
     <View style={styles.card}>
-      <LinearGradient
-        colors={["#AFC1EF", "#C7B7E6", "#B7CAF1"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.blobA} pointerEvents="none" />
-      <View style={styles.blobB} pointerEvents="none" />
+      {/* 실제 레퍼런스 배경 에셋 — resizeMode="cover"라 카드 실제 비율(기기 화면 너비에 따라
+          달라짐)에 맞춰 중앙 기준으로 자동 크롭된다. 세로로 긴 원본 한 장을 그대로 쓰므로
+          기기별로 리본/다이아몬드 패턴이 보이는 영역은 조금씩 달라질 수 있지만, 잘려서 비는
+          부분 없이 항상 꽉 채워진다. */}
+      <Image source={HERO_BG} style={StyleSheet.absoluteFill} resizeMode="cover" />
       <View style={styles.scrim} pointerEvents="none" />
 
       <View style={styles.textBlock}>
@@ -200,41 +207,29 @@ const styles = StyleSheet.create({
     paddingBottom: 26,
     paddingHorizontal: 22,
   },
-  blobA: {
-    position: "absolute",
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: "rgba(255,255,255,0.22)",
-    top: -90,
-    left: -70,
-  },
-  blobB: {
-    position: "absolute",
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    bottom: -140,
-    right: -80,
-  },
-  // 헤드라인 텍스트가 파스텔 배경 위에서도 충분한 대비를 갖도록, 카드 상단에 아주 옅은
-  // 어두운 스크림을 깐다(사진/그래픽 위에 흰 글자를 얹는 흔한 기법 — 배경 자체를 어둡게
-  // 바꾸지 않고 텍스트 가독성만 보정한다).
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,12,30,0.10)" },
+  // 헤드라인 텍스트가 실제 배경 에셋의 밝은 영역(카드 상단은 흰색에 가까운 라벤더) 위에서도
+  // 충분한 대비를 갖도록, 아주 옅은 어두운 스크림 + 텍스트 자체의 그림자를 함께 쓴다(사진/
+  // 그래픽 위에 흰 글자를 얹는 흔한 조합 — 배경 자체를 어둡게 바꾸지 않고 가독성만 보정).
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,12,30,0.12)" },
   textBlock: { marginBottom: 22 },
   subtitle: {
-    color: "rgba(255,255,255,0.9)",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 6,
+    textShadowColor: "rgba(15,23,42,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   title: {
     color: "#fff",
     fontSize: 20,
     fontWeight: "800",
     textAlign: "center",
+    textShadowColor: "rgba(15,23,42,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   track: { height: CTA_HEIGHT },
   // alignItems:"flex-start"가 핵심 — 기본값(stretch)이면 오브젝트가 처음부터 트랙 전체
