@@ -53,12 +53,42 @@ import { useFocusEffect } from "@react-navigation/native";
  * - `onLayout`/`trackWidthRef`/`pendingPlayRef`로 포커스 이벤트와 레이아웃 이벤트 중 어느
  *   쪽이 먼저 도착하든 최초 진입 시 항상 정상적으로 재생되도록 하는 로직(135번에서 발견/
  *   수정한 타이밍 버그 대응)도 함께 복원했다 — 폭이 다시 화면 폭에 의존하게 됐기 때문.
+ *
+ * [2026-09-14 4차 업데이트 — 실기기 테스트 피드백 반영]
+ * 사용자가 실제 기기에 빌드해 녹화한 영상 기준으로 3가지를 지적했다: (1) 구체→CTA 버튼
+ * 전환 속도가 너무 빠르고 자연스럽지 않다, (2) 완성된 버튼 왼쪽에 동그란 얼룩(스페큘러
+ * 하이라이트 반점)이 그대로 남아있어 어색하다, (3) 홈 탭에 재진입할 때마다(다른 탭 갔다가
+ * 돌아올 때마다) 매번 재생되는데, 앱을 새로 켰을 때 딱 1번만 보여주고 그 이후에는 애니메이션
+ * 없이 완성된 버튼이 바로 보여야 한다. 대응:
+ * - (1) `MORPH_DURATION_MS`를 750→900ms로 늘리고, easing을 더 부드럽게 감속하는 커브
+ *   (`Easing.bezier(0.16, 1, 0.3, 1)`, 흔히 "ease-out-expo"로 불리는 감속 곡선)로 교체했다.
+ *   여전히 Bounce/Elastic/Overshoot는 쓰지 않는다(스펙 원칙 유지).
+ * - (2) 스페큘러 반점은 "구체였던 부분에 남은 광택"이라는 의도였는데, 오브젝트가 완전히
+ *   캡슐이 된 뒤(진행률 0.6 이후)에도 고정 위치·고정 불투명도로 계속 남아있다 보니 완성된
+ *   버튼 위에 붙은 별개의 얼룩처럼 보였다. `progress`에 따라 0.35 지점부터 옅어지기
+ *   시작해서 0.6 지점에는 완전히 사라지도록 `specularOpacity` 보간을 추가했다(각 반점
+ *   레이어의 원래 불투명도에 `Animated.multiply`로 곱해서 적용) — 구체 형태를 벗어나는
+ *   시점과 맞물려 하이라이트도 자연스럽게 사라지는 느낌으로 만들었다. PIL 프리뷰로 진행률
+ *   60/75/90/100%에서 얼룩이 남지 않는지 확인 후 반영했다.
+ * - (3) 모듈 스코프 변수 `hasPlayedOnceThisSession`(React state/ref가 아니라 파일 최상단
+ *   변수 — 컴포넌트가 여러 번 마운트/언마운트돼도, 탭을 몇 번을 오가도 유지되고 오직 앱을
+ *   완전히 새로 켜서 JS 컨텍스트 자체가 새로 시작될 때만 초기화됨)로 "이번 앱 세션에서
+ *   이미 재생했는지"를 추적한다. `useFocusEffect`가 실행될 때 이미 재생한 적이 있으면
+ *   애니메이션 없이 `progress.setValue(1)`로 즉시 완성 상태를 보여주고, 처음이면 그대로
+ *   재생하고 플래그를 올린다. 모프 도중 탭해도 즉시 `onPress`가 동작하는 기존 동작(히트
+ *   영역이 처음부터 트랙 전체 폭으로 고정돼 있음)은 그대로 유지된다.
  */
 
 const CTA_HEIGHT = 60;
 const ORB_SIZE = 60; // width === height(=CTA_HEIGHT)일 때 정원(구체)이 되는 시작 크기
 
-const MORPH_DURATION_MS = 750;
+const MORPH_DURATION_MS = 900;
+
+// 앱을 새로 켰을 때(JS 번들이 새로 로드될 때)만 초기화되는 모듈 스코프 플래그 — 탭을
+// 오가며 컴포넌트가 여러 번 focus/unfocus 되더라도 "이번 앱 세션에서 이미 재생했는지"를
+// 기억한다. React state로 만들면 컴포넌트가 언마운트될 때 같이 사라지므로 일부러 모듈
+// 스코프에 뒀다(자세한 이유는 파일 상단 2026-09-14 4차 업데이트 설명 참고).
+let hasPlayedOnceThisSession = false;
 
 const HERO_BG = require("../../assets/hero/hero-bg.jpg");
 
@@ -115,8 +145,9 @@ export function HeroCtaMorph({
         Animated.timing(progress, {
           toValue: 1,
           duration: MORPH_DURATION_MS,
-          // Bounce/Elastic/Overshoot 없는 절제된 ease-out — "정돈된" 느낌 유지.
-          easing: Easing.bezier(0.22, 0.61, 0.36, 1),
+          // Bounce/Elastic/Overshoot 없이, 더 부드럽게 감속하는 ease-out-expo 커브로 교체
+          // (기존 커브는 실기기에서 "너무 빠르고 뚝뚝 끊기는" 느낌이라는 피드백을 받았다).
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
           // width/backgroundColor는 네이티브 드라이버를 지원하지 않는다.
           useNativeDriver: false,
         }).start();
@@ -127,11 +158,7 @@ export function HeroCtaMorph({
       });
   }, [progress]);
 
-  // 트랙의 실제 폭은 화면 크기에 따라 달라지므로 onLayout으로 실측해야 한다. 이 실측값과
-  // "탭에 포커스가 들어왔다"는 이벤트는 둘 다 비동기라 어느 쪽이 먼저 도착할지 보장되지
-  // 않는다 — layout을 아직 모르는 채로 재생을 시작하면 width가 구체 크기에 머물러버리는
-  // 문제(135번에서 발견)가 있어, layout을 아직 모르면 재생을 "예약"만 해두고 onLayout이
-  // 도착하는 즉시 재생한다.
+  // 트랙 실제 폭 실측(용도는 아래 useFocusEffect 안 주석 참고).
   const handleTrackLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number } } }) => {
       const w = e.nativeEvent.layout.width;
@@ -145,17 +172,27 @@ export function HeroCtaMorph({
     [playNow]
   );
 
-  // 탭에 실제로 "진입"할 때만 재생한다 — react-navigation의 focus 이벤트 기준이라
-  // recomposition/스크롤/네트워크 응답에 따른 상태 갱신으로는 재실행되지 않고, 다른 탭에
-  // 갔다가 홈으로 돌아올 때마다(포커스를 다시 받을 때마다) 정확히 1회씩 재생된다.
+  // 이번 앱 세션에서 이미 한 번 재생했다면, 홈 탭에 다시 들어올 때마다 재생하지 않고
+  // 애니메이션 없이 바로 완성된 CTA 상태로 보여준다 — 앱을 새로 켜서 홈 탭에 처음
+  // 진입했을 때만 1회 재생하면 충분하다는 사용자 피드백 반영(4차 업데이트 참고).
   useFocusEffect(
     useCallback(() => {
+      if (hasPlayedOnceThisSession) {
+        progress.setValue(1);
+        return;
+      }
+      hasPlayedOnceThisSession = true;
+      // 트랙의 실제 폭은 화면 크기에 따라 달라지므로 onLayout으로 실측해야 한다. 이
+      // 실측값과 "탭에 포커스가 들어왔다"는 이벤트는 둘 다 비동기라 어느 쪽이 먼저
+      // 도착할지 보장되지 않는다 — layout을 아직 모르는 채로 재생을 시작하면 width가
+      // 구체 크기에 머물러버리는 문제(135번에서 발견)가 있어, layout을 아직 모르면
+      // 재생을 "예약"만 해두고 onLayout이 도착하는 즉시 재생한다.
       if (trackWidthRef.current > 0) {
         playNow();
       } else {
         pendingPlayRef.current = true;
       }
-    }, [playNow])
+    }, [playNow, progress])
   );
 
   const width = progress.interpolate({
@@ -170,6 +207,14 @@ export function HeroCtaMorph({
   // 텍스트는 형태 변화가 충분히 진행돼 가로 공간이 확보된 뒤(약 62% 지점)에만 나타난다.
   const textOpacity = progress.interpolate({ inputRange: [0, 0.62, 1], outputRange: [0, 0, 1] });
   const textTranslateY = progress.interpolate({ inputRange: [0, 0.62, 1], outputRange: [4, 4, 0] });
+  // 스페큘러 반점은 "구체였던 부분에 남은 광택"이라는 의도라, 오브젝트가 캡슐 형태로
+  // 완전히 바뀌는 시점(0.35→0.6)에 맞춰 함께 옅어지다 사라진다 — 완성된 버튼 위에 별개의
+  // 얼룩처럼 남지 않도록(4차 업데이트, 실기기 피드백 반영).
+  const specularFade = progress.interpolate({
+    inputRange: [0, 0.35, 0.6, 1],
+    outputRange: [1, 1, 0, 0],
+    extrapolate: "clamp",
+  });
 
   return (
     <View style={styles.card}>
@@ -185,8 +230,9 @@ export function HeroCtaMorph({
 
       <View style={styles.track} onLayout={handleTrackLayout}>
         {/* 히트 영역은 트랙 전체 폭 — 오브젝트가 아직 작은 구체일 때도 완성될 버튼 자리를
-            그대로 누르면 즉시 동작한다(750ms를 기다리게 하지 않는다). 글로우/오브젝트는 전부
-            position:"absolute"로 같은 원점(left:0, top:0)에 겹쳐 중심을 맞춘다. */}
+            그대로 누르면 즉시 동작한다(MORPH_DURATION_MS를 기다리게 하지 않는다). 글로우/
+            오브젝트는 전부 position:"absolute"로 같은 원점(left:0, top:0)에 겹쳐 중심을
+            맞춘다. */}
         <Pressable
           style={styles.hitArea}
           onPress={onPress}
@@ -222,9 +268,10 @@ export function HeroCtaMorph({
               end={{ x: 0.65, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
-            {/* 스페큘러(반사광) 반점 — 구체였던 왼쪽 부분에 고정된 위치. */}
+            {/* 스페큘러(반사광) 반점 — 구체였던 왼쪽 부분에 고정된 위치. 캡슐로 완전히
+                바뀌면(progress 0.6+) specularFade가 0이 돼 자연스럽게 사라진다. */}
             {SPECULAR_LAYERS.map((s) => (
-              <View
+              <Animated.View
                 key={s.radius}
                 pointerEvents="none"
                 style={{
@@ -235,7 +282,7 @@ export function HeroCtaMorph({
                   height: s.radius * 2,
                   borderRadius: s.radius,
                   backgroundColor: "#fff",
-                  opacity: s.opacity,
+                  opacity: Animated.multiply(specularFade, s.opacity),
                 }}
               />
             ))}
