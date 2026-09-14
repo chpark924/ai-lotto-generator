@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -98,6 +99,39 @@ import { useFocusEffect } from "@react-navigation/native";
  *   순서감을 줘서 단순히 모든 속성이 동시에 등속으로 바뀌는 것보다 더 디자인된 느낌을
  *   준다. PIL 프리뷰로 45%(아직 따뜻한 톤 유지) → 75%(블루로 많이 진행) 전환 체감을
  *   확인했다.
+ *
+ * [2026-09-14 6차 업데이트 — 전문가 톤 디테일 보강: 반짝임 절제, 완성 순간 펄스, 눌림
+ * 피드백, 입체감(그림자)]
+ * 5차 업데이트의 반짝임이 "너무 세다"는 피드백을 받았고, 사용자가 "능숙한 전문 디자이너가
+ * 하는 방식으로" 완성도를 더 끌어올려달라 + 완성된 버튼이 "누르고 싶은 느낌"이 나는지
+ * 다시 점검해달라고 요청했다. 네 가지를 손봤다:
+ * - **반짝임을 절제**: 단색 사각형(불투명도 최대 0.85, 플래토 구간 존재) 대신, 가장자리가
+ *   부드럽게 페이드되는 `LinearGradient` 바(투명→아이보리 반투명→투명)로 바꾸고, 폭도
+ *   줄이고(0.3→0.22×CTA_HEIGHT), 불투명도 곡선도 플래토 없이 순간적으로 반짝였다 사라지는
+ *   삼각형 곡선(정점 0.5)으로 바꿨다. 순백 대신 살짝 따뜻한 아이보리 톤(`#FFF8E6`)을 써서
+ *   더 고급스러운 느낌을 준다. PIL 프리뷰로 shine 15/30/45/60/85% 스냅샷을 다시 렌더링해
+ *   확인했다.
+ * - **완성 순간의 은은한 펄스**: `settle`이라는 세 번째 `Animated.Value`를 추가해, 모프
+ *   (`progress` 0→1)가 끝난 직후 짧게(120ms 상승 + 260ms 하강) 0→1→0으로 움직인다. 이
+ *   값으로 글로우 3겹의 불투명도를 순간적으로 최대 1.5배까지 끌어올렸다가 원래대로
+ *   되돌린다(`Animated.multiply`) — 오브젝트가 "완성되는 순간 살짝 빛나며 자리를 잡는"
+ *   느낌을 준다. Bounce/Elastic/Overshoot(위치·크기 튐)는 여전히 쓰지 않고, 오직 빛
+ *   불투명도 펄스만 사용해 스펙 원칙(절제된 움직임)은 유지했다.
+ * - **눌림(press) 피드백 추가 — "누르고 싶은 느낌" 재점검 결과**: 기존 코드에는 탭 시
+ *   시각적 피드백이 전혀 없었다(기능은 동작하지만 눌러도 아무 반응이 안 보임 — 이게
+ *   "누르고 싶은 느낌"이 부족했던 실제 원인 중 하나로 보인다). `pressScale`
+ *   `Animated.Value`를 추가해 `onPressIn`에 0.965로 빠르게(90ms) 축소, `onPressOut`에
+ *   1로 부드럽게(150ms) 복원되도록 했다 — 히트 영역 전체(`hitArea`)에 적용해 버튼을
+ *   누르는 순간 살짝 눌리는 촉각적 피드백을 준다.
+ * - **입체감(드롭섀도) 추가**: 사실 PIL 프리뷰에는 처음부터 오브젝트 아래 은은한 드롭섀도가
+ *   있었는데(카드 배경 위에 붕 떠 있는 느낌을 내려고), 실제 컴포넌트에는 이 레이어를 옮겨
+ *   담는 걸 빠뜨렸었다 — 그래서 그동안 프리뷰보다 실물이 더 납작하고 배경에 눌려 보였을
+ *   가능성이 있다. `shadowLayer`를 새로 추가해(글로우 뒤, pill 앞) iOS는
+ *   `shadowColor`/`shadowOffset`/`shadowOpacity`/`shadowRadius`, Android는 `elevation`
+ *   (그림자를 실제로 그리려면 불투명 배경이 필요해 pill과 같은 `animatedColor`를 그대로
+ *   깔아뒀다 — 어차피 그 위를 pill이 완전히 덮으므로 보이는 건 그림자 부분뿐이다)으로
+ *   구현했다. 살짝 아래로 떨어지는 남색 톤 그림자(`#13224D`)를 써서 "카드 위에 얹힌
+ *   버튼"처럼 입체감을 주고, 이게 곧 "눌러볼 만한 물리적 버튼"이라는 인상을 강화한다.
  */
 
 const CTA_HEIGHT = 60;
@@ -105,6 +139,8 @@ const ORB_SIZE = 60; // width === height(=CTA_HEIGHT)일 때 정원(구체)이 �
 
 const MORPH_DURATION_MS = 900;
 const SHINE_DURATION_MS = 220; // 구체 위를 한 번 스치는 반짝임의 재생 시간(모프 시작 전)
+const SETTLE_RISE_MS = 120; // 모프 완료 직후 글로우가 살짝 밝아지는 시간
+const SETTLE_FALL_MS = 260; // 그 뒤 원래 밝기로 되돌아오는 시간
 
 // 앱을 새로 켰을 때(JS 번들이 새로 로드될 때)만 초기화되는 모듈 스코프 플래그 — 탭을
 // 오가며 컴포넌트가 여러 번 focus/unfocus 되더라도 "이번 앱 세션에서 이미 재생했는지"를
@@ -155,6 +191,10 @@ export function HeroCtaMorph({
   // progress와 별개로, 재생 시작 시 아주 짧게 한 번만 도는 "반짝임(shine)" 전용 값 —
   // 구체가 아직 그대로인 상태에서 빛이 한 번 스치고 지나가는 연출만 담당한다.
   const shine = useRef(new Animated.Value(0)).current;
+  // 모프가 끝나는 순간 글로우를 잠깐 밝혔다 되돌리는 "완성 펄스" 전용 값.
+  const settle = useRef(new Animated.Value(0)).current;
+  // 탭(press) 시 버튼이 살짝 눌리는 촉각적 피드백 전용 값 — 1(평상시)~0.965(눌림).
+  const pressScale = useRef(new Animated.Value(1)).current;
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
   const pendingPlayRef = useRef(false);
@@ -170,7 +210,8 @@ export function HeroCtaMorph({
         }
         progress.setValue(0);
         shine.setValue(0);
-        // 반짝임(구체 인지) → 모프(형태+색 변화) 순서로 이어서 재생한다.
+        settle.setValue(0);
+        // 반짝임(구체 인지) → 모프(형태+색 변화) → 완성 펄스 순서로 이어서 재생한다.
         Animated.sequence([
           Animated.timing(shine, {
             toValue: 1,
@@ -187,13 +228,45 @@ export function HeroCtaMorph({
             // width/backgroundColor는 네이티브 드라이버를 지원하지 않는다.
             useNativeDriver: false,
           }),
+          Animated.sequence([
+            Animated.timing(settle, {
+              toValue: 1,
+              duration: SETTLE_RISE_MS,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: false,
+            }),
+            Animated.timing(settle, {
+              toValue: 0,
+              duration: SETTLE_FALL_MS,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: false,
+            }),
+          ]),
         ]).start();
       })
       .catch(() => {
         // Reduce Motion 조회 실패 시에도 최소한 완성된 CTA는 보이게 한다.
         progress.setValue(1);
       });
-  }, [progress, shine]);
+  }, [progress, shine, settle]);
+
+  const handlePressIn = useCallback(() => {
+    Animated.timing(pressScale, {
+      toValue: 0.965,
+      duration: 90,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [pressScale]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.timing(pressScale, {
+      toValue: 1,
+      duration: 150,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [pressScale]);
 
   // 트랙 실제 폭 실측(용도는 아래 useFocusEffect 안 주석 참고).
   const handleTrackLayout = useCallback(
@@ -258,9 +331,16 @@ export function HeroCtaMorph({
     inputRange: [0, 1],
     outputRange: [-ORB_SIZE * 0.6, ORB_SIZE * 1.6],
   });
+  // 플래토 없는 삼각형 곡선(순간적으로 반짝였다 사라짐) + 정점 불투명도를 0.85→0.5로
+  // 낮춰 "너무 세다"는 피드백에 대응했다(6차 업데이트).
   const shineOpacity = shine.interpolate({
-    inputRange: [0, 0.15, 0.8, 1],
-    outputRange: [0, 0.85, 0.85, 0],
+    inputRange: [0, 0.45, 1],
+    outputRange: [0, 0.5, 0],
+  });
+  // 모프가 끝난 직후 글로우를 잠깐 최대 1.5배까지 밝혔다가 되돌리는 "완성 펄스" 배율.
+  const settleBoost = settle.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.5],
   });
 
   return (
@@ -281,8 +361,10 @@ export function HeroCtaMorph({
             오브젝트는 전부 position:"absolute"로 같은 원점(left:0, top:0)에 겹쳐 중심을
             맞춘다. */}
         <Pressable
-          style={styles.hitArea}
+          style={[styles.hitArea, { transform: [{ scale: pressScale }] }]}
           onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
         >
@@ -299,11 +381,25 @@ export function HeroCtaMorph({
                   marginLeft: -ring.pad / 2,
                   marginTop: -ring.pad / 2,
                   backgroundColor: animatedColor,
-                  opacity: ring.opacity,
+                  opacity: Animated.multiply(settleBoost, ring.opacity),
                 },
               ]}
             />
           ))}
+
+          {/* 입체감을 주는 드롭섀도 — pill과 같은 크기/모양이지만 overflow:hidden이 없어야
+              그림자가 잘리지 않는다(iOS는 shadow*, Android는 elevation). pill이 바로 위에서
+              완전히 덮으므로 이 레이어의 배경색 자체는 보이지 않고 그림자만 드러난다. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.shadowLayer,
+              {
+                width,
+                backgroundColor: animatedColor,
+              },
+            ]}
+          />
 
           <Animated.View style={[styles.pill, { width, backgroundColor: animatedColor }]}>
             {/* 대각선 유리질 하이라이트 — 왼쪽 위가 밝고 오른쪽 아래로 갈수록 옅어진다. */}
@@ -333,19 +429,28 @@ export function HeroCtaMorph({
                 }}
               />
             ))}
-            {/* 반짝임(shine) 바 — 재생 시작 직후 구체 위를 한 번 스치고 사라진다. pill의
-                overflow:"hidden"에 의해 그 순간의 오브젝트 모양(이때는 원)으로 자연히
-                클립된다. */}
+            {/* 반짝임(shine) 바 — 재생 시작 직후 구체 위를 한 번 은은하게 스치고 사라진다.
+                가장자리가 부드럽게 페이드되는 그라디언트라 딱딱한 사각형으로 보이지 않는다.
+                pill의 overflow:"hidden"에 의해 그 순간의 오브젝트 모양(이때는 원)으로
+                자연히 클립된다. */}
             <Animated.View
               pointerEvents="none"
               style={[
-                styles.shineBar,
+                styles.shineBarWrap,
                 {
                   opacity: shineOpacity,
                   transform: [{ translateX: shineTranslateX }, { rotate: "-22deg" }],
                 },
               ]}
-            />
+            >
+              <LinearGradient
+                colors={["rgba(255,248,230,0)", "rgba(255,248,230,0.9)", "rgba(255,248,230,0)"]}
+                locations={[0, 0.5, 1]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
           </Animated.View>
 
           <View style={styles.textOverlay} pointerEvents="none">
@@ -405,13 +510,34 @@ const styles = StyleSheet.create({
     borderRadius: CTA_HEIGHT / 2,
     overflow: "hidden",
   },
-  shineBar: {
+  shadowLayer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
+    // Android는 elevation이 실제 그림자를 그리려면 불투명 배경이 있어야 하고, iOS는
+    // shadow*로 그린다 — 둘 다 pill 바로 아래 깔려서 "카드 위에 얹힌 버튼" 같은 입체감을
+    // 준다(6차 업데이트, "누르고 싶은 느낌" 보강). pill이 완전히 덮으므로 몸통 색 자체는
+    // 보이지 않고 가장자리 그림자만 드러난다.
+    ...Platform.select({
+      ios: {
+        shadowColor: "#13224D",
+        shadowOffset: { width: 0, height: 7 },
+        shadowOpacity: 0.26,
+        shadowRadius: 12,
+      },
+      android: { elevation: 9 },
+      default: {},
+    }),
+  },
+  shineBarWrap: {
     position: "absolute",
     left: 0,
     top: -CTA_HEIGHT * 0.35,
-    width: CTA_HEIGHT * 0.3,
+    width: CTA_HEIGHT * 0.22,
     height: CTA_HEIGHT * 1.7,
-    backgroundColor: "#fff",
+    overflow: "hidden",
   },
   textOverlay: {
     position: "absolute",
