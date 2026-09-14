@@ -77,12 +77,34 @@ import { useFocusEffect } from "@react-navigation/native";
  *   애니메이션 없이 `progress.setValue(1)`로 즉시 완성 상태를 보여주고, 처음이면 그대로
  *   재생하고 플래그를 올린다. 모프 도중 탭해도 즉시 `onPress`가 동작하는 기존 동작(히트
  *   영역이 처음부터 트랙 전체 폭으로 고정돼 있음)은 그대로 유지된다.
+ *
+ * [2026-09-14 5차 업데이트 — "구체"라는 인지 + 디자인적 완성도 보강]
+ * 4차 업데이트로 속도/얼룩/재생 횟수는 고쳤지만, 사용자가 "처음에 살짝 반짝여서 구체임을
+ * 인지할 수 있어야 하고, 자연스럽게 색·형태가 CTA 버튼으로 변형되는 걸 체감해야 완성도가
+ * 높아 보인다"고 추가 피드백을 줬다. 두 가지를 더했다:
+ * - **시작 시 반짝임(shine sweep)**: `progress`와는 별개인 `shine` `Animated.Value`를
+ *   새로 두고, 재생 시작 시 `Animated.sequence`로 (1) `shine` 0→1(`SHINE_DURATION_MS`
+ *   =220ms) 먼저 재생한 뒤 (2) 기존 `progress` 0→1(900ms) 모프를 재생한다. `shine`
+ *   구간 동안은 오브젝트가 아직 정지된 작은 구체 상태 그대로고, 그 위로 대각선 흰색 바
+ *   하나가 원 모양 클립 안에서 왼쪽 바깥→오른쪽 바깥으로 한 번 스치듯 지나가며(빛이
+ *   유리구슬 표면에 잠깐 반사되는 느낌) 빠르게 나타났다 사라진다(`shineOpacity`가
+ *   0→0.85→0으로 보간) — 이 순간 덕분에 "지금 저건 반짝이는 구체구나"를 명확히 인지한
+ *   뒤에 모프가 시작된다. PIL 프리뷰로 shine 10/35/60/85% 스냅샷을 렌더링해 바가 원
+ *   범위 안에서만 보이고 자연스럽게 스치는지 확인했다.
+ * - **형태가 색을 이끄는 느낌**: `COLOR_STOPS_INPUT`을 `[0, 0.25, 0.5, 0.75, 1]`(균등
+ *   분포)에서 `[0, 0.35, 0.6, 0.85, 1]`로 바꿔, 색 변화를 진행률 뒷부분에 더 몰았다.
+ *   width는 여전히 처음부터 매끄럽게 자라지만, 색은 초반엔 오렌지에 더 오래 머물다가
+ *   후반에 블루로 집중적으로 바뀐다 — "형태가 먼저 자리를 잡고 색이 뒤따라와 완성되는"
+ *   순서감을 줘서 단순히 모든 속성이 동시에 등속으로 바뀌는 것보다 더 디자인된 느낌을
+ *   준다. PIL 프리뷰로 45%(아직 따뜻한 톤 유지) → 75%(블루로 많이 진행) 전환 체감을
+ *   확인했다.
  */
 
 const CTA_HEIGHT = 60;
 const ORB_SIZE = 60; // width === height(=CTA_HEIGHT)일 때 정원(구체)이 되는 시작 크기
 
 const MORPH_DURATION_MS = 900;
+const SHINE_DURATION_MS = 220; // 구체 위를 한 번 스치는 반짝임의 재생 시간(모프 시작 전)
 
 // 앱을 새로 켰을 때(JS 번들이 새로 로드될 때)만 초기화되는 모듈 스코프 플래그 — 탭을
 // 오가며 컴포넌트가 여러 번 focus/unfocus 되더라도 "이번 앱 세션에서 이미 재생했는지"를
@@ -94,7 +116,9 @@ const HERO_BG = require("../../assets/hero/hero-bg.jpg");
 
 // 사용자가 보낸 실제 레퍼런스 PNG(구체→캡슐 연속 이미지)에서 Python(PIL)으로 좌표를 찍어
 // 직접 추출한 색상 값. 대략 15%/25%/40~55%/70% 지점을 스포이드한 값을 5단계로 정리했다.
-const COLOR_STOPS_INPUT = [0, 0.25, 0.5, 0.75, 1];
+// 입력 구간을 뒤로 몰아서(0.35/0.6/0.85) 색 변화가 진행률 후반부에 집중되게 했다 — 형태가
+// 먼저 자라고 색이 뒤따라 완성되는 순서감(5차 업데이트, 디자인 완성도 피드백 반영).
+const COLOR_STOPS_INPUT = [0, 0.35, 0.6, 0.85, 1];
 const COLOR_STOPS_OUTPUT = ["#FFE7A6", "#FDBE55", "#DCB9F2", "#6E8FFC", "#3D79FE"];
 
 // 오브젝트 바깥으로 번지는 글로우(후광) — 패딩이 클수록(더 바깥 레이어일수록) 더 투명하게.
@@ -128,6 +152,9 @@ export function HeroCtaMorph({
   accessibilityLabel: string;
 }) {
   const progress = useRef(new Animated.Value(0)).current;
+  // progress와 별개로, 재생 시작 시 아주 짧게 한 번만 도는 "반짝임(shine)" 전용 값 —
+  // 구체가 아직 그대로인 상태에서 빛이 한 번 스치고 지나가는 연출만 담당한다.
+  const shine = useRef(new Animated.Value(0)).current;
   const [trackWidth, setTrackWidth] = useState(0);
   const trackWidthRef = useRef(0);
   const pendingPlayRef = useRef(false);
@@ -142,21 +169,31 @@ export function HeroCtaMorph({
           return;
         }
         progress.setValue(0);
-        Animated.timing(progress, {
-          toValue: 1,
-          duration: MORPH_DURATION_MS,
-          // Bounce/Elastic/Overshoot 없이, 더 부드럽게 감속하는 ease-out-expo 커브로 교체
-          // (기존 커브는 실기기에서 "너무 빠르고 뚝뚝 끊기는" 느낌이라는 피드백을 받았다).
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
-          // width/backgroundColor는 네이티브 드라이버를 지원하지 않는다.
-          useNativeDriver: false,
-        }).start();
+        shine.setValue(0);
+        // 반짝임(구체 인지) → 모프(형태+색 변화) 순서로 이어서 재생한다.
+        Animated.sequence([
+          Animated.timing(shine, {
+            toValue: 1,
+            duration: SHINE_DURATION_MS,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: false,
+          }),
+          Animated.timing(progress, {
+            toValue: 1,
+            duration: MORPH_DURATION_MS,
+            // Bounce/Elastic/Overshoot 없이, 더 부드럽게 감속하는 ease-out-expo 커브로 교체
+            // (기존 커브는 실기기에서 "너무 빠르고 뚝뚝 끊기는" 느낌이라는 피드백을 받았다).
+            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            // width/backgroundColor는 네이티브 드라이버를 지원하지 않는다.
+            useNativeDriver: false,
+          }),
+        ]).start();
       })
       .catch(() => {
         // Reduce Motion 조회 실패 시에도 최소한 완성된 CTA는 보이게 한다.
         progress.setValue(1);
       });
-  }, [progress]);
+  }, [progress, shine]);
 
   // 트랙 실제 폭 실측(용도는 아래 useFocusEffect 안 주석 참고).
   const handleTrackLayout = useCallback(
@@ -214,6 +251,16 @@ export function HeroCtaMorph({
     inputRange: [0, 0.35, 0.6, 1],
     outputRange: [1, 1, 0, 0],
     extrapolate: "clamp",
+  });
+  // 반짝임 바 — 구체(폭 ORB_SIZE) 왼쪽 바깥에서 오른쪽 바깥까지 한 번 스치듯 지나간다.
+  // shine이 끝나면(=1) opacity가 0으로 떨어져 이후 모프/완성 상태에는 전혀 남지 않는다.
+  const shineTranslateX = shine.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-ORB_SIZE * 0.6, ORB_SIZE * 1.6],
+  });
+  const shineOpacity = shine.interpolate({
+    inputRange: [0, 0.15, 0.8, 1],
+    outputRange: [0, 0.85, 0.85, 0],
   });
 
   return (
@@ -286,6 +333,19 @@ export function HeroCtaMorph({
                 }}
               />
             ))}
+            {/* 반짝임(shine) 바 — 재생 시작 직후 구체 위를 한 번 스치고 사라진다. pill의
+                overflow:"hidden"에 의해 그 순간의 오브젝트 모양(이때는 원)으로 자연히
+                클립된다. */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.shineBar,
+                {
+                  opacity: shineOpacity,
+                  transform: [{ translateX: shineTranslateX }, { rotate: "-22deg" }],
+                },
+              ]}
+            />
           </Animated.View>
 
           <View style={styles.textOverlay} pointerEvents="none">
@@ -344,6 +404,14 @@ const styles = StyleSheet.create({
     height: CTA_HEIGHT,
     borderRadius: CTA_HEIGHT / 2,
     overflow: "hidden",
+  },
+  shineBar: {
+    position: "absolute",
+    left: 0,
+    top: -CTA_HEIGHT * 0.35,
+    width: CTA_HEIGHT * 0.3,
+    height: CTA_HEIGHT * 1.7,
+    backgroundColor: "#fff",
   },
   textOverlay: {
     position: "absolute",
