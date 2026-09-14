@@ -146,9 +146,28 @@ export default function QrCheckScreen() {
             <Text style={styles.permissionButtonText}>카메라 권한 허용</Text>
           </Pressable>
         ) : (
-          <Text style={styles.permissionBody}>
-            설정 앱에서 카메라 권한을 직접 허용해주셔야 해요. (설정 &gt; 앱 &gt; 금손로또 &gt; 권한)
-          </Text>
+          // OS가 더 이상 권한 요청 팝업 자체를 띄워주지 않는 상태(한 번 거부됐거나 "다시
+          // 묻지 않음"을 선택한 경우)라 requestPermission()을 다시 불러도 아무 반응이 없다.
+          // 예전에는 "설정 > 앱 > 금손로또 > 권한" 경로를 텍스트로만 안내했는데, 주요 앱들처럼
+          // 그 설정 화면으로 바로 연결하는 버튼을 눌러야 실제로 실행에 옮기기 쉽다는 피드백 —
+          // `Linking.openSettings()`(RN 코어 API, iOS/Android 모두 앱의 설정 화면을 바로 연다)
+          // 로 원탭 이동시킨다. 경로 텍스트는 설정 화면에 도착한 뒤에도 "권한" 메뉴를 찾는 데
+          // 도움이 되므로 버튼과 함께 그대로 남겨둔다.
+          <>
+            <Pressable
+              style={styles.permissionButton}
+              onPress={() => {
+                Linking.openSettings().catch(() => {
+                  Alert.alert("설정 화면을 열 수 없어요", "기기 설정 앱에서 직접 권한을 변경해주세요.");
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="설정에서 카메라 권한 허용하기"
+            >
+              <Text style={styles.permissionButtonText}>설정에서 권한 허용하기</Text>
+            </Pressable>
+            <Text style={styles.permissionBody}>설정 &gt; 앱 &gt; 금손로또 &gt; 권한 경로에서 카메라를 켜주세요.</Text>
+          </>
         )}
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="닫기">
           <Text style={styles.backLink}>닫기</Text>
