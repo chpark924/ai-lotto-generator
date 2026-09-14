@@ -132,12 +132,43 @@ import { useFocusEffect } from "@react-navigation/native";
  *   깔아뒀다 — 어차피 그 위를 pill이 완전히 덮으므로 보이는 건 그림자 부분뿐이다)으로
  *   구현했다. 살짝 아래로 떨어지는 남색 톤 그림자(`#13224D`)를 써서 "카드 위에 얹힌
  *   버튼"처럼 입체감을 주고, 이게 곧 "눌러볼 만한 물리적 버튼"이라는 인상을 강화한다.
+ *
+ * [2026-09-14 7차 업데이트 — "Apple 시니어 디자이너" 수준 완성도 + 성능/용량 영향 없음 확인]
+ * 사용자가 "더 고급스럽고 Apple 시니어 디자이너가 만든 것 같은 느낌으로, 덜 만든 느낌이
+ * 든다"며 완성도를 더 끌어올려달라 요청했고, 동시에 이 기능 때문에 앱이 느려지거나 용량이
+ * 늘어나면 안 된다고 강조했다. 두 갈래로 대응했다:
+ * - **완성도 — timing에서 spring(물리 기반)으로 교체**: iOS 시스템 애니메이션 대부분이
+ *   지정된 시간에 커브를 그리는 방식(timing)이 아니라 질량·강성·감쇠로 물리 시뮬레이션되는
+ *   스프링(spring) 기반이다 — 이게 "그냥 정해진 곡선을 따라가는 움직임"과 "무게감이 느껴지는
+ *   자연스러운 움직임"의 체감 차이를 만드는 핵심이다. 메인 모프(`progress`)를
+ *   `Animated.timing` + 커스텀 bezier에서 `Animated.spring`(`stiffness: 40, damping: 14,
+ *   mass: 1`)으로 바꿨다. `damping`을 임계감쇠(critical damping, 이 stiffness/mass
+ *   조합에서 약 12.6)보다 살짝 높게(약 1.08배) 잡아 이론상으로도 오버슈트가 없도록 했고,
+ *   여기에 더해 `overshootClamping: true`까지 걸어서 물리 계산 오차와 무관하게 애니메이션
+ *   값이 목표치(1)를 절대 넘지 않도록 이중으로 보장했다 — "Bounce/Elastic/Overshoot 금지"
+ *   원칙은 그대로 지키면서 더 유기적인 감속감만 얻은 것이다. stiffness/damping 값은 기존
+ *   900ms 체감 속도와 비슷하게 맞춰서, 지금까지 조정해온 반짝임→모프→완성 펄스의 전체
+ *   타이밍 감각이 깨지지 않도록 했다.
+ * - **성능/용량 — 이번 기능 전체에 걸쳐 확인**: (1) 새 npm 패키지를 하나도 추가하지 않았다
+ *   — 처음부터 끝까지 이미 설치돼 있던 `expo-linear-gradient` 하나만 쓴다. (2) 이미지
+ *   에셋은 136번에서 추가한 `assets/hero/hero-bg.jpg`(약 122KB) 하나뿐이고, 137번에서
+ *   만들었던 `cta-pill.png`는 138번에서 실제 이미지 방식을 포기하면서 커밋 전에 삭제했다
+ *   — 즉 이 기능이 앱 번들 용량에 더하는 건 순수 JS/TSX 코드 몇 KB뿐이다. (3) 애니메이션은
+ *   앱 세션당 딱 1번(반짝임 220ms + 모프(스프링, 대략 900ms 안팎) + 완성 펄스 약 380ms,
+ *   총 1.5초 내외)만 재생되고 끝나면 완전히 정지한다 — 반복 재생되는 루프나 상시 대기 중인
+ *   타이머가 전혀 없으므로, 이 화면을 그냥 보고만 있을 때는 CPU/배터리 추가 소모가 없다.
+ *   (4) 각 레이어(글로우 3겹, 그림자 1겹, 본체, 스페큘러 3겹, 하이라이트/반짝임 그라디언트
+ *   각 1겹)는 전부 가벼운 `View`/`LinearGradient`이고 이미지 디코딩·네트워크 요청이 전혀
+ *   없다. 실기기에서 프레임 드랍이 느껴진다면 알려주면 레이어 수를 더 줄이는 것도 고려할
+ *   수 있지만, 현재 구조상 무거운 연산(이미지 처리, 대용량 텍스처 등)은 전혀 없다.
+ * - **눌림 피드백 보강**: 누를 때 크기만 줄어드는 게 아니라 그림자/글로우도 함께
+ *   옅어지도록(`pressDim`, `pressScale`과 동일한 값을 재사용) 해서, 버튼이 표면 속으로
+ *   살짝 가라앉는 듯한 물리적 눌림감을 더했다 — iOS 네이티브 버튼의 눌림 반응에 더 가깝다.
  */
 
 const CTA_HEIGHT = 60;
 const ORB_SIZE = 60; // width === height(=CTA_HEIGHT)일 때 정원(구체)이 되는 시작 크기
 
-const MORPH_DURATION_MS = 900;
 const SHINE_DURATION_MS = 220; // 구체 위를 한 번 스치는 반짝임의 재생 시간(모프 시작 전)
 const SETTLE_RISE_MS = 120; // 모프 완료 직후 글로우가 살짝 밝아지는 시간
 const SETTLE_FALL_MS = 260; // 그 뒤 원래 밝기로 되돌아오는 시간
@@ -219,12 +250,19 @@ export function HeroCtaMorph({
             easing: Easing.out(Easing.quad),
             useNativeDriver: false,
           }),
-          Animated.timing(progress, {
+          // 정해진 시간에 걸쳐 커브를 그리는 timing 대신, 질량-감쇠-강성 물리 모델로 움직이는
+          // spring으로 교체했다(7차 업데이트) — iOS 시스템 애니메이션 대부분이 스프링
+          // 기반이라 이쪽이 훨씬 "자연스럽고 고급스러운" 감속감을 준다. `damping`을
+          // 임계감쇠보다 살짝 높게 잡고(약 1.08배) `overshootClamping: true`까지 이중으로
+          // 걸어서, 물리 계산이 어떻든 애니메이션 값이 목표치를 절대 넘어서지 않도록
+          // 보장했다 — Bounce/Elastic/Overshoot 금지 원칙은 그대로 지킨다. stiffness/
+          // damping 값은 기존 900ms 체감 속도와 비슷하게 맞춘 것이다.
+          Animated.spring(progress, {
             toValue: 1,
-            duration: MORPH_DURATION_MS,
-            // Bounce/Elastic/Overshoot 없이, 더 부드럽게 감속하는 ease-out-expo 커브로 교체
-            // (기존 커브는 실기기에서 "너무 빠르고 뚝뚝 끊기는" 느낌이라는 피드백을 받았다).
-            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            stiffness: 40,
+            damping: 14,
+            mass: 1,
+            overshootClamping: true,
             // width/backgroundColor는 네이티브 드라이버를 지원하지 않는다.
             useNativeDriver: false,
           }),
@@ -342,6 +380,13 @@ export function HeroCtaMorph({
     inputRange: [0, 1],
     outputRange: [1, 1.5],
   });
+  // 눌렀을 때 그림자/글로우가 함께 옅어지며 "버튼이 표면 속으로 살짝 가라앉는" 물리적
+  // 눌림감을 더한다(7차 업데이트) — 단순히 크기만 줄어드는 것보다 iOS 네이티브 버튼의
+  // 눌림 반응에 더 가깝다. pressScale과 같은 값을 재사용해 별도 Animated.Value 없이 구현.
+  const pressDim = pressScale.interpolate({
+    inputRange: [0.965, 1],
+    outputRange: [0.7, 1],
+  });
 
   return (
     <View style={styles.card}>
@@ -357,7 +402,7 @@ export function HeroCtaMorph({
 
       <View style={styles.track} onLayout={handleTrackLayout}>
         {/* 히트 영역은 트랙 전체 폭 — 오브젝트가 아직 작은 구체일 때도 완성될 버튼 자리를
-            그대로 누르면 즉시 동작한다(MORPH_DURATION_MS를 기다리게 하지 않는다). 글로우/
+            그대로 누르면 즉시 동작한다(모프가 끝날 때까지 기다리게 하지 않는다). 글로우/
             오브젝트는 전부 position:"absolute"로 같은 원점(left:0, top:0)에 겹쳐 중심을
             맞춘다. */}
         <Pressable
@@ -381,7 +426,7 @@ export function HeroCtaMorph({
                   marginLeft: -ring.pad / 2,
                   marginTop: -ring.pad / 2,
                   backgroundColor: animatedColor,
-                  opacity: Animated.multiply(settleBoost, ring.opacity),
+                  opacity: Animated.multiply(Animated.multiply(settleBoost, ring.opacity), pressDim),
                 },
               ]}
             />
@@ -389,7 +434,8 @@ export function HeroCtaMorph({
 
           {/* 입체감을 주는 드롭섀도 — pill과 같은 크기/모양이지만 overflow:hidden이 없어야
               그림자가 잘리지 않는다(iOS는 shadow*, Android는 elevation). pill이 바로 위에서
-              완전히 덮으므로 이 레이어의 배경색 자체는 보이지 않고 그림자만 드러난다. */}
+              완전히 덮으므로 이 레이어의 배경색 자체는 보이지 않고 그림자만 드러난다. 눌렀을
+              때는 pressDim으로 그림자도 함께 옅어져 "눌려서 살짝 가라앉는" 느낌을 준다. */}
           <Animated.View
             pointerEvents="none"
             style={[
@@ -397,6 +443,7 @@ export function HeroCtaMorph({
               {
                 width,
                 backgroundColor: animatedColor,
+                opacity: pressDim,
               },
             ]}
           />
