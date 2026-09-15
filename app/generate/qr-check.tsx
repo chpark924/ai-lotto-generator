@@ -151,8 +151,20 @@ export default function QrCheckScreen() {
           // 예전에는 "설정 > 앱 > 금손로또 > 권한" 경로를 텍스트로만 안내했는데, 주요 앱들처럼
           // 그 설정 화면으로 바로 연결하는 버튼을 눌러야 실제로 실행에 옮기기 쉽다는 피드백 —
           // `Linking.openSettings()`(RN 코어 API, iOS/Android 모두 앱의 설정 화면을 바로 연다)
-          // 로 원탭 이동시킨다. 경로 텍스트는 설정 화면에 도착한 뒤에도 "권한" 메뉴를 찾는 데
-          // 도움이 되므로 버튼과 함께 그대로 남겨둔다.
+          // 로 원탭 이동시킨다.
+          //
+          // [10차 업데이트] "권한이 켜지는 화면으로 바로 가게 해달라"는 추가 요청을 받았다.
+          // 실제로 확인해보니 Android/iOS 모두 서드파티 앱이 "앱 권한 목록" 화면이나 특정
+          // 권한(카메라)의 토글 화면을 직접 여는 공식적으로 문서화된 방법이 없다 — 가장 널리
+          // 쓰이는 react-native-permissions 라이브러리도 openSettings()가 "application"(앱
+          // 정보 화면, 지금 우리가 여는 것과 동일) 등 몇 가지 카테고리만 지원하고 개별 권한
+          // 화면은 지원하지 않는다고 명시한다(비공식/미문서화된 Intent를 억지로 쓰면 기기·OS
+          // 버전마다 조용히 실패할 위험이 있어 장년층 사용자에게 오히려 혼란을 줄 수 있다고
+          // 판단해 적용하지 않았다). 대신 `Linking.openSettings()`로 도착하는 "앱 정보" 화면
+          // 에서 남은 두 번의 탭("권한" → "카메라" 켜기)을 놓치지 않도록, 기존의 작은 안내
+          // 문장 한 줄 대신 번호가 매겨진 큼직한 단계별 안내 박스로 바꿨다 — 글자 크기를 키우고
+          // 눌러야 할 단어("권한"/"카메라")를 굵게 강조해 장년층도 다음에 뭘 눌러야 할지
+          // 한눈에 알 수 있게 했다.
           <>
             <Pressable
               style={styles.permissionButton}
@@ -166,7 +178,25 @@ export default function QrCheckScreen() {
             >
               <Text style={styles.permissionButtonText}>설정에서 권한 허용하기</Text>
             </Pressable>
-            <Text style={styles.permissionBody}>설정 &gt; 앱 &gt; 금손로또 &gt; 권한 경로에서 카메라를 켜주세요.</Text>
+            <View style={styles.permissionStepsBox}>
+              <Text style={styles.permissionStepsTitle}>설정 화면이 열리면, 이렇게 2번만 눌러주세요</Text>
+              <View style={styles.permissionStepRow}>
+                <View style={styles.permissionStepNumber}>
+                  <Text style={styles.permissionStepNumberText}>1</Text>
+                </View>
+                <Text style={styles.permissionStepText}>
+                  <Text style={styles.permissionStepHighlight}>권한</Text> 누르기
+                </Text>
+              </View>
+              <View style={styles.permissionStepRow}>
+                <View style={styles.permissionStepNumber}>
+                  <Text style={styles.permissionStepNumberText}>2</Text>
+                </View>
+                <Text style={styles.permissionStepText}>
+                  <Text style={styles.permissionStepHighlight}>카메라</Text> 눌러서 켜기
+                </Text>
+              </View>
+            </View>
           </>
         )}
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="닫기">
@@ -298,6 +328,35 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
       marginTop: 8,
     },
     permissionButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    // [10차 업데이트] 설정 화면 도착 후 남은 탭("권한"→"카메라")을 장년층도 헷갈리지 않게
+    // 안내하는 단계별 박스 — 기존의 작은 한 줄 안내 문장보다 글자를 키우고 번호를 매겨
+    // 한눈에 순서가 들어오도록 했다.
+    permissionStepsBox: {
+      width: "100%",
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 14,
+      padding: 16,
+      gap: 10,
+    },
+    permissionStepsTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      textAlign: "center",
+      marginBottom: 2,
+    },
+    permissionStepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    permissionStepNumber: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: brand.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    permissionStepNumberText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+    permissionStepText: { fontSize: 16, color: colors.textPrimary, fontWeight: "600" },
+    permissionStepHighlight: { color: brand.primary, fontWeight: "800" },
     backLink: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: 8, textDecorationLine: "underline" },
     resultHeader: { alignItems: "center", marginBottom: 16 },
     resultRound: { fontSize: 14, color: colors.textMuted, fontWeight: "600", marginBottom: 4 },
