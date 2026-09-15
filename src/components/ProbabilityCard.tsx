@@ -24,7 +24,10 @@ export function ProbabilityCard({
           <View style={styles.divider} />
         </>
       ) : null}
-      <Row label="최종 저장 조합" value={`${probability.uniqueGameCount}게임`} />
+      {/* [9차 업데이트] 이 카드는 생성 직후(사용자가 "번호 저장" 버튼을 누르기도 전에)
+          바로 렌더링되는데, 라벨이 "최종 저장 조합"이라 아직 저장하지 않았는데도 이미 저장된
+          것처럼 오해할 수 있었다 — 사용자 피드백 반영, "생성된 조합"으로 변경. */}
+      <Row label="생성된 조합" value={`${probability.uniqueGameCount}게임`} />
       <Row label="1등 당첨 확률" value={probability.firstPrizeFraction} />
       <Row label="확률(%)" value={`약 ${probability.firstPrizePercent.toFixed(8)}%`} />
       {simulation ? <Text style={styles.notice}>{COVERAGE_NOTICE}</Text> : null}
