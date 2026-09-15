@@ -13,6 +13,15 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 
+// 일반 `Pressable`은 `Animated.View`/`Animated.Text`와 달리 애니메이션 값을 처리하도록
+// 감싸진 컴포넌트가 아니라, style에 `Animated.Value`(pressScale)를 날 것으로 넣으면 RN이
+// 그 값을 실제 숫자로 변환하지 못한다 — New Architecture(Fabric)에서는 렌더링 시점에
+// "Transform with key of \"scale\" must be a number" Invariant Violation으로 즉시 크래시하고,
+// 그 전에도(Old Architecture) 눌림 시 scale 애니메이션 자체가 조용히 동작하지 않고 있었을
+// 가능성이 높다(9차 업데이트, 실기기 크래시 리포트로 발견). `Animated.createAnimatedComponent`
+// 로 감싸서 style의 Animated 노드를 제대로 추출·바인딩하도록 고쳤다.
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 /**
  * 홈 화면 히어로의 "AI로 번호 만들기" CTA를 하나의 오브젝트가 형태·색상·재질감을 바꿔가며
  * 등장하는 인터랙션으로 구현한다(2026-09-11, 사용자가 GPT로 작성한 상세 스펙 기반).
@@ -194,6 +203,33 @@ import { useFocusEffect } from "@react-navigation/native";
  *   더해주는 정도로 자연스럽다. 새 이미지 에셋·새 npm 패키지는 이번에도 전혀 추가하지
  *   않았다(순수 `LinearGradient` 레이어 1겹 추가) — 7차에서 확인한 성능/용량 무영향 원칙은
  *   그대로 유지된다.
+ *
+ * [2026-09-15 9차 업데이트 — "모프가 안 보인다" 조사 결과: 실제로는 정상 재생, 대신 별도의
+ * 눌림 애니메이션 버그를 발견/수정]
+ * 사용자가 8차 크래시 수정(AnimatedPressable) 이후 EAS 프리뷰 빌드를 실기기에 설치해 테스트한
+ * 결과, "구체→CTA 버튼 모프가 전혀 안 보이고 처음부터 완성된 버튼 상태로 보인다"고 보고했다.
+ * Reduce Motion 관련 설정(접근성 "애니메이션 제거", 개발자 옵션 애니메이션 배율)을 먼저
+ * 의심했으나 전부 꺼진 상태에서도 재현됐다. 원인을 실기기 로그로 직접 확인하기 위해 `playNow`/
+ * `useFocusEffect`/`handleTrackLayout`에 임시 `console.log`를 추가하고, 실제 프리뷰 빌드와
+ * 동일하게 Old Architecture로 빌드되는 EAS "development" 프로필(`expo-dev-client`)로 테스트한
+ * 결과, `useFocusEffect` → `playNow()` → `isReduceMotionEnabled()=false` → 애니메이션 시퀀스
+ * 시작 → 완료까지 매번 정확히 정상 순서로 실행됨을 확인했다 — 즉 모프 로직 자체와 아키텍처는
+ * 처음부터 문제가 없었다. 반짝임(220ms)+모프(spring, 약 1초)+완성 펄스(약 0.4초)를 합쳐도 총
+ * 1.2~1.5초 정도로 짧아서, 앱을 열고 화면에 시선이 도달하기 전에 이미 다 끝나버려 못 봤을
+ * 뿐이었다(같은 개발 빌드로 완전히 새로 앱을 켜고 화면을 집중해서 보니 사용자가 직접 재생을
+ * 확인함).
+ * 다만 이 조사 과정에서 별개의 실제 버그를 하나 발견해 함께 고쳤다: 버튼을 누르는 순간
+ * (`handlePressIn`) 실기기 로그에 `Style property 'width' is not supported by native
+ * animated module` 오류가 찍혔다. `pressScale`(누를 때 살짝 줄어드는 값)이
+ * `useNativeDriver: true`로 재생되는데, 이 값에서 파생된 `pressDim`이 글로우 링/그림자 레이어의
+ * `opacity`에도 쓰이고, 그 레이어들의 스타일 객체 안에는 `width`(progress 기반,
+ * useNativeDriver 미지원)도 함께 있다 — `pressScale`을 네이티브로 승격시키는 순간 RN이 같은
+ * 스타일 객체의 `width`까지 함께 네이티브로 옮기려다 이 오류를 던진다. 개발 모드에서는 콘솔
+ * 경고로만 뜨고 넘어가지만, 이 검증은 `__DEV__` 전용이라 실제 릴리즈 빌드에서는 경고 없이
+ * 조용히 실패할 수 있어(버튼을 처음 누르는 순간부터 이 컴포넌트의 애니메이션 그래프가 깨질
+ * 위험) 잠재적으로 심각한 버그였다. `pressScale`도 이 파일의 다른 모든 애니메이션 값(progress/
+ * shine/settle)과 마찬가지로 `useNativeDriver: false`로 통일해 네이티브/JS 드라이버가 섞이지
+ * 않도록 고쳤다. 조사에 쓰인 임시 `console.log`는 전부 제거했다.
  */
 
 const CTA_HEIGHT = 60;
@@ -322,12 +358,24 @@ export function HeroCtaMorph({
       });
   }, [progress, shine, settle]);
 
+  // [9차 업데이트 — 버그 수정] pressScale은 히트 영역의 transform(scale)뿐 아니라, pressDim을
+  // 통해 glowRing/shadowLayer의 opacity에도 함께 쓰인다. 그런데 glowRing/shadowLayer는 같은
+  // 스타일 객체 안에 width/height/margin(progress 기반, useNativeDriver 미지원)도 같이 들어있다.
+  // pressScale의 애니메이션을 useNativeDriver:true로 재생하면, RN이 이 값과 연결된 애니메이션
+  // 그래프 전체(오파시티뿐 아니라 같은 스타일 객체의 width까지)를 네이티브로 승격시키려 시도하다
+  // "Style property 'width' is not supported by native animated module" 오류를 던진다(실기기
+  // 로그로 확인). 개발 모드(Expo Go)에서는 이 오류가 콘솔 경고로만 뜨고 넘어가지만, 이 검증
+  // 자체가 __DEV__ 전용이라 실제 릴리즈 빌드(스탠드얼론 APK)에서는 이 검증 없이 조용히 실패할
+  // 수 있어 버튼을 처음 누르는 순간부터 이 컴포넌트의 애니메이션 그래프가 깨질 위험이 있었다.
+  // 이 파일의 다른 모든 애니메이션 값(progress/shine/settle)이 이미 전부 useNativeDriver:false로
+  // 통일돼 있으므로(주석 참고: width/backgroundColor는 네이티브 드라이버 미지원), pressScale도
+  // 같은 방식(false)으로 맞춰 네이티브/JS 드라이버가 섞이지 않도록 했다.
   const handlePressIn = useCallback(() => {
     Animated.timing(pressScale, {
       toValue: 0.965,
       duration: 90,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [pressScale]);
 
@@ -336,7 +384,7 @@ export function HeroCtaMorph({
       toValue: 1,
       duration: 150,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [pressScale]);
 
@@ -439,7 +487,7 @@ export function HeroCtaMorph({
             그대로 누르면 즉시 동작한다(모프가 끝날 때까지 기다리게 하지 않는다). 글로우/
             오브젝트는 전부 position:"absolute"로 같은 원점(left:0, top:0)에 겹쳐 중심을
             맞춘다. */}
-        <Pressable
+        <AnimatedPressable
           style={[styles.hitArea, { transform: [{ scale: pressScale }] }]}
           onPress={onPress}
           onPressIn={handlePressIn}
@@ -557,7 +605,7 @@ export function HeroCtaMorph({
               {ctaLabel}
             </Animated.Text>
           </View>
-        </Pressable>
+        </AnimatedPressable>
       </View>
     </View>
   );
