@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -13,6 +13,7 @@ import {
   type WinningDraw,
 } from "../../src/lib/draws";
 import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
+import { shareLottoNumbers } from "../../src/lib/share/kakaoShare";
 
 const GAME_TYPE_LABELS: Record<ParsedLottoQrGame["gameType"], string> = {
   MANUAL: "수동",
@@ -117,11 +118,12 @@ export default function QrCheckScreen() {
       winners.length > 0
         ? `제 ${result.draw.drawNumber}회 당첨 결과\n${lines.join("\n")}`
         : `제 ${result.draw.drawNumber}회 당첨 결과\n${lines.join("\n")}\n\n아쉽게도 당첨은 없었어요.`;
-    try {
-      await Share.share({ message: summary });
-    } catch {
-      // 취소 등은 무시
-    }
+    // [10차 업데이트] 카카오톡에서는 카드로, 그 외에는 기존과 동일한 순수 텍스트로 공유된다.
+    const description =
+      winners.length > 0
+        ? `${winners.length}게임 당첨! ${RANK_LABELS[winners[0].rank]}`
+        : "아쉽게도 당첨은 없었어요.";
+    await shareLottoNumbers(`제 ${result.draw.drawNumber}회 당첨 결과`, description, summary);
   }
 
   if (!permission) {

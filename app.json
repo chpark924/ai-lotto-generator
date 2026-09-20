@@ -46,6 +46,24 @@
           "imageWidth": 120,
           "resizeMode": "contain"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
+            ]
+          }
+        }
+      ],
+      [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "457dfeb6e32b6c6f9221a8bbdacfaea1",
+          "ios": {},
+          "android": {}
+        }
       ]
     ],
     "extra": {

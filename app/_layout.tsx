@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
+import { initializeKakaoSDK } from "@react-native-kakao/core";
 import { AppErrorBoundary } from "../src/components";
 import { ThemeProvider, brand } from "../src/theme";
 
@@ -15,6 +16,15 @@ const MIN_SPLASH_DURATION_MS = 1000;
 // (RootLayout 마운트보다 먼저 실행돼야 하므로 모듈 최상단에서 호출)
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Fast Refresh 등으로 중복 호출돼도 무시 가능한 에러
+});
+
+// [10차 업데이트 — 카카오톡 공유 카드, 2026-09-20] 카카오 SDK는 카카오톡 공유(Feed 템플릿)
+// API를 쓰기 전에 한 번 초기화돼 있어야 한다. RootLayout 마운트보다 먼저, 모듈 최상단에서
+// 앱 시작과 동시에 한 번만 호출한다(위 SplashScreen.preventAutoHideAsync()와 같은 이유).
+// 네이티브 앱 키는 카카오 디벨로퍼스(개인 개발자 계정, 앱 ID 1578810)에서 발급받은 값.
+initializeKakaoSDK("457dfeb6e32b6c6f9221a8bbdacfaea1").catch(() => {
+  // 초기화 실패해도 앱 자체는 정상 동작해야 한다 — 카카오톡 공유만 못 쓰게 될 뿐,
+  // 공유 헬퍼(src/lib/share/kakaoShare.ts)가 OS 기본 공유 시트로 폴백해준다.
 });
 
 // [2026-09-11 원복] Phase 5b에서 여기 있던 Pretendard 4종 useFonts 로딩을 제거했다.

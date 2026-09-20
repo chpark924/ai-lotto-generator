@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Linking, Pressable, SectionList, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { LottoBall, StatusBarSafeMask } from "../../src/components";
+import { shareLottoNumbers } from "../../src/lib/share/kakaoShare";
 import {
   getTickets,
   updateTicketStatus,
@@ -400,13 +401,12 @@ export default function TicketsScreen() {
 
   async function handleShare(ticket: SavedTicket) {
     const numbersText = ticket.game.numbers.join(" · ");
-    try {
-      await Share.share({
-        message: `내 로또 번호 (${STATUS_LABELS[ticket.status]}): ${numbersText}`,
-      });
-    } catch {
-      // 취소 등은 무시
-    }
+    // [10차 업데이트] 카카오톡에서는 카드로, 그 외에는 기존과 동일한 순수 텍스트로 공유된다.
+    await shareLottoNumbers(
+      `내 로또 번호 (${STATUS_LABELS[ticket.status]})`,
+      numbersText,
+      `내 로또 번호 (${STATUS_LABELS[ticket.status]}): ${numbersText}`
+    );
   }
 
   function handleDelete(id: string) {

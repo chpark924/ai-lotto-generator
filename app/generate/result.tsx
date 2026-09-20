@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { DisclaimerCard, GeneratedGameCard, LottoBallLoader, ProbabilityCard } from "../../src/components";
+import { shareLottoNumbers } from "../../src/lib/share/kakaoShare";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { buildGameFeatures, explainGameLocally } from "../../src/lib/ai";
 import { getGenerationHistory, saveTicket } from "../../src/lib/storage";
@@ -134,13 +135,13 @@ export default function ResultScreen() {
 
   async function handleShare(game: GeneratedGame) {
     const numbersText = game.numbers.join(" · ");
-    try {
-      await Share.share({
-        message: `내 로또 번호: ${numbersText}\n\n로또 6/45의 모든 조합은 1/8,145,060의 동일한 확률을 가집니다. 엔터테인먼트용 번호 생성 앱으로 만들었어요.`,
-      });
-    } catch {
-      // 사용자가 공유를 취소한 경우 등은 조용히 무시한다.
-    }
+    // [10차 업데이트] 카카오톡에서는 이미지·설명·"앱에서 확인하기" 버튼이 있는 카드로
+    // 공유되고, 그 외 메신저에서는 기존과 동일한 순수 텍스트로 폴백된다.
+    await shareLottoNumbers(
+      `내 로또 번호: ${numbersText}`,
+      "로또 6/45의 모든 조합은 1/8,145,060의 동일한 확률을 가집니다.",
+      `내 로또 번호: ${numbersText}\n\n로또 6/45의 모든 조합은 1/8,145,060의 동일한 확률을 가집니다. 엔터테인먼트용 번호 생성 앱으로 만들었어요.`
+    );
   }
 
   async function handleRegenerate() {
