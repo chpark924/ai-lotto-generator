@@ -1,0 +1,17 @@
+diff --git a/node_modules/@react-native-kakao/share/android/src/main/java/net/mjstudio/rnkakao/share/RNCKakaoShareModule.kt b/node_modules/@react-native-kakao/share/android/src/main/java/net/mjstudio/rnkakao/share/RNCKakaoShareModule.kt
+index fabefe9..2e7ed4a 100644
+--- a/node_modules/@react-native-kakao/share/android/src/main/java/net/mjstudio/rnkakao/share/RNCKakaoShareModule.kt
++++ b/node_modules/@react-native-kakao/share/android/src/main/java/net/mjstudio/rnkakao/share/RNCKakaoShareModule.kt
+@@ -203,7 +203,11 @@ class RNCKakaoShareModule internal constructor(
+     serverCallbackArgs: ReadableMap? = null,
+     promise: Promise,
+   ) {
+-    val context = currentActivity
++    // [patch-package] RN 0.81 rewrote ReactContextBaseJavaModule in Kotlin, which broke the
++    // getCurrentActivity()->currentActivity property sugar for Kotlin subclasses (industry-wide
++    // regression, not specific to this package). Reaching it via reactApplicationContext instead
++    // resolves correctly and restores the intended `Activity?` type.
++    val context = reactApplicationContext.currentActivity
+     if (context == null) {
+       promise.rejectWith(ActivityNotFoundException())
+       return
