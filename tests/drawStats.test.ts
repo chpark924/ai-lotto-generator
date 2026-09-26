@@ -7,6 +7,8 @@ import {
   computeCombinationPatternStats,
   computeSumTrend,
   SUM_MIDPOINT,
+  calculateNetPrize,
+  computeFirstPrizeNetPayout,
 } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
 
@@ -220,5 +222,63 @@ describe("computeSumTrend", () => {
 
   it("빈 배열이면 빈 배열을 반환한다", () => {
     expect(computeSumTrend([])).toEqual([]);
+  });
+});
+describe("calculateNetPrize", () => {
+  it("200만원 미만이면 비과세 — 세금 0, 실수령액=세전 그대로", () => {
+    expect(calculateNetPrize(1_000_000)).toEqual({ gross: 1_000_000, tax: 0, net: 1_000_000 });
+  });
+
+  it("200만원(경계값)부터는 과세 대상 — 22% 적용", () => {
+    expect(calculateNetPrize(2_000_000)).toEqual({ gross: 2_000_000, tax: 440_000, net: 1_560_000 });
+  });
+
+  it("3억원(경계값)까지는 전액 22%", () => {
+    expect(calculateNetPrize(300_000_000)).toEqual({
+      gross: 300_000_000,
+      tax: 66_000_000,
+      net: 234_000_000,
+    });
+  });
+
+  it("3억원 초과분만 33% — 3억까지는 계속 22%로 유지되는 누진 구조", () => {
+    // 3억 * 22% + (4억-3억) * 33% = 66,000,000 + 33,000,000 = 99,000,000
+    expect(calculateNetPrize(400_000_000)).toEqual({
+      gross: 400_000_000,
+      tax: 99_000_000,
+      net: 301_000_000,
+    });
+  });
+
+  it("0 이하이거나 유한하지 않은 값은 전부 0으로 처리한다", () => {
+    expect(calculateNetPrize(0)).toEqual({ gross: 0, tax: 0, net: 0 });
+    expect(calculateNetPrize(-1)).toEqual({ gross: 0, tax: 0, net: 0 });
+    expect(calculateNetPrize(NaN)).toEqual({ gross: 0, tax: 0, net: 0 });
+  });
+});
+
+describe("computeFirstPrizeNetPayout", () => {
+  it("실제 1242회 데이터 기준 1인당 실수령액을 정확히 계산한다", () => {
+    // firstPrizeAmount 3,281,029,250원 / 당첨자 9명 = 1인당 364,558,806원(반올림)
+    const result = computeFirstPrizeNetPayout(
+      draw({ drawNumber: 1242, firstPrizeAmount: 3_281_029_250, firstPrizeWinnerCount: 9 })
+    );
+    expect(result).toEqual({
+      drawNumber: 1242,
+      winnerCount: 9,
+      grossPerWinner: 364_558_806,
+      taxPerWinner: 87_304_406,
+      netPerWinner: 277_254_400,
+    });
+  });
+
+  it("1등 당첨자가 0명(이월)이면 1인당 금액이 정의되지 않으므로 null", () => {
+    expect(
+      computeFirstPrizeNetPayout(draw({ firstPrizeAmount: 0, firstPrizeWinnerCount: 0 }))
+    ).toBeNull();
+  });
+
+  it("firstPrizeAmount/firstPrizeWinnerCount가 없으면(데이터 미확보) null", () => {
+    expect(computeFirstPrizeNetPayout(draw({}))).toBeNull();
   });
 });

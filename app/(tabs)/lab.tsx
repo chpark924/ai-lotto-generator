@@ -9,6 +9,7 @@ import {
   computeTransitionFrequencies,
   computeFirstPrizeExpectation,
   describeFirstPrizeExpectation,
+  computeFirstPrizeNetPayout,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
   type WinningDraw,
@@ -202,6 +203,7 @@ export default function LabScreen() {
       ? computeTransitionFrequencies(fullHistoryDraws, latestDraw.numbers, 3)
       : [];
   const firstPrizeExpectation = latestDraw ? computeFirstPrizeExpectation(latestDraw) : null;
+  const firstPrizeNetPayout = latestDraw ? computeFirstPrizeNetPayout(latestDraw) : null;
 
   return (
     <View style={styles.container}>
@@ -239,8 +241,12 @@ export default function LabScreen() {
           <View style={styles.officialBadge}>
             <Text style={styles.officialBadgeText}>실제 당첨결과</Text>
           </View>
-          <Text style={styles.cardTitle}>제 {latestDraw.drawNumber}회 당첨결과</Text>
-          <Text style={styles.cardSub}>{latestDraw.drawDate}</Text>
+          <View style={styles.officialTitleRow}>
+            <Text style={[styles.cardTitle, styles.noBottomMargin]}>
+              제 {latestDraw.drawNumber}회 당첨결과
+            </Text>
+            <Text style={[styles.cardSub, styles.noBottomMargin]}>{latestDraw.drawDate}</Text>
+          </View>
           {/* [2026-09-11] 이 카드만 실제 공식 발표 데이터라, 공 자체에도 살짝 입체감(가장자리
               셰이딩+하이라이트)을 줘서 아래 통계 카드들의 평면 공과 질감으로 구분되게 한다 —
               사용자 요청("실제 당첨결과이므로 차이를 두고 싶다"). LottoBall.tsx 상단 주석 참고. */}
@@ -251,6 +257,25 @@ export default function LabScreen() {
             <Text style={styles.plusText}>+</Text>
             <LottoBall number={latestDraw.bonusNumber} size={32} variant="glossy" />
           </View>
+          {firstPrizeNetPayout ? (
+            // [2026-09-26] 1등 1인당 실수령액 — 홈 화면 "1등 예상 총 당첨금"(추첨 전 추정치)과
+            // 달리 이미 확정된 실제 당첨자 수를 쓰는 사후 사실이라, 다른 통계 카드들과 달리
+            // "예측 아님" DisclaimerCard는 붙이지 않는다. 다만 세전 금액·세율 근거는 helperNote로
+            // 짧게 덧붙여 정직성 원칙(§23)을 유지한다.
+            <>
+              <View style={styles.officialDivider} />
+              <Row styles={styles} label="1등 당첨자 수" value={`${firstPrizeNetPayout.winnerCount}명`} />
+              <Row
+                styles={styles}
+                label="1인당 실수령액"
+                value={`${firstPrizeNetPayout.netPerWinner.toLocaleString("ko-KR")}원`}
+              />
+              <Text style={styles.helperNote}>
+                세전 {firstPrizeNetPayout.grossPerWinner.toLocaleString("ko-KR")}원 기준, 기타소득세(3억원까지
+                22%, 초과분 33%) 원천징수 후 예상 금액이에요. 실제 수령액과 약간 다를 수 있어요.
+              </Text>
+            </>
+          ) : null}
         </View>
       ) : (
         <View style={styles.card}>
@@ -545,6 +570,19 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       marginBottom: 8,
     },
     officialBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
+    officialTitleRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    noBottomMargin: { marginBottom: 0 },
+    officialDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginTop: 12,
+      marginBottom: 8,
+    },
     // [Phase 3] radius 10→12 — 칩/배지/작은 링크 버튼 티어(12px)로 통일.
     retryButton: {
       alignSelf: "flex-start",

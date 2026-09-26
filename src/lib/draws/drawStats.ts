@@ -363,3 +363,75 @@ export function describeFirstPrizeExpectation(exp: FirstPrizeExpectation): strin
   }
   return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)보다 꽤 이례적으로 ${direction} 나왔습니다.`;
 }
+/** 복권 당첨금 기타소득세 원천징수 계산에 쓰는 구간 상수 (2013년 세법 개정, 2014년 시행 기준 — 2026년 현재까지 유지). */
+const PRIZE_TAX_EXEMPT_THRESHOLD = 2_000_000; // 이 미만이면 비과세 (2023-01 시행, 과세최저한도 5만원→200만원 상향)
+const PRIZE_TAX_PROGRESSIVE_BRACKET = 300_000_000; // 3억원까지는 낮은 세율, 초과분만 높은 세율(누진 구조)
+const PRIZE_TAX_LOWER_RATE = 0.22; // 기타소득세 20% + 지방소득세 2%
+const PRIZE_TAX_UPPER_RATE = 0.33; // 기타소득세 30% + 지방소득세 3%
+
+export interface NetPrizeResult {
+  gross: number;
+  tax: number;
+  net: number;
+}
+
+/**
+ * 복권 당첨금(세전) 1건에 대한 원천징수 세액·실수령액을 계산한다.
+ *
+ * ⚠️ 이 계산은 "원 단위 절사/반올림" 등 실제 원천징수 세칙의 세부 규칙까지 완전히 재현하지는
+ * 않는 근사치다 — 실제 수령액과 수십~수백 원 정도 차이가 날 수 있다. UI에 노출할 때는 "예상"
+ * 임을 함께 표시해야 한다.
+ */
+export function calculateNetPrize(gross: number): NetPrizeResult {
+  if (!Number.isFinite(gross) || gross <= 0) {
+    return { gross: 0, tax: 0, net: 0 };
+  }
+  if (gross < PRIZE_TAX_EXEMPT_THRESHOLD) {
+    return { gross, tax: 0, net: gross };
+  }
+  const rawTax =
+    gross <= PRIZE_TAX_PROGRESSIVE_BRACKET
+      ? gross * PRIZE_TAX_LOWER_RATE
+      : PRIZE_TAX_PROGRESSIVE_BRACKET * PRIZE_TAX_LOWER_RATE +
+        (gross - PRIZE_TAX_PROGRESSIVE_BRACKET) * PRIZE_TAX_UPPER_RATE;
+  const tax = Math.round(rawTax);
+  return { gross, tax, net: gross - tax };
+}
+
+export interface FirstPrizeNetPayout {
+  drawNumber: number;
+  winnerCount: number;
+  grossPerWinner: number;
+  taxPerWinner: number;
+  netPerWinner: number;
+}
+
+/**
+ * 확정 발표된 회차의 "1등 1인당 실수령액". 홈 화면의 "1등 예상 총 당첨금"(추첨 전 추정치)과
+ * 달리, 이 함수는 이미 확정된 실제 1등 당첨자 수(firstPrizeWinnerCount)를 그대로 쓰므로
+ * "1인 단독 당첨 가정" 같은 전제가 섞이지 않은 사후 사실이다 — 로또연구소의 "실제 당첨결과"
+ * 카드에서만 노출한다.
+ *
+ * 당첨자가 0명(이월)이거나 데이터가 없으면 1인당 금액 자체가 정의되지 않으므로 null.
+ */
+export function computeFirstPrizeNetPayout(draw: WinningDraw): FirstPrizeNetPayout | null {
+  if (
+    draw.firstPrizeAmount == null ||
+    draw.firstPrizeAmount <= 0 ||
+    draw.firstPrizeWinnerCount == null ||
+    draw.firstPrizeWinnerCount <= 0
+  ) {
+    return null;
+  }
+
+  const grossPerWinner = Math.round(draw.firstPrizeAmount / draw.firstPrizeWinnerCount);
+  const { tax, net } = calculateNetPrize(grossPerWinner);
+
+  return {
+    drawNumber: draw.drawNumber,
+    winnerCount: draw.firstPrizeWinnerCount,
+    grossPerWinner,
+    taxPerWinner: tax,
+    netPerWinner: net,
+  };
+}
