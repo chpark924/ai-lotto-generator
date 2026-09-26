@@ -10,6 +10,7 @@ import {
   buildPopularityHeuristic,
   getTopFrequentNumbers,
   getNumbersAbsentInLastDraws,
+  computeTransitionFrequencies,
 } from "../../src/lib/draws/drawStats";
 import { getRecentDrawsSafe, computeCombinationPatternStats } from "../../src/lib/draws";
 import { useGenerationStore } from "../../src/state/generationStore";
@@ -37,6 +38,15 @@ const HIGH_FREQ_TOP_N = 10;
 /** 장기 미출현번호 포함: 기본 12주 기준, 100만 회 부스터 탐색일 때만 8주 기준으로 좁힌다. */
 const LONG_TERM_ABSENT_WEEKS_DEFAULT = 12;
 const LONG_TERM_ABSENT_WEEKS_BOOSTER = 8;
+
+/**
+ * "다음 회차 통계 전략" 게임의 강제 포함 후보 풀 계산 기준. 로또연구소 "이번 회차 번호
+ * 이후 통계"(lab.tsx)와 완전히 동일한 표본 크기·최소 표본 기준을 그대로 쓴다 — 같은
+ * 통계를 화면마다 다르게 정의하지 않기 위함이다.
+ */
+const TRANSITION_STRATEGY_HISTORY_SAMPLE_SIZE = 2000;
+const TRANSITION_STRATEGY_MIN_HISTORY_DRAWS = 200;
+const TRANSITION_STRATEGY_TOP_N_PER_TRIGGER = 3;
 
 type SumAveragePreference = "NONE" | "UP" | "DOWN";
 
@@ -175,6 +185,32 @@ export default function AiSearchScreen() {
     return { sets, unavailableLabels };
   }
 
+  /**
+   * "다음 회차 통계 전략" 게임에 강제로 포함시킬 후보 번호 풀을 계산한다. 고빈도/미출현
+   * 토글과 달리 사용자가 켜고 끄는 옵션이 아니라(끝수 스프레드 최적화와 동일하게
+   * 내재화됨), "바로 생성"(탐색 1회)이거나 게임 수가 1개면 "여러 게임 중 1개만
+   * 다르게"라는 전제 자체가 성립하지 않아 빈 배열을 반환해 조용히 건너뛴다. 데이터를
+   * 못 불러오거나(오프라인 등) 표본이 로또연구소 카드와 동일한 최소 기준(200회)에
+   * 못 미쳐도 마찬가지로 조용히 건너뛴다 — 토글이 아니라 사용자가 직접 켠 적 없는
+   * 기능이라, 다른 두 옵션과 달리 "적용 못 했다"는 안내도 띄우지 않는다.
+   */
+  async function resolveTransitionStrategyPool(): Promise<number[]> {
+    if (searchCount === 1 || gameCount < 2) return [];
+    const fullHistoryDraws = await getRecentDrawsSafe(TRANSITION_STRATEGY_HISTORY_SAMPLE_SIZE);
+    if (fullHistoryDraws.length < TRANSITION_STRATEGY_MIN_HISTORY_DRAWS) return [];
+    const latestDraw = fullHistoryDraws[0];
+    const rows = computeTransitionFrequencies(
+      fullHistoryDraws,
+      latestDraw.numbers,
+      TRANSITION_STRATEGY_TOP_N_PER_TRIGGER
+    );
+    const pool = new Set<number>();
+    for (const row of rows) {
+      for (const item of row.top) pool.add(item.number);
+    }
+    return [...pool];
+  }
+
   function toggleExcluded(n: number) {
     setExcluded((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
   }
@@ -210,6 +246,8 @@ export default function AiSearchScreen() {
 
     const { sets: mustIncludeOneOfSets, unavailableLabels } = await resolveMustIncludeOneOfSets();
     unavailableOptionLabels.push(...unavailableLabels);
+
+    const transitionStrategyPool = await resolveTransitionStrategyPool();
 
     // 실패한 옵션이 여러 개여도 알림을 하나로 모아서 한 번만 띄운다 — 옵션마다 따로
     // Alert.alert를 띄우면(과거 구현) 오프라인 등으로 여러 개가 한꺼번에 실패했을 때
@@ -247,6 +285,7 @@ export default function AiSearchScreen() {
         popularityByNumber: avoidPopular ? popularity : new Array(45).fill(0),
         savedCombinations: history,
         batchSize: 1000,
+        transitionStrategyPool,
         onProgress: (percent, phase) => {
           setProgressPercent(percent);
           setProgressLabel(PHASE_LABELS[phase]);

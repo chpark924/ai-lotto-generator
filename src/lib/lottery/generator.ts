@@ -132,6 +132,81 @@ export interface AiSearchOptions {
   onProgress?: (percent: number, phase: AiSearchPhase) => void;
   /** 한 번에 동기 처리할 후보 수. 값이 클수록 빠르지만 UI가 잠깐 멈출 수 있다. */
   batchSize?: number;
+  /**
+   * "다음 회차 통계 전략" 게임의 강제 포함 후보 풀(호출부인 ai-search.tsx가 로또연구소
+   * "이번 회차 번호 이후 통계"와 동일한 계산으로 미리 구해서 넘긴다 — generator.ts 자체는
+   * 당첨 데이터에 접근하지 않는다는 원칙을 그대로 지킨다, mustIncludeOneOfSets와 동일한
+   * 이유). 비어 있거나 생략되면(탐색 1회거나 게임 수 1개일 때 등) 이 기능 자체가 꺼진다.
+   */
+  transitionStrategyPool?: number[];
+}
+
+/** "다음 회차 통계 전략" 게임이 pool에서 강제로 포함할 번호 개수 범위(2~4개, 매번 무작위). */
+const TRANSITION_STRATEGY_MIN_FROM_POOL = 2;
+const TRANSITION_STRATEGY_MAX_FROM_POOL = 4;
+/** 연속번호 규칙/다른 게임과의 중복 회피 조건을 만족하는 조합을 찾기 위한 최대 재시도 횟수. */
+const TRANSITION_STRATEGY_MAX_ATTEMPTS = 300;
+
+/**
+ * "다음 회차 통계 전략" 게임 전용 구성 함수.
+ *
+ * AI 조합 탐색이 고르는 나머지 게임들과 달리 점수 기반 랭킹으로 선택되지 않는다 — `pool`
+ * (로또연구소 "이번 회차 번호 이후 통계"와 동일하게 호출부가 미리 계산해 넘긴, 최신
+ * 당첨번호 각각의 다음 회차 상위 후보 번호 집합)에서 2~4개를 강제로 포함시키고, 나머지는
+ * 완전 무작위(풀퍼지)로 채운다. 이 통계는 표본 크기가 유한해서 생기는 노이즈일 뿐이라는
+ * 점이 코드베이스에서 가장 강하게 강조된 통계라(drawStats.ts의 computeTransitionFrequencies
+ * 주석 참고), 점수 계산에는 전혀 관여하지 않는다 — 이 함수가 만든 조합에는 score를 아예
+ * 설정하지 않아(generateAiSearchGames 참고) "적합도 순위로 뽑힌 게 아니다"를 명확히 한다.
+ *
+ * 사용자가 설정한 제외번호·필수번호·연속번호 규칙, 그리고 같은 배치의 다른 게임들과 4개
+ * 이상 겹치지 않는 다양성 규칙(generateAiSearchGames와 동일 기준)은 그대로 지킨다. 극단적인
+ * 경우(제외번호가 pool 대부분을 잡아먹는 등) 유효한 조합을 못 찾으면 null을 반환한다 —
+ * 호출부는 이번 탐색에서 특별 슬롯 없이 나머지 게임만 반환하는 것으로 조용히 폴백한다
+ * (mustIncludeOneOfSets와 동일한 안전 원칙 — 생성 자체가 실패하지 않는 게 우선이다).
+ */
+function generateTransitionStrategyNumbers(
+  pool: number[],
+  request: Pick<GenerationRequest, "excludedNumbers" | "requiredNumbers" | "consecutiveRule">,
+  otherGamesNumbers: number[][]
+): number[] | null {
+  const excluded = new Set(request.excludedNumbers);
+  const required = [...new Set(request.requiredNumbers)];
+  if (required.length > 6) return null;
+
+  const availablePoolNumbers = pool.filter((n) => !excluded.has(n) && n >= 1 && n <= 45);
+  if (availablePoolNumbers.length === 0) return null;
+
+  for (let attempt = 0; attempt < TRANSITION_STRATEGY_MAX_ATTEMPTS; attempt += 1) {
+    const forced = [...required];
+
+    const alreadyFromPool = forced.filter((n) => availablePoolNumbers.includes(n)).length;
+    const target = randomInt(TRANSITION_STRATEGY_MIN_FROM_POOL, TRANSITION_STRATEGY_MAX_FROM_POOL + 1);
+    const stillNeeded = Math.max(0, target - alreadyFromPool);
+
+    const poolCandidates = availablePoolNumbers.filter((n) => !forced.includes(n));
+    const room = 6 - forced.length;
+    const toForce = Math.min(stillNeeded, poolCandidates.length, room);
+    if (toForce > 0) {
+      forced.push(...securePartialShuffle(poolCandidates, toForce));
+    }
+
+    const remainingCount = 6 - forced.length;
+    const restAvailable = Array.from({ length: 45 }, (_, i) => i + 1)
+      .filter((n) => !excluded.has(n))
+      .filter((n) => !forced.includes(n));
+    if (restAvailable.length < remainingCount) continue;
+
+    const rest = securePartialShuffle(restAvailable, remainingCount);
+    const numbers = [...forced, ...rest].sort((a, b) => a - b);
+
+    if (!isConsecutiveRuleOk(numbers, request.consecutiveRule)) continue;
+    if (maxOverlapAgainstList(numbers, otherGamesNumbers) >= 4) continue;
+    const key = combinationKey(numbers);
+    if (otherGamesNumbers.some((g) => combinationKey(g) === key)) continue;
+
+    return numbers;
+  }
+  return null;
 }
 
 /**
@@ -145,6 +220,14 @@ export async function generateAiSearchGames(
   validateGenerationRequest(request);
   const requestedIterations = request.searchCount ?? 30000;
   const batchSize = options.batchSize ?? 500;
+
+  // "다음 회차 통계 전략" 게임은 점수 기반 선택 밖에서 별도로 구성되므로, 아래 후보
+  // 생성/점수 계산/선별 단계는 이 슬롯 1개를 뺀 나머지 게임 수만 채우면 된다(게임 수가
+  // 1개면 "여러 게임 중 1개만 다르게"라는 전제 자체가 성립하지 않아 자동으로 꺼진다 —
+  // ai-search.tsx의 resolveTransitionStrategyPool도 동일 조건으로 이미 걸러서 넘긴다).
+  const wantsTransitionStrategySlot =
+    (options.transitionStrategyPool?.length ?? 0) > 0 && request.gameCount >= 2;
+  const normalGameCount = wantsTransitionStrategySlot ? request.gameCount - 1 : request.gameCount;
 
   const uniqueCandidates = new Map<string, number[]>();
   const validCandidates: number[][] = [];
@@ -202,7 +285,7 @@ export async function generateAiSearchGames(
 
   // 상위 1~5% 후보만 남긴다 (최소 gameCount * 3, 최대 전체 pool).
   const topSliceSize = Math.max(
-    request.gameCount * 3,
+    normalGameCount * 3,
     Math.ceil(scored.length * 0.05)
   );
   const topCandidates = scored.slice(0, Math.min(topSliceSize, scored.length));
@@ -210,7 +293,7 @@ export async function generateAiSearchGames(
   // 서로 4개 이상 겹치는 후보를 제거하며 상위 점수 순으로 채택한다 (기획서 7.6).
   const chosen: typeof topCandidates = [];
   for (const candidate of topCandidates) {
-    if (chosen.length >= request.gameCount) break;
+    if (chosen.length >= normalGameCount) break;
     const overlapTooHigh =
       maxOverlapAgainstList(
         candidate.numbers,
@@ -220,10 +303,10 @@ export async function generateAiSearchGames(
       chosen.push(candidate);
     }
   }
-  // 조건이 너무 강해 gameCount를 못 채운 경우, 남은 후보로 보충한다.
-  if (chosen.length < request.gameCount) {
+  // 조건이 너무 강해 normalGameCount를 못 채운 경우, 남은 후보로 보충한다.
+  if (chosen.length < normalGameCount) {
     for (const candidate of topCandidates) {
-      if (chosen.length >= request.gameCount) break;
+      if (chosen.length >= normalGameCount) break;
       if (!chosen.includes(candidate)) chosen.push(candidate);
     }
   }
@@ -234,6 +317,30 @@ export async function generateAiSearchGames(
   const games = chosen.map((c, i) =>
     buildGeneratedGame(c.numbers, request.mode, { ...c.score, totalScore: displayTotals[i] })
   );
+
+  // 항상 정확히 1개만, 맨 마지막에 덧붙인다 — 게임 수가 5개든 10개든 "특별 전략" 취지가
+  // 옅어지지 않도록 개수는 늘리지 않는다. score는 설정하지 않는다(위 함수 주석 참고) —
+  // GeneratedGameCard.tsx/accessibilitySummary.ts 둘 다 score가 없는 게임을 이미
+  // 정상적으로(적합도 영역만 자연스럽게 숨기고) 처리하므로 UI 쪽 추가 분기가 필요 없다.
+  if (wantsTransitionStrategySlot) {
+    const transitionNumbers = generateTransitionStrategyNumbers(
+      options.transitionStrategyPool!,
+      request,
+      games.map((g) => g.numbers)
+    );
+    if (transitionNumbers) {
+      games.push({
+        id: nextGameId(),
+        numbers: transitionNumbers,
+        mode: request.mode,
+        metadata: buildGameMetadata(transitionNumbers),
+        specialStrategy: "TRANSITION_STATS",
+      });
+    }
+    // transitionNumbers가 null이면(극단적인 제외번호 설정 등) 조용히 포기한다 — 이번
+    // 탐색은 요청한 gameCount보다 1개 적은 결과를 반환하게 되지만, 생성 자체가 실패하는
+    // 것보다는 낫다(mustIncludeOneOfSets와 동일한 폴백 철학).
+  }
 
   const coveragePercent = calculateCoveragePercent(uniqueCandidates.size);
   const probability = calculateFirstPrizeProbability(games.length);

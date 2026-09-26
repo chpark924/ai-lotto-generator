@@ -4,6 +4,7 @@ import {
   getWheelingBadge,
   getLastDigitSpreadBadge,
   getSakaiPatternBadge,
+  getTransitionStatsStrategyBadge,
   computeBatchLevelBadges,
   computeGameLevelBadges,
   type SakaiAnalysisInputs,
@@ -116,6 +117,19 @@ describe("getSakaiPatternBadge", () => {
   });
 });
 
+describe("getTransitionStatsStrategyBadge", () => {
+  it("game.specialStrategy가 TRANSITION_STATS면 표시한다", () => {
+    expect(getTransitionStatsStrategyBadge({ specialStrategy: "TRANSITION_STATS" })).toEqual({
+      key: "TRANSITION_STATS_STRATEGY",
+      label: "다음 회차 통계 전략",
+    });
+  });
+
+  it("태그가 없으면 null — 우연히 조건을 만족한 다른 게임에는 붙지 않는다", () => {
+    expect(getTransitionStatsStrategyBadge({})).toBeNull();
+  });
+});
+
 describe("computeBatchLevelBadges", () => {
   it("배치(요청) 조건에 맞는 배지만 모아서 반환한다 — 끝수 스프레드 포함, 사카이는 제외", () => {
     const request = baseRequest({ searchCount: 100000, avoidPopularNumbers: true, gameCount: 5 });
@@ -143,5 +157,13 @@ describe("computeGameLevelBadges", () => {
 
   it("사카이 데이터가 없으면 빈 배열을 반환한다", () => {
     expect(computeGameLevelBadges({ numbers: [1, 2, 3, 4, 5, 6] }, null)).toEqual([]);
+  });
+
+  it("specialStrategy 태그가 있으면 사카이 조건과 무관하게 다음 회차 통계 전략 배지도 함께 반환한다", () => {
+    const keys = computeGameLevelBadges(
+      { numbers: [1, 2, 3, 4, 5, 6], specialStrategy: "TRANSITION_STATS" },
+      null
+    ).map((b) => b.key);
+    expect(keys).toEqual(["TRANSITION_STATS_STRATEGY"]);
   });
 });

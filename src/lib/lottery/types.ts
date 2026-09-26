@@ -109,6 +109,15 @@ export interface GeneratedGame {
   score?: CandidateScore;
   metadata: GameMetadata;
   numberReasons?: NumberReason[];
+  /**
+   * "다음 회차 통계 전략"처럼, 점수 기반 랭킹이 아니라 의도적으로 별도 방식으로 구성된
+   * 게임임을 나타내는 태그(generator.ts의 generateTransitionStrategyNumbers 참고).
+   * resultBadges.ts가 결과 번호를 사후 판단(우연히 조건을 만족하는지)하는 대신 이 태그를
+   * 그대로 서술해 배지를 붙인다 — 실제 생성 방식과 배지 설명이 항상 일치하게 하기 위함.
+   * 이 태그가 있는 게임은 score를 설정하지 않는다("적합도 순위로 뽑힌 게 아니다"를
+   * 명확히 하기 위함 — generator.ts 참고).
+   */
+  specialStrategy?: "TRANSITION_STATS";
 }
 
 export interface SimulationSummary {

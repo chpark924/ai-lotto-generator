@@ -171,6 +171,65 @@ describe("generateAiSearchGames", () => {
     }, 20000);
   });
 
+  // "다음 회차 통계 전략" — transitionStrategyPool이 주어지면 게임 수는 그대로 유지한 채,
+  // 마지막 1개만 pool에서 2~4개를 강제 포함하도록 별도 구성되고 score가 없어야 한다.
+  describe("다음 회차 통계 전략 (transitionStrategyPool)", () => {
+    const pool = [2, 4, 11, 13, 24, 25, 26, 27, 33, 39, 44, 45];
+
+    it("게임 수는 그대로 유지하고, 마지막 게임만 특별 전략으로 구성한다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 10000 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+        transitionStrategyPool: pool,
+      });
+
+      expect(result.games).toHaveLength(5);
+      const [normalGames, lastGame] = [result.games.slice(0, -1), result.games[result.games.length - 1]];
+
+      expect(lastGame.specialStrategy).toBe("TRANSITION_STATS");
+      expect(lastGame.score).toBeUndefined();
+      const fromPoolCount = lastGame.numbers.filter((n) => pool.includes(n)).length;
+      expect(fromPoolCount).toBeGreaterThanOrEqual(2);
+      expect(fromPoolCount).toBeLessThanOrEqual(4);
+
+      for (const game of normalGames) {
+        expect(game.specialStrategy).toBeUndefined();
+        expect(game.score).toBeDefined();
+      }
+    }, 20000);
+
+    it("게임 수가 1개면 pool이 있어도 특별 슬롯을 만들지 않는다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 1, searchCount: 10000 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+        transitionStrategyPool: pool,
+      });
+
+      expect(result.games).toHaveLength(1);
+      expect(result.games[0].specialStrategy).toBeUndefined();
+      expect(result.games[0].score).toBeDefined();
+    }, 20000);
+
+    it("pool을 넘기지 않으면 기존과 동일하게 모든 게임에 점수가 채워진다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 5, searchCount: 10000 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      expect(result.games).toHaveLength(5);
+      for (const game of result.games) {
+        expect(game.specialStrategy).toBeUndefined();
+        expect(game.score).toBeDefined();
+      }
+    }, 20000);
+  });
+
   // AI 조합탐색 화면의 "고빈도 당첨번호 상위권 포함"/"장기 미출현번호 포함" 토글이 실제
   // 탐색 결과에도 반영되는지 검증한다(장식용 토글이 아니라 request.mustIncludeOneOfSets를
   // 통해 매 후보 생성에 실제로 강제돼야 한다는 요구사항).

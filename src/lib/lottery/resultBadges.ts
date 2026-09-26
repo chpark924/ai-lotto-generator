@@ -15,14 +15,21 @@
  *    — 즉 한 번 탐색으로 나온 모든 게임에 항상 똑같이 적용된다. 그런데도 카드마다 반복
  *    노출하면(최대 10장) 사실상 같은 배지를 계속 다시 보여주는 셈이라 정보량만 늘고
  *    가독성은 떨어진다. `computeBatchLevelBadges()`로 결과 화면 상단에 딱 한 번만 표시한다.
- *  - **게임(game) 단위**: 사카이 분석 패턴은 조합의 실제 번호 구성에 따라 게임마다 결과가
- *    달라지므로, 유일하게 카드마다 따로 계산해서 보여줄 가치가 있다. `computeGameLevelBadges()`.
+ *  - **게임(game) 단위**: 사카이 분석 패턴은 조합의 실제 번호 구성에 따라, 다음 회차 통계
+ *    전략은 그 게임이 실제로 그 방식으로 생성됐는지(game.specialStrategy)에 따라 게임마다
+ *    결과가 달라지므로 카드마다 따로 계산해서 보여줄 가치가 있다. `computeGameLevelBadges()`.
  */
 import type { GeneratedGame, GenerationRequest } from "./types";
 import { isLastDigitSpreadOptimizationActive } from "./scoring";
 
 export interface ResultBadge {
-  key: "MONTE_CARLO" | "EV_OPTIMIZED" | "WHEELING" | "LAST_DIGIT_SPREAD" | "SAKAI_PATTERN";
+  key:
+    | "MONTE_CARLO"
+    | "EV_OPTIMIZED"
+    | "WHEELING"
+    | "LAST_DIGIT_SPREAD"
+    | "SAKAI_PATTERN"
+    | "TRANSITION_STATS_STRATEGY";
   label: string;
 }
 
@@ -89,6 +96,24 @@ export function getLastDigitSpreadBadge(
   return { key: "LAST_DIGIT_SPREAD", label: "끝수 스프레드 최적화" };
 }
 
+/**
+ * "다음 회차 통계 전략" — 로또연구소 "이번 회차 번호 이후 통계"와 동일한 계산
+ * (computeTransitionFrequencies)으로 뽑은 후보 번호를 2~4개 강제 포함해 별도로 구성한
+ * 게임에만 붙는다(generator.ts의 generateTransitionStrategyNumbers).
+ *
+ * 사카이 배지와 달리 "결과 번호가 우연히 조건을 만족하는지" 사후 판단하지 않는다 — 이
+ * 통계는 코드베이스에서 "예측 아님"이 가장 강하게 강조된 통계라(drawStats.ts의
+ * TRANSITION_FREQUENCY_NOTICE), 우연히 조건을 만족한 다른 게임까지 같은 배지가 붙으면
+ * "이 조합도 그 전략으로 골랐다"는 오해를 줄 수 있다. 그래서 generator.ts가 실제로 그
+ * 방식으로 만들었을 때만 세팅하는 game.specialStrategy 태그를 그대로 서술한다.
+ */
+export function getTransitionStatsStrategyBadge(
+  game: Pick<GeneratedGame, "specialStrategy">
+): ResultBadge | null {
+  if (game.specialStrategy !== "TRANSITION_STATS") return null;
+  return { key: "TRANSITION_STATS_STRATEGY", label: "다음 회차 통계 전략" };
+}
+
 export interface SakaiAnalysisInputs {
   /** 최근 26주 표본 기준 출현 3~4회(평균권) 번호 (drawStats.ts의 getSakaiAverageFrequencyNumbers). */
   averageFrequencyNumbers: number[];
@@ -130,12 +155,16 @@ export function computeBatchLevelBadges(request: GenerationRequest): ResultBadge
   ].filter((badge): badge is ResultBadge => badge !== null);
 }
 
-/** 게임 단위 배지(현재는 사카이 분석 패턴 하나뿐)를 모아 반환한다. 카드마다 따로 계산한다. */
+/**
+ * 게임 단위 배지(사카이 분석 패턴, 다음 회차 통계 전략)를 모아 반환한다. 카드마다 따로
+ * 계산한다 — 사카이는 결과 번호 구성에 따라, 다음 회차 통계 전략은 game.specialStrategy
+ * 태그 유무에 따라 게임마다 다르게 붙을 수 있다.
+ */
 export function computeGameLevelBadges(
-  game: Pick<GeneratedGame, "numbers">,
+  game: Pick<GeneratedGame, "numbers" | "specialStrategy">,
   sakaiInputs: SakaiAnalysisInputs | null
 ): ResultBadge[] {
-  return [getSakaiPatternBadge(game.numbers, sakaiInputs)].filter(
+  return [getSakaiPatternBadge(game.numbers, sakaiInputs), getTransitionStatsStrategyBadge(game)].filter(
     (badge): badge is ResultBadge => badge !== null
   );
 }
