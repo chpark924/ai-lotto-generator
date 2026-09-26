@@ -8,6 +8,7 @@ import { getGenerationHistory } from "../../src/lib/storage";
 import { ENTERTAINMENT_NOTICE } from "../../src/constants/messages";
 import { HeroCtaMorph, LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, StatusBarSafeMask } from "../../src/components";
 import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
+import { fetchJackpotInfoFromGithub } from "../../src/lib/jackpot";
 
 function daysUntilNextSaturday(): number {
   const now = new Date();
@@ -28,6 +29,10 @@ export default function HomeScreen() {
   const [absentNumbers, setAbsentNumbers] = useState<number[]>([]);
   const [myFrequentNumbers, setMyFrequentNumbers] = useState<number[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  // 1등 예상 총 당첨금(원). GitHub Actions가 1시간 간격으로 받아오는 값을 표시만 한다(11차
+  // 업데이트 — 실시간 1등 예상 당첨금, 2026-09-26). 못 받아오면 null로 남아 그 줄이 그냥
+  // 안 보인다 — src/lib/jackpot/githubSource.ts 참고, 단일 장애점 아님.
+  const [jackpotAmount, setJackpotAmount] = useState<number | null>(null);
   // 당첨번호 네트워크 조회 + 내 생성 이력 조회가 끝나기 전까지의 상태.
   // 이 값이 true인 동안은 아래 카드들이 스켈레톤으로 표시된다(빈 화면 → 카드가
   // 갑자기 팝업되는 것보다 레이아웃을 미리 보여주는 게 자연스럽다).
@@ -83,6 +88,15 @@ export default function HomeScreen() {
       } finally {
         setLoading(false);
       }
+    })();
+  }, []);
+
+  // 다른 카드들의 loading 상태와 독립적으로 돈다 — 실패해도 화면 전체 스켈레톤을
+  // 막지 않고, 그냥 이 줄만 안 보이게 둔다.
+  useEffect(() => {
+    (async () => {
+      const info = await fetchJackpotInfoFromGithub();
+      if (info) setJackpotAmount(info.expectedRank1Amount);
     })();
   }, []);
 
@@ -149,6 +163,16 @@ export default function HomeScreen() {
             onPress={() => router.push("/generate/qr-check")}
           />
         </View>
+
+        {jackpotAmount !== null && latestDrawNumber !== null ? (
+          <View style={styles.jackpotLine}>
+            <Ionicons name="cash-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.jackpotLabel}>
+              제{latestDrawNumber + 1}회 1등 예상 총 당첨금{" "}
+              <Text style={styles.jackpotAmount}>{jackpotAmount.toLocaleString("ko-KR")}원</Text>
+            </Text>
+          </View>
+        ) : null}
 
         {loading ? (
           <View style={styles.card}>
@@ -286,6 +310,12 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     heroSkeletonSubtitle: { marginBottom: 8 },
     skeletonTitle: { marginBottom: 12 },
     quickMenuRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
+    // 11차 업데이트 — 실시간 1등 예상 당첨금(2026-09-26). 라벨은 다른 보조 텍스트와
+    // 같은 textMuted 회색·일반 굵기, 금액만 브랜드 블루 + 세미볼드로 살짝 강조한다
+    // (ProbabilityCard.tsx의 label/value 쌍과 동일한 위계 규칙).
+    jackpotLine: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 16 },
+    jackpotLabel: { fontSize: 12, color: colors.textMuted },
+    jackpotAmount: { fontSize: 12, color: brand.primary, fontWeight: "600" },
     quickMenuItem: {
       flex: 1,
       backgroundColor: colors.surface,
