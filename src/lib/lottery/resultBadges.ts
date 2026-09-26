@@ -98,7 +98,7 @@ export function getLastDigitSpreadBadge(
 
 /**
  * "다음 회차 통계 전략" — 로또연구소 "이번 회차 번호 이후 통계"와 동일한 계산
- * (computeTransitionFrequencies)으로 뽑은 후보 번호를 2~4개 강제 포함해 별도로 구성한
+ * (computeTransitionFrequencies)으로 뽑은 후보 번호를 3~4개 강제 포함해 별도로 구성한
  * 게임에만 붙는다(generator.ts의 generateTransitionStrategyNumbers).
  *
  * 사카이 배지와 달리 "결과 번호가 우연히 조건을 만족하는지" 사후 판단하지 않는다 — 이

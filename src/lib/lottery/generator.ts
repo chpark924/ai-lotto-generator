@@ -141,8 +141,8 @@ export interface AiSearchOptions {
   transitionStrategyPool?: number[];
 }
 
-/** "다음 회차 통계 전략" 게임이 pool에서 강제로 포함할 번호 개수 범위(2~4개, 매번 무작위). */
-const TRANSITION_STRATEGY_MIN_FROM_POOL = 2;
+/** "다음 회차 통계 전략" 게임이 pool에서 강제로 포함할 번호 개수 범위(3~4개, 매번 무작위). */
+const TRANSITION_STRATEGY_MIN_FROM_POOL = 3;
 const TRANSITION_STRATEGY_MAX_FROM_POOL = 4;
 /** 연속번호 규칙/다른 게임과의 중복 회피 조건을 만족하는 조합을 찾기 위한 최대 재시도 횟수. */
 const TRANSITION_STRATEGY_MAX_ATTEMPTS = 300;
@@ -152,7 +152,7 @@ const TRANSITION_STRATEGY_MAX_ATTEMPTS = 300;
  *
  * AI 조합 탐색이 고르는 나머지 게임들과 달리 점수 기반 랭킹으로 선택되지 않는다 — `pool`
  * (로또연구소 "이번 회차 번호 이후 통계"와 동일하게 호출부가 미리 계산해 넘긴, 최신
- * 당첨번호 각각의 다음 회차 상위 후보 번호 집합)에서 2~4개를 강제로 포함시키고, 나머지는
+ * 당첨번호 각각의 다음 회차 상위 후보 번호 집합)에서 3~4개를 강제로 포함시키고, 나머지는
  * 완전 무작위(풀퍼지)로 채운다. 이 통계는 표본 크기가 유한해서 생기는 노이즈일 뿐이라는
  * 점이 코드베이스에서 가장 강하게 강조된 통계라(drawStats.ts의 computeTransitionFrequencies
  * 주석 참고), 점수 계산에는 전혀 관여하지 않는다 — 이 함수가 만든 조합에는 score를 아예

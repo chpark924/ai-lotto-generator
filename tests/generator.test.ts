@@ -172,7 +172,7 @@ describe("generateAiSearchGames", () => {
   });
 
   // "다음 회차 통계 전략" — transitionStrategyPool이 주어지면 게임 수는 그대로 유지한 채,
-  // 마지막 1개만 pool에서 2~4개를 강제 포함하도록 별도 구성되고 score가 없어야 한다.
+  // 마지막 1개만 pool에서 3~4개를 강제 포함하도록 별도 구성되고 score가 없어야 한다.
   describe("다음 회차 통계 전략 (transitionStrategyPool)", () => {
     const pool = [2, 4, 11, 13, 24, 25, 26, 27, 33, 39, 44, 45];
 
@@ -190,9 +190,11 @@ describe("generateAiSearchGames", () => {
 
       expect(lastGame.specialStrategy).toBe("TRANSITION_STATS");
       expect(lastGame.score).toBeUndefined();
+      // 보장되는 건 "최소 3개는 의도적으로 강제 포함했다"는 하한뿐이다. 나머지 슬롯은
+      // pool을 배제하지 않는 완전 무작위(풀퍼지)라, 우연히 pool 번호를 더 뽑아 총
+      // 포함 개수가 4를 넘을 수도 있다 — 그것도 "완전 무작위"의 정상 범주다.
       const fromPoolCount = lastGame.numbers.filter((n) => pool.includes(n)).length;
-      expect(fromPoolCount).toBeGreaterThanOrEqual(2);
-      expect(fromPoolCount).toBeLessThanOrEqual(4);
+      expect(fromPoolCount).toBeGreaterThanOrEqual(3);
 
       for (const game of normalGames) {
         expect(game.specialStrategy).toBeUndefined();
