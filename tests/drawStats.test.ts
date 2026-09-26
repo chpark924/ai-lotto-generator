@@ -9,6 +9,9 @@ import {
   SUM_MIDPOINT,
   calculateNetPrize,
   computeFirstPrizeNetPayout,
+  computeConsecutiveNumberStats,
+  computeConsecutivePairGapStats,
+  describeConsecutiveGap,
 } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
 
@@ -280,5 +283,87 @@ describe("computeFirstPrizeNetPayout", () => {
 
   it("firstPrizeAmount/firstPrizeWinnerCount가 없으면(데이터 미확보) null", () => {
     expect(computeFirstPrizeNetPayout(draw({}))).toBeNull();
+  });
+});
+describe("computeConsecutiveNumberStats", () => {
+  // 연번(2연번 이상) 포함: [1,2,...], 3연번 포함: [1,2,3,...], 연번 없음: 전부 2 이상 차이
+  const pairDraw = (n: number) => draw({ drawNumber: n, numbers: [1, 2, 10, 20, 30, 40] }); // 2연번만
+  const tripleDraw = (n: number) => draw({ drawNumber: n, numbers: [1, 2, 3, 20, 30, 40] }); // 3연번(2연번도 포함)
+  const noPairDraw = (n: number) => draw({ drawNumber: n, numbers: [1, 5, 10, 20, 30, 40] }); // 연번 없음
+
+  it("전체/최근 표본의 연번·3연번 횟수와 비율을 정확히 계산한다", () => {
+    // 최신순(내림차순) 5건: 3연번1 + 2연번1 + 무연번3
+    const draws = [tripleDraw(5), pairDraw(4), noPairDraw(3), noPairDraw(2), noPairDraw(1)];
+    const stats = computeConsecutiveNumberStats(draws, 3);
+    expect(stats).toEqual({
+      totalDraws: 5,
+      pairCount: 2, // tripleDraw도 2연번 조건(maxConsecutive>=2)을 만족
+      pairRate: 2 / 5,
+      recentSampleSize: 3,
+      recentPairCount: 2, // 최근 3건(tripleDraw, pairDraw, noPairDraw) 중 tripleDraw·pairDraw 둘 다 2연번 이상
+      recentPairRate: 2 / 3,
+      tripleCount: 1,
+      tripleRate: 1 / 5,
+      recentTripleCount: 1,
+    });
+  });
+
+  it("빈 배열이면 null을 반환한다", () => {
+    expect(computeConsecutiveNumberStats([], 52)).toBeNull();
+  });
+});
+
+describe("computeConsecutivePairGapStats / describeConsecutiveGap", () => {
+  // 과거→최신 순 20회 중 연번(2연번 이상) 발생 위치(0-index): 0, 3, 7, 12
+  // gaps = [3, 4, 5] → 평균 4.0, 최장 5 / currentGap = 19 - 12 = 7
+  // follow 체크: idx 0,3,7,12 전부 다음 회차가 미발생 → followRate 0, baseRate = 4/20 = 0.2
+  const pairFlagsChrono = [
+    true, false, false, true, false, false, false, true, false, false,
+    false, false, true, false, false, false, false, false, false, false,
+  ];
+
+  function buildDrawsLatestFirst(flags: boolean[]): WinningDraw[] {
+    // flags는 과거→최신 순. drawNumber도 과거→최신 순으로 부여한 뒤, 함수 계약대로 최신순으로 뒤집어 반환.
+    const chrono = flags.map((hasPair, idx) =>
+      draw({
+        drawNumber: idx + 1,
+        numbers: hasPair ? [1, 2, 10, 20, 30, 40] : [1, 5, 10, 20, 30, 40],
+      })
+    );
+    return [...chrono].reverse();
+  }
+
+  it("공백 길이(평균/최장/현재)와 직전 회차 대비 독립성을 정확히 계산한다", () => {
+    const draws = buildDrawsLatestFirst(pairFlagsChrono);
+    const stats = computeConsecutivePairGapStats(draws);
+    expect(stats).toEqual({
+      currentGap: 7,
+      averageGap: 4,
+      longestGap: 5,
+      followRate: 0,
+      baseRate: 0.2,
+    });
+  });
+
+  it("표본이 20회 미만이면 null(호출부는 카드를 숨겨야 함)", () => {
+    const draws = buildDrawsLatestFirst(pairFlagsChrono.slice(0, 19));
+    expect(computeConsecutivePairGapStats(draws)).toBeNull();
+  });
+
+  it("표본 내 연번이 한 번도 없으면 null", () => {
+    const draws = buildDrawsLatestFirst(new Array(25).fill(false));
+    expect(computeConsecutivePairGapStats(draws)).toBeNull();
+  });
+
+  it("describeConsecutiveGap: 이번 회차 출현/공백 1회/N회를 각각 올바른 문장으로 서술한다", () => {
+    expect(
+      describeConsecutiveGap({ currentGap: 0, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
+    ).toBe("이번 회차에 연속번호가 나왔어요.");
+    expect(
+      describeConsecutiveGap({ currentGap: 1, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
+    ).toBe("지난 회차부터 연속번호가 안 나왔어요.");
+    expect(
+      describeConsecutiveGap({ currentGap: 7, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
+    ).toBe("이번 회차까지 7회째 연속번호가 안 나왔어요.");
   });
 });

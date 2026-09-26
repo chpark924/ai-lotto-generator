@@ -10,6 +10,9 @@ import {
   computeFirstPrizeExpectation,
   describeFirstPrizeExpectation,
   computeFirstPrizeNetPayout,
+  computeConsecutiveNumberStats,
+  computeConsecutivePairGapStats,
+  describeConsecutiveGap,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
   type WinningDraw,
@@ -24,6 +27,7 @@ import {
   SUM_TREND_NOTICE,
   TRANSITION_FREQUENCY_NOTICE,
   FIRST_PRIZE_EXPECTATION_NOTICE,
+  CONSECUTIVE_GAP_NOTICE,
 } from "../../src/constants/messages";
 import { useAppTheme, accentViolet, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
@@ -204,6 +208,11 @@ export default function LabScreen() {
       : [];
   const firstPrizeExpectation = latestDraw ? computeFirstPrizeExpectation(latestDraw) : null;
   const firstPrizeNetPayout = latestDraw ? computeFirstPrizeNetPayout(latestDraw) : null;
+  const consecutiveStats =
+    fullHistoryDraws.length > 0
+      ? computeConsecutiveNumberStats(fullHistoryDraws, RECENT_DRAW_SAMPLE_SIZE)
+      : null;
+  const consecutiveGapStats = computeConsecutivePairGapStats(fullHistoryDraws);
 
   return (
     <View style={styles.container}>
@@ -334,6 +343,66 @@ export default function LabScreen() {
             ))}
           </View>
         </View>
+      ) : null}
+
+      {consecutiveStats ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>연번(연속번호) 통계</Text>
+          <Text style={styles.cardSub}>
+            역대 회차 중 {Math.round(consecutiveStats.pairRate * 100)}%에 연속번호가 포함됐어요.
+          </Text>
+          <Row
+            styles={styles}
+            label={`최근 ${consecutiveStats.recentSampleSize}회 연번 출현`}
+            value={`${consecutiveStats.recentPairCount}회 (${Math.round(
+              consecutiveStats.recentPairRate * 100
+            )}%)`}
+          />
+          <Row
+            styles={styles}
+            label="역대 연번 출현"
+            value={`${consecutiveStats.pairCount}회 (${Math.round(consecutiveStats.pairRate * 100)}%)`}
+          />
+          <Row
+            styles={styles}
+            label={`최근 ${consecutiveStats.recentSampleSize}회 3연번 출현`}
+            value={`${consecutiveStats.recentTripleCount}회`}
+          />
+          <Row
+            styles={styles}
+            label="역대 3연번 출현"
+            value={`${consecutiveStats.tripleCount}회 (${(consecutiveStats.tripleRate * 100).toFixed(1)}%)`}
+          />
+        </View>
+      ) : null}
+
+      {consecutiveGapStats ? (
+        // [2026-09-26] "연번이 오래 안 나왔으니 곧 나올까?"라는 사용자 메모에서 출발했지만,
+        // 실측(공백 길이 분포가 기하분포와 정확히 일치, 직전 회차 연번 여부와도 무관)이 정반대
+        // 결론(패턴 없음)을 보여줘서, "패턴을 찾아 확률을 예측"이 아니라 "공백이 길어져도
+        // 확률은 그대로다"라는 도박사의 오류 반증 카드로 프레이밍을 뒤집었다(검토 문서
+        // consecutive-number-stats-review.md 참고). cardSub는 "지금 몇 회째인지" 실시간
+        // 수치로 흥미를 끌고, Row/DisclaimerCard가 "그래도 확률은 안 변한다"는 결론을 보여준다.
+        <>
+          <View style={[styles.card, styles.cardTight]}>
+            <Text style={styles.cardTitle}>연번 공백 패턴</Text>
+            <Text style={styles.cardSub}>{describeConsecutiveGap(consecutiveGapStats)}</Text>
+            <Row
+              styles={styles}
+              label="역대 평균 공백"
+              value={`${consecutiveGapStats.averageGap.toFixed(1)}회`}
+            />
+            <Row styles={styles} label="역대 최장 공백" value={`${consecutiveGapStats.longestGap}회`} />
+            <Row
+              styles={styles}
+              label="연번 후 연번 확률"
+              value={`${Math.round(consecutiveGapStats.followRate * 100)}% (평소 ${Math.round(
+                consecutiveGapStats.baseRate * 100
+              )}%)`}
+            />
+          </View>
+          <DisclaimerCard text={CONSECUTIVE_GAP_NOTICE} style={styles.attachedNotice} />
+        </>
       ) : null}
 
       {transitionRows.length > 0 ? (

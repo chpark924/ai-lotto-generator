@@ -435,3 +435,122 @@ export function computeFirstPrizeNetPayout(draw: WinningDraw): FirstPrizeNetPayo
     netPerWinner: net,
   };
 }
+/**
+ * 로또 연구소 "연번(연속번호) 통계" 카드 — 최근 1년/역대 연번(2연번 이상)·3연번(3연번 이상)
+ * 출현 횟수·비율을 계산한다. 순수 사후 서술 통계(번호별 출현 빈도, 장기 미출현 번호와 같은
+ * 성격)라 별도 DisclaimerCard 없이 노출한다.
+ */
+export interface ConsecutiveNumberStats {
+  totalDraws: number;
+  pairCount: number;
+  pairRate: number;
+  recentSampleSize: number;
+  recentPairCount: number;
+  recentPairRate: number;
+  tripleCount: number;
+  tripleRate: number;
+  recentTripleCount: number;
+}
+
+export function computeConsecutiveNumberStats(
+  fullHistoryDraws: WinningDraw[],
+  recentSampleSize: number
+): ConsecutiveNumberStats | null {
+  if (fullHistoryDraws.length === 0) return null;
+
+  const hasPair = (d: WinningDraw) => getMaxConsecutiveLength(d.numbers) >= 2;
+  const hasTriple = (d: WinningDraw) => getMaxConsecutiveLength(d.numbers) >= 3;
+  const recent = fullHistoryDraws.slice(0, recentSampleSize);
+
+  const pairCount = fullHistoryDraws.filter(hasPair).length;
+  const tripleCount = fullHistoryDraws.filter(hasTriple).length;
+  const recentPairCount = recent.filter(hasPair).length;
+  const recentTripleCount = recent.filter(hasTriple).length;
+
+  return {
+    totalDraws: fullHistoryDraws.length,
+    pairCount,
+    pairRate: pairCount / fullHistoryDraws.length,
+    recentSampleSize: recent.length,
+    recentPairCount,
+    recentPairRate: recent.length > 0 ? recentPairCount / recent.length : 0,
+    tripleCount,
+    tripleRate: tripleCount / fullHistoryDraws.length,
+    recentTripleCount,
+  };
+}
+
+/** computeConsecutivePairGapStats가 의미 있으려면 필요한 최소 표본(회차) 수. */
+const MIN_CONSECUTIVE_GAP_SAMPLE_DRAWS = 20;
+
+export interface ConsecutiveGapStats {
+  /** 가장 최근 연번(2연번 이상) 출현 이후 지금까지(이번 회차 포함) 경과한 회차 수. 0이면 이번 회차에 나왔다는 뜻. */
+  currentGap: number;
+  averageGap: number;
+  longestGap: number;
+  /** 연번이 나온 바로 다음 회차에도 연번이었던 비율. */
+  followRate: number;
+  /** 표본 전체의 무조건부 연번 출현률(비교 기준). */
+  baseRate: number;
+}
+
+/**
+ * 연번(2연번 이상) "공백"(다시 나오기까지 걸린 회차 수)과, 직전 회차의 연번 여부가 다음
+ * 회차 확률에 영향을 주는지(독립성)를 계산한다. fullHistoryDraws는 다른 호출부와 동일하게
+ * 최신순(내림차순)으로 주어진다고 가정한다.
+ *
+ * ⚠️ 이 값들은 전부 사후 서술 통계다 — "공백이 길다"거나 "직전 회차에 연번이 나왔다"고 해서
+ * 다음 회차의 연번 확률이 달라지지 않는다(로또 추첨은 매회 독립). 반드시 CONSECUTIVE_GAP_NOTICE와
+ * 함께 노출해야 한다.
+ *
+ * 표본이 너무 작거나(20회 미만) 표본 내에 연번이 한 번도 없으면 null(호출부는 카드를 숨겨야 함).
+ */
+export function computeConsecutivePairGapStats(fullHistoryDraws: WinningDraw[]): ConsecutiveGapStats | null {
+  if (fullHistoryDraws.length < MIN_CONSECUTIVE_GAP_SAMPLE_DRAWS) return null;
+
+  // 공백/직전 회차 비교는 시간 순서가 필요하므로 과거→최신으로 뒤집는다.
+  const chrono = [...fullHistoryDraws].reverse();
+  const hasPair = chrono.map((d) => getMaxConsecutiveLength(d.numbers) >= 2);
+
+  const gaps: number[] = [];
+  let lastIndex: number | null = null;
+  for (let i = 0; i < hasPair.length; i += 1) {
+    if (hasPair[i]) {
+      if (lastIndex !== null) gaps.push(i - lastIndex);
+      lastIndex = i;
+    }
+  }
+  if (lastIndex === null || gaps.length === 0) return null;
+
+  const currentGap = hasPair.length - 1 - lastIndex;
+  const averageGap = gaps.reduce((sum, g) => sum + g, 0) / gaps.length;
+  const longestGap = Math.max(...gaps);
+
+  let followTotal = 0;
+  let followHit = 0;
+  for (let i = 0; i < hasPair.length - 1; i += 1) {
+    if (hasPair[i]) {
+      followTotal += 1;
+      if (hasPair[i + 1]) followHit += 1;
+    }
+  }
+  const baseRate = hasPair.filter(Boolean).length / hasPair.length;
+  const followRate = followTotal > 0 ? followHit / followTotal : baseRate;
+
+  return { currentGap, averageGap, longestGap, followRate, baseRate };
+}
+
+/**
+ * computeConsecutivePairGapStats() 결과를 카드 상단에 노출할 한 문장으로 요약한다.
+ * "며칠째 안 나왔다"는 사실만 서술할 뿐, 그래서 다음에 나올 확률이 높다는 의미는 아니다 —
+ * 해석은 CONSECUTIVE_GAP_NOTICE가 담당한다.
+ */
+export function describeConsecutiveGap(stats: ConsecutiveGapStats): string {
+  if (stats.currentGap === 0) {
+    return "이번 회차에 연속번호가 나왔어요.";
+  }
+  if (stats.currentGap === 1) {
+    return "지난 회차부터 연속번호가 안 나왔어요.";
+  }
+  return `이번 회차까지 ${stats.currentGap}회째 연속번호가 안 나왔어요.`;
+}
