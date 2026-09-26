@@ -435,6 +435,7 @@ export function computeFirstPrizeNetPayout(draw: WinningDraw): FirstPrizeNetPayo
     netPerWinner: net,
   };
 }
+
 /**
  * 로또 연구소 "연번(연속번호) 통계" 카드 — 최근 1년/역대 연번(2연번 이상)·3연번(3연번 이상)
  * 출현 횟수·비율을 계산한다. 순수 사후 서술 통계(번호별 출현 빈도, 장기 미출현 번호와 같은
@@ -549,8 +550,46 @@ export function describeConsecutiveGap(stats: ConsecutiveGapStats): string {
   if (stats.currentGap === 0) {
     return "이번 회차에 연속번호가 나왔어요.";
   }
-  if (stats.currentGap === 1) {
-    return "지난 회차부터 연속번호가 안 나왔어요.";
-  }
+  // currentGap=1도 같은 문장 형식으로 통일한다 — "지난 회차부터" 식 표현은 "직전 회차에도
+  // 안 나왔다"는 뜻으로 오해될 수 있어(실제로는 직전 회차엔 나왔고 이번 회차만 안 나온
+  // 경우도 currentGap=1이 됨) 제거했다. "이번 회차까지 N회째"는 N값과 무관하게 항상
+  // 정확하다(N=1이어도 "이번 회차가 공백의 1번째 회차"라는 뜻으로 자연스럽게 읽힌다).
   return `이번 회차까지 ${stats.currentGap}회째 연속번호가 안 나왔어요.`;
+}
+
+/** computeConsecutiveTripleGapStats가 의미 있으려면 필요한 최소 표본(회차) 수. */
+const MIN_CONSECUTIVE_TRIPLE_GAP_SAMPLE_DRAWS = 20;
+
+export interface ConsecutiveTripleGapStats {
+  currentGap: number;
+  averageGap: number;
+  longestGap: number;
+}
+
+/**
+ * computeConsecutivePairGapStats와 동일한 계산을 3연번(3연번 이상) 기준으로 적용한다.
+ * "연번 공백 패턴" 카드의 보조 문구(3연번은 더 드물다는 사실)에 쓰인다 — 3연번은 발생 자체가
+ * 드물어(전체의 약 5%) 표본 내에 3연번이 2회 이상 없으면(공백을 하나도 계산할 수 없으면) null.
+ */
+export function computeConsecutiveTripleGapStats(fullHistoryDraws: WinningDraw[]): ConsecutiveTripleGapStats | null {
+  if (fullHistoryDraws.length < MIN_CONSECUTIVE_TRIPLE_GAP_SAMPLE_DRAWS) return null;
+
+  const chrono = [...fullHistoryDraws].reverse();
+  const hasTriple = chrono.map((d) => getMaxConsecutiveLength(d.numbers) >= 3);
+
+  const gaps: number[] = [];
+  let lastIndex: number | null = null;
+  for (let i = 0; i < hasTriple.length; i += 1) {
+    if (hasTriple[i]) {
+      if (lastIndex !== null) gaps.push(i - lastIndex);
+      lastIndex = i;
+    }
+  }
+  if (lastIndex === null || gaps.length === 0) return null;
+
+  return {
+    currentGap: hasTriple.length - 1 - lastIndex,
+    averageGap: gaps.reduce((sum, g) => sum + g, 0) / gaps.length,
+    longestGap: Math.max(...gaps),
+  };
 }

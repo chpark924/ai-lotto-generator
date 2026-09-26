@@ -12,6 +12,7 @@ import {
   computeFirstPrizeNetPayout,
   computeConsecutiveNumberStats,
   computeConsecutivePairGapStats,
+  computeConsecutiveTripleGapStats,
   describeConsecutiveGap,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
@@ -213,6 +214,7 @@ export default function LabScreen() {
       ? computeConsecutiveNumberStats(fullHistoryDraws, RECENT_DRAW_SAMPLE_SIZE)
       : null;
   const consecutiveGapStats = computeConsecutivePairGapStats(fullHistoryDraws);
+  const consecutiveTripleGapStats = computeConsecutiveTripleGapStats(fullHistoryDraws);
 
   return (
     <View style={styles.container}>
@@ -400,6 +402,12 @@ export default function LabScreen() {
                 consecutiveGapStats.baseRate * 100
               )}%)`}
             />
+            {consecutiveTripleGapStats ? (
+              <Text style={styles.helperNote}>
+                3연번은 평균 {consecutiveTripleGapStats.averageGap.toFixed(1)}회에 한 번, 훨씬 드물게
+                나타나요(이번 회차까지 {consecutiveTripleGapStats.currentGap}회째 공백 중).
+              </Text>
+            ) : null}
           </View>
           <DisclaimerCard text={CONSECUTIVE_GAP_NOTICE} style={styles.attachedNotice} />
         </>

@@ -12,6 +12,7 @@ import {
   computeConsecutiveNumberStats,
   computeConsecutivePairGapStats,
   describeConsecutiveGap,
+  computeConsecutiveTripleGapStats,
 } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
 
@@ -285,6 +286,7 @@ describe("computeFirstPrizeNetPayout", () => {
     expect(computeFirstPrizeNetPayout(draw({}))).toBeNull();
   });
 });
+
 describe("computeConsecutiveNumberStats", () => {
   // 연번(2연번 이상) 포함: [1,2,...], 3연번 포함: [1,2,3,...], 연번 없음: 전부 2 이상 차이
   const pairDraw = (n: number) => draw({ drawNumber: n, numbers: [1, 2, 10, 20, 30, 40] }); // 2연번만
@@ -361,9 +363,56 @@ describe("computeConsecutivePairGapStats / describeConsecutiveGap", () => {
     ).toBe("이번 회차에 연속번호가 나왔어요.");
     expect(
       describeConsecutiveGap({ currentGap: 1, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
-    ).toBe("지난 회차부터 연속번호가 안 나왔어요.");
+    ).toBe("이번 회차까지 1회째 연속번호가 안 나왔어요.");
     expect(
       describeConsecutiveGap({ currentGap: 7, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
     ).toBe("이번 회차까지 7회째 연속번호가 안 나왔어요.");
+  });
+});
+
+describe("computeConsecutiveTripleGapStats", () => {
+  // 과거→최신 순 20회 중 3연번(3연번 이상) 발생 위치(0-index): 2, 8, 15
+  // gaps = [6, 7] → 평균 6.5, 최장 7 / currentGap = 19 - 15 = 4
+  const tripleFlagsChrono = [
+    false, false, true, false, false, false, false, false, true, false,
+    false, false, false, false, false, true, false, false, false, false,
+  ];
+
+  function buildDrawsLatestFirst(flags: boolean[]): WinningDraw[] {
+    // flags는 과거→최신 순. drawNumber도 과거→최신 순으로 부여한 뒤, 함수 계약대로 최신순으로 뒤집어 반환.
+    const chrono = flags.map((hasTriple, idx) =>
+      draw({
+        drawNumber: idx + 1,
+        numbers: hasTriple ? [1, 2, 3, 20, 30, 40] : [1, 5, 10, 20, 30, 40],
+      })
+    );
+    return [...chrono].reverse();
+  }
+
+  it("3연번 공백 길이(평균/최장/현재)를 정확히 계산한다", () => {
+    const draws = buildDrawsLatestFirst(tripleFlagsChrono);
+    const stats = computeConsecutiveTripleGapStats(draws);
+    expect(stats).toEqual({
+      currentGap: 4,
+      averageGap: 6.5,
+      longestGap: 7,
+    });
+  });
+
+  it("표본이 20회 미만이면 null(호출부는 보조 문구를 숨겨야 함)", () => {
+    const draws = buildDrawsLatestFirst(tripleFlagsChrono.slice(0, 19));
+    expect(computeConsecutiveTripleGapStats(draws)).toBeNull();
+  });
+
+  it("표본 내 3연번이 한 번도 없으면 null", () => {
+    const draws = buildDrawsLatestFirst(new Array(25).fill(false));
+    expect(computeConsecutiveTripleGapStats(draws)).toBeNull();
+  });
+
+  it("표본 내 3연번이 정확히 1번만 있으면(공백을 계산할 수 없음) null", () => {
+    const flags = new Array(25).fill(false);
+    flags[10] = true;
+    const draws = buildDrawsLatestFirst(flags);
+    expect(computeConsecutiveTripleGapStats(draws)).toBeNull();
   });
 });
