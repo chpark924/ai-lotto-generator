@@ -313,7 +313,7 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     // 11차 업데이트 — 실시간 1등 예상 당첨금(2026-09-26). 라벨은 다른 보조 텍스트와
     // 같은 textMuted 회색·일반 굵기, 금액만 브랜드 블루 + 세미볼드로 살짝 강조한다
     // (ProbabilityCard.tsx의 label/value 쌍과 동일한 위계 규칙).
-    jackpotLine: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 16 },
+    jackpotLine: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16 },
     jackpotLabel: { fontSize: 12, color: colors.textMuted },
     jackpotAmount: { fontSize: 12, color: brand.primary, fontWeight: "600" },
     quickMenuItem: {
