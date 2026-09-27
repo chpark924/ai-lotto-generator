@@ -3,10 +3,20 @@ name: Update Jackpot Data
 # 로또 6/45 "1등 예상 총 당첨금"을 1시간 간격으로 받아와 data/lotto-jackpot.json에
 # 커밋한다. 앱은 이 파일을 raw.githubusercontent.com으로 받아가므로(src/lib/jackpot/githubSource.ts),
 # 이 워크플로가 실패해도 홈 화면은 그 줄을 그냥 숨길 뿐이다 — 절대 사용자 경험을 막는
-# 단일 장애점이 아니다(update-lotto-data.yml과 동일한 설계 원칙).
+# 단일 장애점이 아니다(update-lotto-data.yml과 동일한 설계 원칙). 앱 쪽에도 6시간 넘게
+# 묵은 값은 아예 숨기는 방어선이 있다(githubSource.ts의 MAX_JACKPOT_AGE_MS).
 #
 # 참고: GitHub는 60일 이상 커밋이 없는 저장소의 예약 실행(schedule)을 자동으로 비활성화한다.
 # 그 경우 Actions 탭에서 이 워크플로를 열고 수동으로 한 번 실행(Run workflow)하면 다시 살아난다.
+#
+# ⚠️ 2026-09-27 QA로 확인된 사고: 이 워크플로가 실제로 21시간 넘게 아무 커밋도 만들지
+# 않은 채 조용히 멈춰 있었다(git log상 최초 실행 이후 성공 커밋이 단 1건뿐). Actions 실행
+# 이력을 이 저장소 밖(app 코드)에서는 직접 확인할 수 없어 정확한 원인은 특정하지 못했지만,
+# 이 저장소엔 매주 토요일 추첨 직후 같은 main 브랜치에 커밋·푸시하는 다른 워크플로
+# (update-lotto-data.yml, update-deep-pattern-atlas.yml)가 있어 이 워크플로의 hourly
+# 실행과 겹치면 아래 push가 non-fast-forward로 거부될 가능성이 있다 — 그 경우를 대비해
+# push 실패 시 pull --rebase 후 재시도하도록 보강했다(근본 원인이 이게 아니더라도 안전한
+# 방어책). 그래도 다시 멈추면 위 "수동 실행" 절차로 확인해달라.
 "on":
   schedule:
     # 매시 정각(UTC 기준 = KST 기준 정각과 동일, 분 단위 차이 없음).
@@ -45,4 +55,18 @@ jobs:
           git add data/lotto-jackpot.json
           AMOUNT=$(node -e "const d=require('./data/lotto-jackpot.json'); console.log(d.expectedRank1Amount.toLocaleString('ko-KR'))")
           git commit -m "chore: update jackpot data (1등 예상 총 당첨금 ${AMOUNT}원)"
-          git push
+
+          # 다른 워크플로가 같은 시점에 main에 먼저 푸시했으면 일반 push는 거절된다
+          # (non-fast-forward). 최대 3번, 매번 원격을 rebase로 흡수한 뒤 재시도한다 — 이
+          # 파일은 워크플로 혼자만 건드리므로 충돌 가능성은 사실상 없고, rebase 자체가
+          # 실패하면(진짜 충돌) 더 재시도해도 의미가 없으므로 그 시점엔 그대로 실패시킨다.
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "푸시 성공(시도 ${attempt}번째)."
+              exit 0
+            fi
+            echo "푸시 실패(시도 ${attempt}번째) — 원격을 rebase로 반영하고 재시도합니다."
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
+          echo "3번 재시도 후에도 푸시 실패 — 워크플로를 실패로 표시합니다."
+          exit 1

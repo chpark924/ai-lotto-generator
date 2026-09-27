@@ -10,6 +10,13 @@ import { HeroCtaMorph, LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, St
 import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
 import { fetchJackpotInfoFromGithub } from "../../src/lib/jackpot";
 
+// 2026-09-27 QA 피드백: "1등 예상 총 당첨금" 줄 맨 앞 아이콘(cash-outline, 무채색 회색)이
+// 무엇을 뜻하는지 잘 안 들어온다는 지적 — 1등 상금이라는 의미를 바로 읽히게 트로피로 바꾸고,
+// 테마와 무관하게 항상 같은 금색을 쓴다(colors.ts 상단 주석의 "브랜드 블루/로또공 색상처럼
+// 시스템 테마와 무관하게 고정돼야 하는 색" 원칙과 동일 — 트로피는 라이트/다크 어디서나 금색
+// 이어야 자연스럽다).
+const trophyGold = "#F5A623";
+
 function daysUntilNextSaturday(): number {
   const now = new Date();
   const day = now.getDay(); // 0=Sun ... 6=Sat
@@ -166,7 +173,7 @@ export default function HomeScreen() {
 
         {jackpotAmount !== null && latestDrawNumber !== null ? (
           <View style={styles.jackpotLine}>
-            <Ionicons name="cash-outline" size={14} color={colors.textMuted} />
+            <Ionicons name="trophy" size={16} color={trophyGold} />
             <Text style={styles.jackpotLabel}>
               제{latestDrawNumber + 1}회 1등 예상 총 당첨금{" "}
               <Text style={styles.jackpotAmount}>{jackpotAmount.toLocaleString("ko-KR")}원</Text>

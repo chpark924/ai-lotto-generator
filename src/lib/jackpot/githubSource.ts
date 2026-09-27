@@ -47,6 +47,25 @@ function isPlausibleJackpot(entry: unknown): entry is JackpotInfo {
 const FETCH_TIMEOUT_MS = 6000;
 
 /**
+ * ⚠️ 2026-09-27 QA로 확인된 실제 사고: 이 값을 매시간 갱신해야 할 GitHub Actions
+ * (update-jackpot-data.yml)가 조용히 21시간 넘게 멈춰 있었는데도(git log상 성공 커밋이
+ * 단 1건뿐) 이 모듈에는 신선도 검사가 전혀 없어, 홈 화면이 "제1244회"라는 새 라벨에
+ * 하루 전(사실상 직전 회차 추첨 직전) 데이터를 그대로 붙여 보여주는 일이 있었다 — 새
+ * 회차가 막 시작한 일요일인데 이미 수백억이 쌓인 것처럼 보이는 등 신뢰도를 해치는 문제였다.
+ * 이 워크플로 실행 여부 자체는 이 앱(클라이언트) 코드로 보장할 수 없으므로, 최소한
+ * "너무 오래된 값은 아예 보여주지 않는다"는 방어선을 데이터 소스 계층에 둔다 — 의도된
+ * 1시간 주기보다 넉넉한 버퍼(가끔의 실행 지연은 허용하되, 이번처럼 반나절 이상 묵은 값은
+ * 절대 신뢰하지 않음).
+ */
+const MAX_JACKPOT_AGE_MS = 6 * 60 * 60 * 1000; // 6시간
+
+function isFreshEnough(fetchedAt: string): boolean {
+  const fetchedAtMs = Date.parse(fetchedAt);
+  if (!Number.isFinite(fetchedAtMs)) return false;
+  return Date.now() - fetchedAtMs <= MAX_JACKPOT_AGE_MS;
+}
+
+/**
  * GitHub에 커밋된 정적 JSON에서 "1등 예상 총 당첨금"을 받아온다.
  * 무엇이 잘못되든(미설정, 오프라인, 타임아웃, 형식 오류) null을 반환할 뿐 절대 throw하지 않는다.
  */
@@ -60,7 +79,9 @@ export async function fetchJackpotInfoFromGithub(): Promise<JackpotInfo | null> 
     if (!response.ok) return null;
 
     const data = await response.json();
-    return isPlausibleJackpot(data) ? data : null;
+    if (!isPlausibleJackpot(data)) return null;
+    // 구조는 멀쩡해도 너무 오래된 값이면(위 MAX_JACKPOT_AGE_MS 주석 참고) 신뢰하지 않는다.
+    return isFreshEnough(data.fetchedAt) ? data : null;
   } catch {
     return null;
   } finally {
