@@ -174,8 +174,12 @@ export default function HomeScreen() {
         {jackpotAmount !== null && latestDrawNumber !== null ? (
           <View style={styles.jackpotLine}>
             <Ionicons name="trophy" size={16} color={trophyGold} />
-            <Text style={styles.jackpotLabel}>
-              제{latestDrawNumber + 1}회 1등 예상 총 당첨금{" "}
+            {/* 2026-09-27 피드백: 이 예상 당첨금이 "이번 주(아직 추첨 전인 다음 회차)" 기준임을
+                한눈에 알 수 있게 "이번 주"를 회차 번호 앞에 붙인다. 한 줄을 넘기지 않도록
+                numberOfLines={1}로 강제하고(길어도 줄바꿈 대신 말줄임), 폰트도 한 단계
+                줄여(12→11) 실제로 줄바꿈이 필요할 일을 애초에 최소화한다. */}
+            <Text style={styles.jackpotLabel} numberOfLines={1}>
+              이번 주 제{latestDrawNumber + 1}회 1등 예상 총 당첨금{" "}
               <Text style={styles.jackpotAmount}>{jackpotAmount.toLocaleString("ko-KR")}원</Text>
             </Text>
           </View>
@@ -321,8 +325,10 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     // 같은 textMuted 회색·일반 굵기, 금액만 브랜드 블루 + 세미볼드로 살짝 강조한다
     // (ProbabilityCard.tsx의 label/value 쌍과 동일한 위계 규칙).
     jackpotLine: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16 },
-    jackpotLabel: { fontSize: 12, color: colors.textMuted },
-    jackpotAmount: { fontSize: 12, color: brand.primary, fontWeight: "600" },
+    // flexShrink: numberOfLines={1}(위 JSX 참고)가 실제로 잘리려면 이 Text가 행(row) 안에서
+    // 남은 너비만큼으로 제한돼야 한다 — 없으면 화면 밖으로 그냥 넘칠 수 있다.
+    jackpotLabel: { fontSize: 11, color: colors.textMuted, flexShrink: 1 },
+    jackpotAmount: { fontSize: 11, color: brand.primary, fontWeight: "600" },
     quickMenuItem: {
       flex: 1,
       backgroundColor: colors.surface,
