@@ -190,6 +190,9 @@ async function main() {
       ),
       bonusNumber: item.bnsWnNo,
       firstPrizeWinnerCount: item.rnk1WnNope,
+      // rnk1WnAmt는 "1등 총 당첨금"이 아니라 이미 "1게임(1인)당" 당첨금이다(2026-09-27 QA로
+      // 확인 — src/lib/draws/types.ts의 firstPrizeAmount 주석 참고). 소비하는 쪽에서 다시
+      // winnerCount로 나누면 안 된다.
       firstPrizeAmount: item.rnk1WnAmt,
       totalSalesAmount: item.rlvtEpsdSumNtslAmt,
     };

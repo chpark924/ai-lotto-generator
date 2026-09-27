@@ -413,6 +413,12 @@ export interface FirstPrizeNetPayout {
  * 카드에서만 노출한다.
  *
  * 당첨자가 0명(이월)이거나 데이터가 없으면 1인당 금액 자체가 정의되지 않으므로 null.
+ *
+ * ⚠️ 2026-09-27 QA 수정: draw.firstPrizeAmount는 이미 "1게임(1인)당" 세전 당첨금이다(필드명과
+ * 달리 총액이 아님 — WinningDraw.firstPrizeAmount 주석 참고). 과거 코드가 이를 총액으로 오인해
+ * firstPrizeWinnerCount로 한 번 더 나눠, 당첨자가 여러 명인 회차일수록 실수령액을 winnerCount배
+ * 만큼 작게(예: 12명 당첨 회차는 실제의 1/12로) 보여주는 버그가 있었다. 실제 제1243회 공식
+ * 결과 페이지(당첨자 12명, 1게임당 2,592,525,282원)와 앱 표시값을 직접 대조해 발견·수정했다.
  */
 export function computeFirstPrizeNetPayout(draw: WinningDraw): FirstPrizeNetPayout | null {
   if (
@@ -424,7 +430,8 @@ export function computeFirstPrizeNetPayout(draw: WinningDraw): FirstPrizeNetPayo
     return null;
   }
 
-  const grossPerWinner = Math.round(draw.firstPrizeAmount / draw.firstPrizeWinnerCount);
+  // firstPrizeAmount는 이미 1인당 금액이므로 winnerCount로 나누지 않는다(위 주석 참고).
+  const grossPerWinner = draw.firstPrizeAmount;
   const { tax, net } = calculateNetPrize(grossPerWinner);
 
   return {

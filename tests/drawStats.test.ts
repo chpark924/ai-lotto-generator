@@ -262,17 +262,37 @@ describe("calculateNetPrize", () => {
 });
 
 describe("computeFirstPrizeNetPayout", () => {
-  it("실제 1242회 데이터 기준 1인당 실수령액을 정확히 계산한다", () => {
-    // firstPrizeAmount 3,281,029,250원 / 당첨자 9명 = 1인당 364,558,806원(반올림)
+  // ⚠️ 2026-09-27 QA로 확인: firstPrizeAmount는 API(rnk1WnAmt)가 이미 계산해서 주는
+  // "1게임(1인)당" 세전 당첨금이지, winnerCount로 나눠야 하는 총액이 아니다. 과거엔 여기서
+  // 한 번 더 나눠서(총액으로 오인) 당첨자가 많은 회차일수록 실수령액을 실제보다 훨씬 작게
+  // 계산하는 버그가 있었다 — 아래 "실제 제1243회" 케이스가 그 버그를 재현/검증하는 회귀 테스트다.
+
+  it("실제 제1243회 공식 결과(동행복권 결과 페이지) 기준 1인당 실수령액을 정확히 계산한다", () => {
+    // 동행복권 공식 결과 페이지(2026-09-26 추첨) 실측치: 당첨자 12명, 1게임당 당첨금
+    // 2,592,525,282원(등위별 총 당첨금 31,110,303,384원 ÷ 12, 나머지 없이 정확히 나눠떨어짐).
+    // firstPrizeAmount는 이 "1게임당" 값을 그대로 받는다 — winnerCount로 다시 나누면 안 된다.
+    const result = computeFirstPrizeNetPayout(
+      draw({ drawNumber: 1243, firstPrizeAmount: 2_592_525_282, firstPrizeWinnerCount: 12 })
+    );
+    expect(result).toEqual({
+      drawNumber: 1243,
+      winnerCount: 12,
+      grossPerWinner: 2_592_525_282,
+      taxPerWinner: 822_533_343,
+      netPerWinner: 1_769_991_939,
+    });
+  });
+
+  it("실제 1242회 데이터 기준으로도 같은 공식(나누지 않음)이 적용된다", () => {
     const result = computeFirstPrizeNetPayout(
       draw({ drawNumber: 1242, firstPrizeAmount: 3_281_029_250, firstPrizeWinnerCount: 9 })
     );
     expect(result).toEqual({
       drawNumber: 1242,
       winnerCount: 9,
-      grossPerWinner: 364_558_806,
-      taxPerWinner: 87_304_406,
-      netPerWinner: 277_254_400,
+      grossPerWinner: 3_281_029_250,
+      taxPerWinner: 1_049_739_653,
+      netPerWinner: 2_231_289_597,
     });
   });
 

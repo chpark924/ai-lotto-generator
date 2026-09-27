@@ -35,6 +35,7 @@ export interface RawDrawListItem {
   tm6WnNo: number;
   bnsWnNo: number;
   rnk1WnNope: number;
+  /** "1게임당" 당첨금(=1인당). 1등 총 당첨금이 아니다 — WinningDraw.firstPrizeAmount 주석 참고. */
   rnk1WnAmt: number;
   rlvtEpsdSumNtslAmt: number;
 }
