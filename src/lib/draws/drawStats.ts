@@ -548,20 +548,39 @@ export function computeConsecutivePairGapStats(fullHistoryDraws: WinningDraw[]):
   return { currentGap, averageGap, longestGap, followRate, baseRate };
 }
 
+export interface ConsecutiveGapHeadline {
+  /** highlight 앞부분(currentGap===0이면 빈 문자열). */
+  prefix: string;
+  /** UI에서 볼드로 강조해 보여줄 부분(핵심 수치). */
+  highlight: string;
+  /** highlight 뒷부분. */
+  suffix: string;
+}
+
 /**
- * computeConsecutivePairGapStats() 결과를 카드 상단에 노출할 한 문장으로 요약한다.
+ * computeConsecutivePairGapStats() 결과를 카드 상단에 노출할 한 문장으로 요약하되, 핵심
+ * 수치(강조할 부분)와 나머지를 나눠서 반환한다 — 로또연구소 카드가 숫자만 볼드로 강조해
+ * 보여줄 수 있도록(가독성/흥미 유발). describeConsecutiveGap()이 이 결과를 그대로 이어붙여
+ * 만들어지므로, 문장이 여기와 따로 갈라질 일은 없다(단일 출처).
+ *
  * "며칠째 안 나왔다"는 사실만 서술할 뿐, 그래서 다음에 나올 확률이 높다는 의미는 아니다 —
  * 해석은 CONSECUTIVE_GAP_NOTICE가 담당한다.
  */
-export function describeConsecutiveGap(stats: ConsecutiveGapStats): string {
+export function describeConsecutiveGapHeadline(stats: ConsecutiveGapStats): ConsecutiveGapHeadline {
   if (stats.currentGap === 0) {
-    return "이번 회차에 연속번호가 나왔어요.";
+    return { prefix: "", highlight: "이번 회차", suffix: "에 연속번호가 나왔어요." };
   }
   // currentGap=1도 같은 문장 형식으로 통일한다 — "지난 회차부터" 식 표현은 "직전 회차에도
   // 안 나왔다"는 뜻으로 오해될 수 있어(실제로는 직전 회차엔 나왔고 이번 회차만 안 나온
   // 경우도 currentGap=1이 됨) 제거했다. "이번 회차까지 N회째"는 N값과 무관하게 항상
   // 정확하다(N=1이어도 "이번 회차가 공백의 1번째 회차"라는 뜻으로 자연스럽게 읽힌다).
-  return `이번 회차까지 ${stats.currentGap}회째 연속번호가 안 나왔어요.`;
+  return { prefix: "이번 회차까지 ", highlight: `${stats.currentGap}회째`, suffix: " 연속번호가 안 나왔어요." };
+}
+
+/** describeConsecutiveGapHeadline()의 세 조각을 이어붙인 평문 버전(접근성 라벨 등에서 사용). */
+export function describeConsecutiveGap(stats: ConsecutiveGapStats): string {
+  const { prefix, highlight, suffix } = describeConsecutiveGapHeadline(stats);
+  return `${prefix}${highlight}${suffix}`;
 }
 
 /** computeConsecutiveTripleGapStats가 의미 있으려면 필요한 최소 표본(회차) 수. */

@@ -12,8 +12,10 @@ import {
   computeConsecutiveNumberStats,
   computeConsecutivePairGapStats,
   describeConsecutiveGap,
+  describeConsecutiveGapHeadline,
   computeConsecutiveTripleGapStats,
 } from "../src/lib/draws/drawStats";
+import type { ConsecutiveGapStats } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
 
 function draw(overrides: Partial<WinningDraw>): WinningDraw {
@@ -387,6 +389,30 @@ describe("computeConsecutivePairGapStats / describeConsecutiveGap", () => {
     expect(
       describeConsecutiveGap({ currentGap: 7, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 })
     ).toBe("이번 회차까지 7회째 연속번호가 안 나왔어요.");
+  });
+
+  it("describeConsecutiveGapHeadline: prefix+highlight+suffix를 이어붙이면 describeConsecutiveGap과 항상 같다(단일 출처)", () => {
+    const cases: ConsecutiveGapStats[] = [
+      { currentGap: 0, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 },
+      { currentGap: 1, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 },
+      { currentGap: 7, averageGap: 2, longestGap: 5, followRate: 0.5, baseRate: 0.5 },
+    ];
+    for (const stats of cases) {
+      const headline = describeConsecutiveGapHeadline(stats);
+      expect(`${headline.prefix}${headline.highlight}${headline.suffix}`).toBe(describeConsecutiveGap(stats));
+    }
+
+    // highlight로 뽑히는 부분이 실제로 볼드 처리할 "핵심 수치"인지도 확인한다.
+    expect(describeConsecutiveGapHeadline(cases[0])).toEqual({
+      prefix: "",
+      highlight: "이번 회차",
+      suffix: "에 연속번호가 나왔어요.",
+    });
+    expect(describeConsecutiveGapHeadline(cases[2])).toEqual({
+      prefix: "이번 회차까지 ",
+      highlight: "7회째",
+      suffix: " 연속번호가 안 나왔어요.",
+    });
   });
 });
 

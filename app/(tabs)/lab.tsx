@@ -13,7 +13,7 @@ import {
   computeConsecutiveNumberStats,
   computeConsecutivePairGapStats,
   computeConsecutiveTripleGapStats,
-  describeConsecutiveGap,
+  describeConsecutiveGapHeadline,
   getLongestAbsentNumbers,
   SUM_MIDPOINT,
   type WinningDraw,
@@ -215,6 +215,7 @@ export default function LabScreen() {
       : null;
   const consecutiveGapStats = computeConsecutivePairGapStats(fullHistoryDraws);
   const consecutiveTripleGapStats = computeConsecutiveTripleGapStats(fullHistoryDraws);
+  const consecutiveGapHeadline = consecutiveGapStats ? describeConsecutiveGapHeadline(consecutiveGapStats) : null;
 
   return (
     <View style={styles.container}>
@@ -351,7 +352,9 @@ export default function LabScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>연번(연속번호) 통계</Text>
           <Text style={styles.cardSub}>
-            역대 회차 중 {Math.round(consecutiveStats.pairRate * 100)}%에 연속번호가 포함됐어요.
+            역대 회차 중{" "}
+            <Text style={styles.cardSubHighlight}>{Math.round(consecutiveStats.pairRate * 100)}%</Text>에
+            연속번호가 포함됐어요.
           </Text>
           <Row
             styles={styles}
@@ -388,7 +391,11 @@ export default function LabScreen() {
         <>
           <View style={[styles.card, styles.cardTight]}>
             <Text style={styles.cardTitle}>연번 공백 패턴</Text>
-            <Text style={styles.cardSub}>{describeConsecutiveGap(consecutiveGapStats)}</Text>
+            <Text style={styles.cardSub}>
+              {consecutiveGapHeadline?.prefix}
+              <Text style={styles.cardSubHighlight}>{consecutiveGapHeadline?.highlight}</Text>
+              {consecutiveGapHeadline?.suffix}
+            </Text>
             <Row
               styles={styles}
               label="역대 평균 공백"
@@ -403,10 +410,17 @@ export default function LabScreen() {
               )}%)`}
             />
             {consecutiveTripleGapStats ? (
-              <Text style={styles.helperNote}>
-                3연번은 평균 {consecutiveTripleGapStats.averageGap.toFixed(1)}회에 한 번, 훨씬 드물게
-                나타나요(이번 회차까지 {consecutiveTripleGapStats.currentGap}회째 공백 중).
-              </Text>
+              <View style={styles.tripleHighlightBox}>
+                <Text style={styles.tripleHighlightText}>
+                  3연번은 평균{" "}
+                  <Text style={styles.tripleHighlightNumber}>
+                    {consecutiveTripleGapStats.averageGap.toFixed(1)}회
+                  </Text>
+                  에 한 번, 훨씬 드물게 나타나요(이번 회차까지{" "}
+                  <Text style={styles.tripleHighlightNumber}>{consecutiveTripleGapStats.currentGap}회째</Text>{" "}
+                  공백 중).
+                </Text>
+              </View>
             ) : null}
           </View>
           <DisclaimerCard text={CONSECUTIVE_GAP_NOTICE} style={styles.attachedNotice} />
@@ -613,6 +627,11 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     },
     cardTitle: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, marginBottom: 8 },
     cardSub: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
+    // cardSub 문장 안에서 핵심 수치만 골라 볼드로 강조할 때 쓴다(2026-09-27, 가독성 피드백).
+    // 문장 전체를 볼드로 바꾸면 오히려 스캔하기 어려워져서, 숫자/핵심 구간만 선택적으로 굵게
+    // 하고 색도 textPrimary로 올려 muted한 나머지 문장과 대비를 준다. fontSize는 부모 cardSub와
+    // 동일하게 둬야 줄바꿈이 자연스럽다.
+    cardSubHighlight: { fontWeight: "800", color: colors.textPrimary },
     // "제 N회 당첨결과" 카드 전용 — 채도 높은 초록 박스(91번 이전)는 촌스러웠고, 다른 카드와
     // 완전히 같은 흰 배경(91번)은 반대로 눈에 안 띈다는 후속 피드백 — 그 중간으로, 옅은 브랜드
     // 블루 톤 배경(tints.indigo.bg, 다른 카드의 순백/서피스보다 살짝 톤이 다름) + 카드를 살짝
@@ -672,6 +691,19 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     },
     retryButtonText: { color: brand.primary, fontSize: 12, fontWeight: "700" },
     helperNote: { fontSize: 11, color: colors.textMuted, lineHeight: 16, marginTop: 8 },
+    // "연번 공백 패턴" 카드에서 3연번 사실(2연번보다 훨씬 드문, 흥미로운 소재)만 다른 Row들과
+    // 구분되게 보여준다(2026-09-27, "좋은 주제는 가독성을 높이는 게 맞다" 피드백). 무채색
+    // helperNote 대신, 앱이 이미 "흥미롭거나 드문 패턴"에 쓰는 tints.purple(딥 패턴 상세/결과
+    // 화면의 vizTitle·noticeCard와 같은 톤)을 재사용해 색으로도 "특별히 드문 사실"임을 전달한다.
+    tripleHighlightBox: {
+      backgroundColor: tints.purple.bg,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      marginTop: 8,
+    },
+    tripleHighlightText: { fontSize: 12, color: tints.purple.fg, fontWeight: "600", lineHeight: 18 },
+    tripleHighlightNumber: { fontWeight: "800" },
     ballRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
     plusText: { fontSize: 16, color: colors.textMuted, fontWeight: "700" },
     freqItem: { alignItems: "center", gap: 4 },
