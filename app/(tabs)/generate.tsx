@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { DeepPatternIcon } from "../../src/components/deepPattern";
 import { StatusBarSafeMask } from "../../src/components";
-import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
+import { useAppTheme, lightTints, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
 const MENU_ITEMS: {
   title: string;
@@ -217,15 +217,21 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       paddingVertical: 2,
     },
     recommendedBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    // [다크모드 대비 버그 수정] tints.red.fg / tints.purple.fg는 라이트/다크에 따라 값이
+    // 뒤집히는 토큰이라, 다크 모드에서는 텍스트용으로 만들어진 옅은 값(예: 옅은 분홍/라벤더)이
+    // 이 배지의 배경으로 쓰여 흰 텍스트와 거의 구분되지 않는 문제가 있었다. recommendedBadge가
+    // 이미 brand.primary라는 고정값을 쓰는 것과 같은 방식으로, 각 배지의 기존 라이트 모드
+    // 색상(lightTints)을 테마 무관 고정값으로 freeze한다 — HOT은 계속 빨강, NEW는 계속
+    // 보라를 유지하되(색 자체는 그대로), 다크 모드에서도 항상 충분한 대비를 보장한다.
     hotBadge: {
-      backgroundColor: tints.red.fg,
+      backgroundColor: lightTints.red.fg,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,
     },
     hotBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
     newBadge: {
-      backgroundColor: tints.purple.fg,
+      backgroundColor: lightTints.purple.fg,
       borderRadius: 6,
       paddingHorizontal: 6,
       paddingVertical: 2,

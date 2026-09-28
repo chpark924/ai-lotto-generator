@@ -134,7 +134,7 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
       alignItems: "center",
       marginTop: 12,
     },
-    saveButtonDisabled: { backgroundColor: "#BFDBFE" },
+    saveButtonDisabled: { backgroundColor: brand.disabled },
     saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
     emptyText: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
     setCard: {

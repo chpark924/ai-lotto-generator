@@ -111,12 +111,22 @@ export interface BrandTokens {
   /** 항상 어두운 상태를 유지하는 브랜드 강조 영역 — 히어로 CTA 그라디언트 끝단,
    *  스택 헤더 배경, 스플래시, 홈 화면 "바로가기" 버튼 배경. */
   dark: string;
+  /**
+   * [2026-09-28 통합] primary 버튼의 "비활성(disabled)" 배경색. 이전에는 화면 3곳
+   * (BottomActionBar.tsx 기본값, dice.tsx가 재하드코딩한 값, preferences.tsx의
+   * saveButtonDisabled)에서 각자 다른 옅은 파랑(#93C5FD / #93C5FD / #BFDBFE)을 썼는데,
+   * 같은 의미(같은 primary 버튼의 비활성 상태)의 색이 화면마다 미묘하게 달라지는 건
+   * 디자인 시스템 일관성 위반이라 하나의 토큰으로 합친다. 값은 두 화면에서 이미 쓰이고
+   * 있던 #93C5FD로 통일한다.
+   */
+  disabled: string;
 }
 
 export const brand: BrandTokens = {
   primary: "#2563EB",
   primaryPressed: "#1D4ED8",
   dark: "#0F172A",
+  disabled: "#93C5FD",
 };
 
 /**

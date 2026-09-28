@@ -224,7 +224,6 @@ export default function DiceScreen() {
         label="결과 확인"
         onPress={handleShowResult}
         disabled={rolled.length < 6}
-        disabledColor="#93C5FD"
       />
     </View>
   );

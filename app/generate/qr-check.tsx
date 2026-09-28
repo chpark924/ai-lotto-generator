@@ -61,16 +61,20 @@ export default function QrCheckScreen() {
     const parsed = parseLottoQrText(scan.data);
 
     if (parsed.status === "not_lotto_qr") {
-      Alert.alert("로또 당첨 확인 QR이 아니에요", "동행복권 로또 6/45 용지의 QR코드를 스캔해주세요.", [
-        { text: "다시 스캔", onPress: resetScan },
-      ]);
+      Alert.alert(
+        "로또 당첨 확인 QR이 아니에요",
+        "동행복권 로또 6/45 용지의 QR코드를 스캔해주세요.",
+        [{ text: "다시 스캔", onPress: resetScan }],
+        { cancelable: false }
+      );
       return;
     }
     if (parsed.status === "unrecognized_data") {
       Alert.alert(
         "QR을 읽었지만 번호를 알아볼 수 없어요",
         "용지가 손상됐거나 예상과 다른 형식이에요. 다시 스캔하거나 동행복권 홈페이지에서 직접 확인해주세요.",
-        [{ text: "다시 스캔", onPress: resetScan }]
+        [{ text: "다시 스캔", onPress: resetScan }],
+        { cancelable: false }
       );
       return;
     }
@@ -87,7 +91,8 @@ export default function QrCheckScreen() {
         [
           { text: "다시 스캔", style: "cancel", onPress: resetScan },
           { text: "동행복권에서 확인", onPress: () => { openOfficialResultPage(drawNumber); resetScan(); } },
-        ]
+        ],
+        { cancelable: false }
       );
       return;
     }
@@ -95,7 +100,8 @@ export default function QrCheckScreen() {
       Alert.alert(
         "아직 발표되지 않은 회차예요",
         `제 ${drawNumber}회는 아직 추첨 전이거나 결과가 반영되지 않았어요.`,
-        [{ text: "다시 스캔", onPress: resetScan }]
+        [{ text: "다시 스캔", onPress: resetScan }],
+        { cancelable: false }
       );
       return;
     }

@@ -17,7 +17,7 @@ export function BottomActionBar({
   onPress,
   disabled = false,
   color = brand.primary,
-  disabledColor = "#93C5FD",
+  disabledColor = brand.disabled,
 }: {
   label: string;
   onPress: () => void;
