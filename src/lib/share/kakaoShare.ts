@@ -1,4 +1,4 @@
-import { Alert, Share } from "react-native";
+import { Share } from "react-native";
 import { shareFeedTemplate } from "@react-native-kakao/share";
 
 /**
@@ -65,15 +65,7 @@ export async function shareLottoNumbers(
 ): Promise<void> {
   try {
     await shareViaKakaoFeed({ title, description });
-  } catch (error) {
-    // [임시 디버그 — 2026-09-28 2차] preview APK(업로드 키 서명)에서는 성공했지만
-    // 실제 Play 배포본(앱 서명 키로 재서명된 진짜 배포 파일)에서는 여전히 실패하는
-    // 현상의 정확한 원인을 실제 배포 환경에서 확인하기 위해 다시 추가.
-    // 원인 확인 후 이 Alert.alert 블록은 반드시 제거할 것.
-    Alert.alert(
-      "[디버그] 카카오 Feed 공유 실패",
-      `${String(error)}\n\n${JSON.stringify(error, Object.getOwnPropertyNames(error ?? {}))}`
-    );
+  } catch {
     try {
       await Share.share({ message: fallbackMessage });
     } catch {
