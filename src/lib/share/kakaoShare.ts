@@ -1,4 +1,4 @@
-import { Share } from "react-native";
+import { Alert, Share } from "react-native";
 import { shareFeedTemplate } from "@react-native-kakao/share";
 
 /**
@@ -65,7 +65,15 @@ export async function shareLottoNumbers(
 ): Promise<void> {
   try {
     await shareViaKakaoFeed({ title, description });
-  } catch {
+  } catch (error) {
+    // [임시 디버그 — 2026-09-28] Play 비공개 테스트 배포 환경에서 Feed 카드 공유가
+    // 계속 텍스트 폴백으로만 떨어지는 원인을 실기기에서 직접 확인하기 위해 추가.
+    // 원인 확인 후 이 Alert.alert 블록은 반드시 제거할 것 — 실제 사용자에게는
+    // 보여서는 안 되는 디버그 전용 코드다.
+    Alert.alert(
+      "[디버그] 카카오 Feed 공유 실패",
+      `${String(error)}\n\n${JSON.stringify(error, Object.getOwnPropertyNames(error ?? {}))}`
+    );
     try {
       await Share.share({ message: fallbackMessage });
     } catch {
