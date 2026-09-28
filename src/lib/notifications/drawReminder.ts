@@ -65,57 +65,67 @@ export async function scheduleWeeklyDrawReminder(hour = 20, minute = 0): Promise
 
   await cancelWeeklyDrawReminder();
 
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("draw-reminder", {
-      name: "추첨일 알림",
-      importance: Notifications.AndroidImportance.DEFAULT,
+  // [2026-09-28 안정성 수정] 아래 예약 호출들에 에러 처리가 전혀 없어, 권한은 있는데 예약
+  // 자체가 실패하는 경우(OS 제약 등) 예외가 그대로 호출부까지 던져져 토글이 조용히
+  // 무반응 상태가 되는 문제가 있었다. cancelWeeklyDrawReminder()가 각 취소를 개별
+  // catch로 방어하는 것과 비대칭이었던 부분 — 실패 시 지금까지 예약된 항목까지 전부
+  // 정리하고, 호출부가 "권한 거부"와 구분해 안내할 수 있도록 에러를 다시 던진다.
+  try {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("draw-reminder", {
+        name: "추첨일 알림",
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+
+    // expo-notifications 기준 weekday: 1=일요일 ... 6=금요일, 7=토요일
+    await Notifications.scheduleNotificationAsync({
+      identifier: PURCHASE_DEADLINE_EVE_ID,
+      content: {
+        title: "내일이 로또 구매 마감일이에요",
+        body: "저장해둔 번호를 아직 구매하지 않았다면 잊지 말고 준비해두세요.",
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 6,
+        hour,
+        minute,
+      },
     });
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: PURCHASE_DEADLINE_DAY_ID,
+      content: {
+        title: "오늘이 로또 구매 마감일이에요",
+        body: "구매 마감 전에 저장해둔 번호를 확인하고 구매를 완료하세요.",
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 7,
+        hour: 18,
+        minute: 0,
+      },
+    });
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: DRAW_REMINDER_ID,
+      content: {
+        title: "오늘 로또 추첨이 있어요",
+        body: "저장해둔 번호를 확인하고, 이번 주 운명을 만들어보세요.",
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 7,
+        hour,
+        minute,
+      },
+    });
+
+    return true;
+  } catch (error) {
+    await cancelWeeklyDrawReminder();
+    throw error;
   }
-
-  // expo-notifications 기준 weekday: 1=일요일 ... 6=금요일, 7=토요일
-  await Notifications.scheduleNotificationAsync({
-    identifier: PURCHASE_DEADLINE_EVE_ID,
-    content: {
-      title: "내일이 로또 구매 마감일이에요",
-      body: "저장해둔 번호를 아직 구매하지 않았다면 잊지 말고 준비해두세요.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: 6,
-      hour,
-      minute,
-    },
-  });
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: PURCHASE_DEADLINE_DAY_ID,
-    content: {
-      title: "오늘이 로또 구매 마감일이에요",
-      body: "구매 마감 전에 저장해둔 번호를 확인하고 구매를 완료하세요.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: 7,
-      hour: 18,
-      minute: 0,
-    },
-  });
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: DRAW_REMINDER_ID,
-    content: {
-      title: "오늘 로또 추첨이 있어요",
-      body: "저장해둔 번호를 확인하고, 이번 주 운명을 만들어보세요.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: 7,
-      hour,
-      minute,
-    },
-  });
-
-  return true;
 }
 
 export async function cancelWeeklyDrawReminder(): Promise<void> {

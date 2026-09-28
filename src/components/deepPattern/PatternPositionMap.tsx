@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Rect } from "react-native-svg";
 import type { DeepPatternLevel, DeepPatternRecommendation } from "../../lib/deepPattern/types";
-import { useAppTheme, accentViolet, type AppColors } from "../../theme";
+import { useAppTheme, accentViolet, type AppColors, type AppTints } from "../../theme";
 
 const CHART_WIDTH = 240;
 const CHART_HEIGHT = 140;
@@ -32,8 +32,8 @@ export function structuralIntensityScore(
  * rowZone/colZone 등 basin 내부 개념)는 타입 설계 원칙상 화면에 노출하지 않으므로 "근사치"다.
  */
 export function PatternPositionMap({ recommendation }: { recommendation: DeepPatternRecommendation }) {
-  const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { colors, tints } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors, tints), [colors, tints]);
 
   const xScore = structuralIntensityScore(recommendation);
   const yScore = Math.max(0, Math.min(100, recommendation.validationPercentile));
@@ -65,7 +65,7 @@ export function PatternPositionMap({ recommendation }: { recommendation: DeepPat
           strokeDasharray="3,3"
         />
         <Circle cx={dotX} cy={dotY} r={11} fill={accentViolet.primary} opacity={0.18} />
-        <Circle cx={dotX} cy={dotY} r={4.5} fill="#DC2626" />
+        <Circle cx={dotX} cy={dotY} r={4.5} fill={tints.red.fg} />
       </Svg>
       <View style={styles.legendCol}>
         <Text style={styles.legendText}>→ 오른쪽일수록 구조적 공백이 강한 패턴</Text>
@@ -76,10 +76,13 @@ export function PatternPositionMap({ recommendation }: { recommendation: DeepPat
   );
 }
 
-function createStyles(colors: AppColors) {
+function createStyles(colors: AppColors, tints: AppTints) {
   return StyleSheet.create({
     legendCol: { marginTop: 8, alignItems: "center", gap: 2 },
     legendText: { fontSize: 10, color: colors.textMuted },
-    legendDot: { fontSize: 10, color: "#DC2626", fontWeight: "700", marginTop: 2 },
+    // [2026-09-28 다크모드 대비 수정] 고정 "#DC2626"는 다크 배경(surfaceAlt)에서 대비비 약
+    // 3:1로 AA 텍스트 기준(4.5:1) 미달이었다 — generate.tsx 배지와 같은 클래스의 버그.
+    // tints.red.fg는 라이트/다크 각각에 맞는 값으로 뒤집혀 두 모드 모두 대비를 보장한다.
+    legendDot: { fontSize: 10, color: tints.red.fg, fontWeight: "700", marginTop: 2 },
   });
 }

@@ -71,7 +71,15 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
 
   async function handleToggleNotify(value: boolean) {
     if (value) {
-      const granted = await scheduleWeeklyDrawReminder();
+      let granted: boolean;
+      try {
+        granted = await scheduleWeeklyDrawReminder();
+      } catch {
+        // scheduleWeeklyDrawReminder()가 예약 실패 시 에러를 다시 던지도록 바뀌었다 — 권한
+        // 거부(아래 granted===false)와는 다른, 실행 자체가 실패한 경우이므로 별도 안내.
+        Alert.alert("알림을 예약하지 못했어요", "잠시 후 다시 시도해주세요.");
+        return;
+      }
       if (!granted) {
         Alert.alert("알림 권한이 필요합니다.", "기기 설정에서 알림 권한을 허용해주세요.");
         return;
