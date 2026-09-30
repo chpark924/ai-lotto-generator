@@ -25,6 +25,15 @@
  * 동작하는지는 이 스크립트를 최초 실행하기 전까지는 검증되지 않았다. update-lotto-data.mjs와
  * 같은 봇 차단 이슈가 있을 수 있어 동일한 User-Agent/Referer 헤더를 사용한다. 계속
  * network_error가 나면 update-lotto-data.mjs 상단 주석의 대응 순서를 그대로 따른다.
+ *
+ * [2026-09-30 재시도 로직 추가] 실제로 2026-09-28~29 사이 hourly 실행 중 3회가
+ * network_error(구체적 응답은 로그 미확보, 코드/엔드포인트 변경은 없었음)로 실패했다가
+ * 바로 다음 시간 실행에서는 아무 코드 변경 없이 그냥 성공하는 패턴이 반복 확인됐다 —
+ * 즉 영구 차단이 아니라 순간적인 네트워크/봇차단 판정 같은 뜨문뜨문한 문제로 보인다.
+ * 이런 경우까지 실행당 1회 시도로 바로 실패 처리하면 불필요한 실패 메일이 쌓이므로,
+ * 같은 실행 안에서 짧은 간격을 두고 최대 MAX_ATTEMPTS번 재시도한다. 그래도 전부
+ * 실패하면(= 진짜 문제일 가능성이 높음) 그대로 워크플로를 실패 처리해 알림이 가게 둔다 —
+ * 재시도로 실패를 숨기는 게 아니라, 일시적 실패만 흡수하는 것이 목적이다.
  */
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -42,10 +51,17 @@ const REQUEST_HEADERS = {
   Accept: "application/json, text/plain, */*",
 };
 const REQUEST_TIMEOUT_MS = 15000;
+// 같은 실행 안에서의 재시도 설정 — 위 [2026-09-30] 코멘트 참고.
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 5000;
 
 /** 응답 구조/값 범위가 그럴듯한지 방어적으로 검증한다(1억 ~ 1000억 원 사이면 정상 범위로 본다). */
 function isPlausibleAmount(n) {
   return Number.isInteger(n) && n >= 100_000_000 && n <= 100_000_000_000;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchExpectedJackpot() {
@@ -97,10 +113,28 @@ async function fetchExpectedJackpot() {
 async function main() {
   await mkdir(path.dirname(DATA_PATH), { recursive: true });
 
-  const result = await fetchExpectedJackpot();
+  let result;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    result = await fetchExpectedJackpot();
+
+    if (result.status === "success") {
+      break;
+    }
+
+    const isLastAttempt = attempt === MAX_ATTEMPTS;
+    console.error(
+      `[update-jackpot-data] 조회 실패(시도 ${attempt}/${MAX_ATTEMPTS}): ${result.error}`
+    );
+    if (!isLastAttempt) {
+      console.error(`[update-jackpot-data] ${RETRY_DELAY_MS}ms 후 재시도합니다.`);
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
 
   if (result.status !== "success") {
-    console.error(`[update-jackpot-data] 조회 실패: ${result.error}`);
+    console.error(
+      `[update-jackpot-data] ${MAX_ATTEMPTS}번 재시도 후에도 조회 실패 — 워크플로를 실패로 표시합니다.`
+    );
     console.error(
       "[update-jackpot-data] 엔드포인트가 바뀌었거나 봇 차단에 걸렸을 가능성이 있습니다 — update-lotto-data.mjs 상단 주석의 대응 순서를 참고해주세요."
     );
