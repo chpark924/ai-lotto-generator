@@ -1,5 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  type LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getRecentDrawsSafe,
@@ -43,6 +52,103 @@ const FULL_HISTORY_SAMPLE_SIZE = 2000;
 /** 이 미만이면 트리거별 표본이 너무 작아 카드 자체를 숨긴다(순위가 사실상 무의미해짐). */
 const MIN_TRANSITION_HISTORY_DRAWS = 200;
 
+// ===================== 2026-10-02 "로또 연구소" 레이아웃 개편 전용 헬퍼 =====================
+// 이 구간은 전부 화면 표시(프레젠테이션) 전용이다 — src/lib/draws/drawStats.ts의 통계 계산
+// 로직은 전혀 건드리지 않고, 이미 계산된 값을 "핵심 발견" 요약 카드에 맞는 짧은 문구로
+// 재구성하는 역할만 한다. 화면 개편과 통계 계산 변경을 분리하라는 원칙에 따른 것.
+
+/**
+ * 줄바꿈이 절대 되면 안 되는 구(" 자세히 ↓ OOO" 같은 탭 대상 링크 전체)를 만들 때 쓴다.
+ * 일반 공백 대신 줄바꿈 불가 공백(NBSP)을 넣어, 이 구 중간이 두 줄로 쪼개지지 않고
+ * 통째로만 다음 줄로 내려가게 한다 — 웹 목업에서 "자세히 ↓ 연번" / "통계"처럼 링크 문구
+ * 중간이 끊기던 문제와 동일 증상이 RN Text에서도 발생할 수 있어 선제적으로 방지한다.
+ */
+const NBSP = " ";
+function nbspJoin(...parts: string[]): string {
+  return parts.join(NBSP);
+}
+
+/**
+ * latestDraw.numbers(이미 officialCard에 그대로 표시 중인 값) 안에서 연속된 번호 구간을 찾아
+ * "43·44"처럼 사람이 읽을 문자열로 반환한다. 새로운 통계가 아니라 이미 화면에 보이는 당첨번호
+ * 6개를 다시 훑어 연속 구간만 골라내는 순수 표시용 함수 — getMaxConsecutiveLength(길이만
+ * 반환)와 달리 "어떤 번호들인지"가 필요한 핵심 발견 카드 전용으로 추가했다. 연속 구간이
+ * 여러 개면(이론상 드묾) 더 긴 쪽을 우선한다.
+ */
+function getConsecutivePairLabel(numbers: number[]): string | null {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const runs: number[][] = [];
+  let current: number[] = sorted.length > 0 ? [sorted[0]] : [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (sorted[i] === sorted[i - 1] + 1) {
+      current.push(sorted[i]);
+    } else {
+      if (current.length >= 2) runs.push(current);
+      current = [sorted[i]];
+    }
+  }
+  if (current.length >= 2) runs.push(current);
+  if (runs.length === 0) return null;
+  const longest = runs.reduce((a, b) => (b.length > a.length ? b : a));
+  return longest.join("·");
+}
+
+/** topFrequent(이미 Top6 카드에 쓰는 값) 중 최다 출현 횟수와 동률인 번호들을 "15·31" 형태로 묶는다. */
+function getTopFrequencyLabel(topFrequent: NumberFrequency[]): { numbers: string; count: number } | null {
+  if (topFrequent.length === 0) return null;
+  const maxCount = topFrequent[0].totalCount;
+  const numbers = topFrequent
+    .filter((f) => f.totalCount === maxCount)
+    .map((f) => f.number)
+    .join("·");
+  return { numbers, count: maxCount };
+}
+
+/** longestAbsent(이미 장기 미출현 카드에 쓰는 값) 중 최장 미출현과 동률인 번호들을 묶어 한 문장으로. */
+function getLongestAbsentHeadline(
+  longestAbsent: { number: number; drawsSinceLastSeen: number }[]
+): string | null {
+  if (longestAbsent.length === 0) return null;
+  const maxGap = longestAbsent[0].drawsSinceLastSeen;
+  const numbers = longestAbsent
+    .filter((item) => item.drawsSinceLastSeen === maxGap)
+    .map((item) => item.number)
+    .join("·");
+  return `${numbers}번, ${maxGap}회째 미출현 중`;
+}
+
+/**
+ * describeFirstPrizeExpectation()(원본 함수, 문장 전체를 한 번에 반환)과 완전히 동일한 구간
+ * 기준(절대 z-score 1/2)과 어휘("다소"/"꽤 이례적으로", "많이"/"적게")를 그대로 재사용하되,
+ * "핵심 발견" 카드의 두 줄(굵은 제목 + 보조 설명)에 맞게 문장을 둘로 쪼갠 버전이다. 새로운
+ * 판단 기준을 만든 게 아니라 같은 로직을 문구만 재배치했다.
+ */
+function describeFirstPrizeExpectationShort(exp: {
+  actualWinnerCount: number;
+  ratio: number | null;
+  zScore: number | null;
+}): { headline: string; detail: string } {
+  const actual = exp.actualWinnerCount;
+  if (exp.zScore === null || exp.ratio === null) {
+    return { headline: `1등 당첨자 ${actual}명`, detail: "" };
+  }
+  const absZ = Math.abs(exp.zScore);
+  const pct = Math.round(exp.ratio * 100);
+  if (absZ < 1) {
+    return {
+      headline: `1등 당첨자 ${actual}명, 기대와 비슷한 수준이에요`,
+      detail: "판매량 기준 이론적 기대치와 비슷한 수준이에요",
+    };
+  }
+  const directionPast = exp.zScore >= 0 ? "많았어요" : "적었어요";
+  const direction = exp.zScore >= 0 ? "많이" : "적게";
+  const magnitude = absZ < 2 ? "다소" : "꽤 이례적으로";
+  return {
+    headline: `1등 당첨자 ${actual}명, 기대보다 ${pct}% ${directionPast}`,
+    detail: `판매량 기준 이론적 기대치보다 ${magnitude} ${direction} 나왔어요`,
+  };
+}
+
 export default function LabScreen() {
   const { colors, tints, brand } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors, tints, brand), [colors, tints, brand]);
@@ -65,6 +171,32 @@ export default function LabScreen() {
     topNumbers: { number: number; count: number }[];
     averageOddCount: number;
   } | null>(null);
+
+  // ----- 2026-10-02 개편: "핵심 발견" 카드의 "자세히 ↓" 링크가 같은 화면의 해당 통계 카드로
+  // 스크롤 이동하기 위한 참조. sectionOffsets는 state로 두면 onLayout마다 불필요한 리렌더가
+  // 생기므로 ref(일반 mutable 객체)로 둔다 — 탭 시점에만 읽으면 충분하다. -----
+  const scrollViewRef = useRef<ScrollView>(null);
+  const sectionOffsets = useRef<Record<string, number>>({});
+  const registerSection = useCallback(
+    (key: string) => (e: LayoutChangeEvent) => {
+      sectionOffsets.current[key] = e.nativeEvent.layout.y;
+    },
+    []
+  );
+  const scrollToSection = useCallback((key: string) => {
+    const y = sectionOffsets.current[key];
+    if (y != null) {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
+    }
+  }, []);
+
+  // ----- 2026-10-02 개편: 길게 설명하는 "통계 해석 시 유의사항" 안내문구를 카드 하단에
+  // 접어두고, 탭했을 때만 펼친다(기존 DisclaimerCard 텍스트는 그대로 유지 — 노출 방식만
+  // 바뀐다). 카드마다 독립적으로 펼치고 접을 수 있어야 하므로 카드별 state를 따로 둔다. -----
+  const [consecutiveGapNoticeOpen, setConsecutiveGapNoticeOpen] = useState(false);
+  const [transitionNoticeOpen, setTransitionNoticeOpen] = useState(false);
+  const [firstPrizeDetailOpen, setFirstPrizeDetailOpen] = useState(false);
+  const [sumTrendNoticeOpen, setSumTrendNoticeOpen] = useState(false);
 
   const loadLabData = useCallback(async () => {
     // FULL_HISTORY_SAMPLE_SIZE(2000)는 RECENT_DRAW_SAMPLE_SIZE(52)의 상위집합이므로,
@@ -217,28 +349,28 @@ export default function LabScreen() {
   const consecutiveTripleGapStats = computeConsecutiveTripleGapStats(fullHistoryDraws);
   const consecutiveGapHeadline = consecutiveGapStats ? describeConsecutiveGapHeadline(consecutiveGapStats) : null;
 
+  // ----- 2026-10-02 개편: "핵심 발견" 카드용 요약값. 전부 위에서 이미 계산된 값을 그대로
+  // 재사용하며 새 통계를 만들지 않는다(진짜 계산은 drawStats.ts에만 있다). -----
+  const topFrequencyLabel = getTopFrequencyLabel(topFrequent);
+  const longestAbsentHeadline = getLongestAbsentHeadline(longestAbsent);
+  const consecutivePairLabel = latestDraw ? getConsecutivePairLabel(latestDraw.numbers) : null;
+  const firstPrizeShort = firstPrizeExpectation ? describeFirstPrizeExpectationShort(firstPrizeExpectation) : null;
+  const hasAnyInsight = Boolean(
+    (consecutiveStats && consecutiveGapHeadline) || topFrequencyLabel || longestAbsentHeadline || firstPrizeShort
+  );
+
   return (
     <View style={styles.container}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}>
+    <ScrollView
+      ref={scrollViewRef}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 16 }}
+    >
       <Text style={styles.header}>로또 연구소</Text>
 
-      {weeklyReport ? (
-        <View style={styles.weeklyCard}>
-          <Text style={styles.weeklyTitle}>이번 주 리포트</Text>
-          <Text style={styles.weeklyText}>
-            최근 7일 동안 {weeklyReport.gameCount}게임을 저장했어요. 평균 홀수 개수는{" "}
-            {weeklyReport.averageOddCount.toFixed(1)}개입니다.
-          </Text>
-          <View style={styles.ballRow}>
-            {weeklyReport.topNumbers.map((item) => (
-              <View key={item.number} style={styles.freqItem}>
-                <LottoBall number={item.number} size={30} />
-                <Text style={styles.freqCountLight}>{item.count}회</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : null}
+      {/* 2026-10-02 개편: 섹션 라벨로 "무엇을 보여주는지"부터 먼저 알리고, 화면 전체를
+          이번 회차 결과 → 핵심 발견 → 내 번호 → 각 통계 순으로 한 줄짜리 세로 흐름으로 정렬한다.
+          기존 11개 콘텐츠는 전부 그대로 유지하고 배치 순서와 강조만 바꿨다. */}
+      <SectionLabel styles={styles}>이번 회차 결과</SectionLabel>
 
       {latestDraw ? (
         // 이 카드만 실제 공식 발표 데이터(정부 추첨 결과)이고, 바로 아래 카드들(출현 빈도/
@@ -311,10 +443,175 @@ export default function LabScreen() {
         </View>
       )}
 
-      <View style={styles.card}>
+      {/* 2026-10-02 신규: "핵심 발견" — 아래 각 통계 카드에 이미 있는 값만 모아 먼저 보여주는
+          요약 카드. 새 통계를 계산하지 않고 전부 아래 카드들과 같은 값을 재사용하며, 탭하면
+          해당 카드로 스크롤 이동한다(링크 동작은 목업 단계에서 Playwright로 확인 완료). */}
+      {hasAnyInsight ? (
+        <>
+          <SectionLabel styles={styles}>핵심 발견</SectionLabel>
+          <View style={styles.insightCard}>
+            {consecutiveStats && consecutiveGapHeadline ? (
+              <Pressable
+                style={styles.insightRow}
+                onPress={() => scrollToSection(consecutivePairLabel ? "consecutive" : "consecutiveGap")}
+              >
+                {consecutivePairLabel ? (
+                  <LottoBall number={Number(consecutivePairLabel.split("·").pop())} size={36} />
+                ) : (
+                  <View style={[styles.insightIconBadge, { backgroundColor: tints.indigo.bg }]}>
+                    <Text style={[styles.insightIconBadgeText, { color: tints.indigo.fg }]} numberOfLines={1}>
+                      {consecutiveGapHeadline.highlight}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.insightTextWrap}>
+                  {consecutivePairLabel ? (
+                    <Text style={styles.insightTextMain}>이번 회차 연속번호({consecutivePairLabel}) 포함</Text>
+                  ) : (
+                    <Text style={styles.insightTextMain}>
+                      {consecutiveGapHeadline.prefix}
+                      {consecutiveGapHeadline.highlight}
+                      {consecutiveGapHeadline.suffix}
+                    </Text>
+                  )}
+                  <Text style={styles.insightTextSub}>
+                    {consecutivePairLabel ? "이번 회차에 연속번호가 나왔어요 · " : ""}
+                    <Text
+                      style={styles.insightLink}
+                      onPress={() => scrollToSection(consecutivePairLabel ? "consecutive" : "consecutiveGap")}
+                    >
+                      {consecutivePairLabel
+                        ? nbspJoin("자세히", "↓", "연번", "통계")
+                        : nbspJoin("자세히", "↓", "연번", "공백", "패턴")}
+                    </Text>
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {topFrequencyLabel ? (
+              <Pressable style={styles.insightRow} onPress={() => scrollToSection("freq")}>
+                <LottoBall number={Number(topFrequencyLabel.numbers.split("·")[0])} size={36} />
+                <View style={styles.insightTextWrap}>
+                  <Text style={styles.insightTextMain}>
+                    최근 {RECENT_DRAW_SAMPLE_SIZE}회 최다 출현은 {topFrequencyLabel.numbers}번 ({topFrequencyLabel.count}
+                    회)
+                  </Text>
+                  <Text style={styles.insightTextSub}>
+                    <Text style={styles.insightLink} onPress={() => scrollToSection("freq")}>
+                      {nbspJoin("자세히", "↓", "번호별", "출현", "빈도")}
+                    </Text>
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {longestAbsentHeadline && longestAbsent.length > 0 ? (
+              <Pressable style={styles.insightRow} onPress={() => scrollToSection("longestAbsent")}>
+                <LottoBall number={longestAbsent[0].number} size={36} />
+                <View style={styles.insightTextWrap}>
+                  <Text style={styles.insightTextMain}>{longestAbsentHeadline}</Text>
+                  <Text style={styles.insightTextSub}>
+                    최근 {RECENT_DRAW_SAMPLE_SIZE}회 동안 가장 오래 안 나왔어요 ·{" "}
+                    <Text style={styles.insightLink} onPress={() => scrollToSection("longestAbsent")}>
+                      {nbspJoin("자세히", "↓", "장기", "미출현", "번호")}
+                    </Text>
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {firstPrizeShort && firstPrizeExpectation ? (
+              <Pressable style={styles.insightRow} onPress={() => scrollToSection("firstPrize")}>
+                <View style={[styles.insightIconBadge, { backgroundColor: tints.indigo.bg }]}>
+                  <Text style={[styles.insightIconBadgeText, { color: tints.indigo.fg }]} numberOfLines={1}>
+                    {firstPrizeExpectation.ratio != null ? `${Math.round(firstPrizeExpectation.ratio * 100)}%` : "-"}
+                  </Text>
+                </View>
+                <View style={styles.insightTextWrap}>
+                  <Text style={styles.insightTextMain}>{firstPrizeShort.headline}</Text>
+                  {firstPrizeShort.detail ? (
+                    <Text style={styles.insightTextSub}>
+                      {firstPrizeShort.detail} ·{" "}
+                      <Text style={styles.insightLink} onPress={() => scrollToSection("firstPrize")}>
+                        {nbspJoin("자세히", "↓", "기대", "대비", "실제", "1등", "당첨자", "수")}
+                      </Text>
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
+      <SectionLabel styles={styles}>내 번호</SectionLabel>
+
+      {weeklyReport ? (
+        <View style={styles.weeklyCard}>
+          <Text style={styles.weeklyTitle}>이번 주 리포트</Text>
+          <Text style={styles.weeklyText}>
+            최근 7일 동안 {weeklyReport.gameCount}게임을 저장했어요. 평균 홀수 개수는{" "}
+            {weeklyReport.averageOddCount.toFixed(1)}개입니다.
+          </Text>
+          <View style={styles.ballRow}>
+            {weeklyReport.topNumbers.map((item) => (
+              <View key={item.number} style={styles.freqItem}>
+                <LottoBall number={item.number} size={30} />
+                <Text style={styles.freqCountLight}>{item.count}회</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : (
+        // 2026-10-02 추가: 기존엔 weeklyReport가 없으면 이 자리가 통째로 비어 보였다. 바로 아래
+        // myAnalysis 카드는 원래부터 빈 상태일 때도 안내문을 보여줬으므로(기존 코드), 그 패턴과
+        // 통일해 "내 번호" 구간이 빈 화면처럼 보이지 않게 한다.
+        <View style={styles.card}>
+          <Text style={styles.cardSub}>
+            최근 7일 동안 저장한 번호가 없어요. 번호를 저장하면 이번 주 리포트를 보여드려요.
+          </Text>
+        </View>
+      )}
+
+      {myAnalysis ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>내 번호 분석 (최근 {myAnalysis.totalGames}게임)</Text>
+          <Text style={styles.cardSub}>가장 많이 선택한 번호</Text>
+          <View style={styles.ballRow}>
+            {myAnalysis.mostFrequent.map((item) => (
+              <View key={item.number} style={styles.freqItem}>
+                <LottoBall number={item.number} size={32} />
+                <Text style={styles.freqCount}>{item.count}회</Text>
+              </View>
+            ))}
+          </View>
+          <Row styles={styles} label="평균 홀수 개수" value={myAnalysis.averageOddCount.toFixed(2)} />
+          <Row
+            styles={styles}
+            label="저장한 조합끼리 겹치는 번호 수 (평균, 6개 중)"
+            value={`${myAnalysis.averageOverlap.toFixed(2)}개`}
+          />
+          <Text style={styles.helperNote}>
+            내가 저장한 조합 2개씩 짝지어 비교했을 때, 평균적으로 몇 개의 번호가 겹치는지를
+            나타냅니다. 6개에 가까울수록 서로 비슷한(또는 같은) 조합을 자주 저장했다는 뜻입니다.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.cardSub}>
+            아직 생성한 번호가 없습니다. 번호를 만들면 내 선택 성향을 분석해드립니다.
+          </Text>
+        </View>
+      )}
+
+      <SectionLabel styles={styles}>각 통계</SectionLabel>
+
+      <View style={styles.card} onLayout={registerSection("freq")}>
+        <Text style={styles.cardTitle}>번호별 출현 빈도 Top 6</Text>
         {draws.length > 0 ? (
           <>
-            <Text style={styles.cardTitle}>최근 {draws.length}회 - 번호별 출현 빈도 Top 6</Text>
+            <Text style={styles.cardSub}>최근 {draws.length}회 당첨번호 기준이에요.</Text>
             <View style={styles.ballRow}>
               {topFrequent.map((f) => (
                 <View key={f.number} style={styles.freqItem}>
@@ -325,18 +622,16 @@ export default function LabScreen() {
             </View>
           </>
         ) : (
-          <>
-            <Text style={styles.cardTitle}>번호별 출현 빈도 Top 6</Text>
-            <Text style={styles.cardSub}>
-              당첨번호 데이터를 불러오지 못해 통계를 계산할 수 없어요. 위 "다시 시도"를 눌러주세요.
-            </Text>
-          </>
+          <Text style={styles.cardSub}>
+            당첨번호 데이터를 불러오지 못해 통계를 계산할 수 없어요. 위 "다시 시도"를 눌러주세요.
+          </Text>
         )}
       </View>
 
       {longestAbsent.length > 0 ? (
-        <View style={styles.card}>
+        <View style={styles.card} onLayout={registerSection("longestAbsent")}>
           <Text style={styles.cardTitle}>장기 미출현 번호</Text>
+          <Text style={styles.cardSub}>최근 {RECENT_DRAW_SAMPLE_SIZE}회 동안 가장 오래 안 나온 번호예요.</Text>
           <View style={styles.ballRow}>
             {longestAbsent.map((item) => (
               <View key={item.number} style={styles.freqItem}>
@@ -349,8 +644,27 @@ export default function LabScreen() {
       ) : null}
 
       {consecutiveStats ? (
-        <View style={styles.card}>
+        <View style={styles.card} onLayout={registerSection("consecutive")}>
           <Text style={styles.cardTitle}>연번(연속번호) 통계</Text>
+          {/* 2026-10-02 신규: "이번 회차 값"을 가장 먼저 보여주는 헤럴드 박스. 아래 cardSub(기존
+              역대 비율 문장)와 Row 4개는 전부 원래 있던 내용 그대로다 — 순서만 "이번 회차 값 →
+              역대 비교 → 세부 산출 근거"로 재배치했다. */}
+          {consecutiveGapHeadline ? (
+            <View style={styles.heraldBox}>
+              <Text style={styles.heraldLabel}>이번 회차</Text>
+              {consecutivePairLabel ? (
+                <Text style={styles.heraldValue}>
+                  <Text style={styles.heraldValueStrong}>{consecutivePairLabel}</Text> 연속번호 포함
+                </Text>
+              ) : (
+                <Text style={styles.heraldValue}>
+                  {consecutiveGapHeadline.prefix}
+                  <Text style={styles.heraldValueStrong}>{consecutiveGapHeadline.highlight}</Text>
+                  {consecutiveGapHeadline.suffix}
+                </Text>
+              )}
+            </View>
+          ) : null}
           <Text style={styles.cardSub}>
             역대 회차 중{" "}
             <Text style={styles.cardSubHighlight}>{Math.round(consecutiveStats.pairRate * 100)}%</Text>에
@@ -389,7 +703,10 @@ export default function LabScreen() {
         // consecutive-number-stats-review.md 참고). cardSub는 "지금 몇 회째인지" 실시간
         // 수치로 흥미를 끌고, Row/DisclaimerCard가 "그래도 확률은 안 변한다"는 결론을 보여준다.
         <>
-          <View style={[styles.card, styles.cardTight]}>
+          <View
+            style={[styles.card, consecutiveGapNoticeOpen ? styles.cardTight : null]}
+            onLayout={registerSection("consecutiveGap")}
+          >
             <Text style={styles.cardTitle}>연번 공백 패턴</Text>
             <Text style={styles.cardSub}>
               {consecutiveGapHeadline?.prefix}
@@ -422,14 +739,31 @@ export default function LabScreen() {
                 </Text>
               </View>
             ) : null}
+            {/* 2026-10-02 개편: 기존엔 DisclaimerCard(CONSECUTIVE_GAP_NOTICE)가 카드 바로 아래
+                항상 노출돼 있었다. 문구 자체는 토씨 하나 안 바꾸고 그대로 두되, 기본은 접어두고
+                탭했을 때만 펼치게 바꿔 가독성 피드백("안내 문구가 길어서 가독성을 해친다")을
+                반영했다. */}
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setConsecutiveGapNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="통계 해석 시 유의사항 보기"
+              accessibilityState={{ expanded: consecutiveGapNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("통계", "해석", "시", "유의사항")} {consecutiveGapNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
           </View>
-          <DisclaimerCard text={CONSECUTIVE_GAP_NOTICE} style={styles.attachedNotice} />
+          {consecutiveGapNoticeOpen ? (
+            <DisclaimerCard text={CONSECUTIVE_GAP_NOTICE} style={styles.attachedNotice} />
+          ) : null}
         </>
       ) : null}
 
       {transitionRows.length > 0 ? (
         <>
-          <View style={[styles.card, styles.cardTight]}>
+          <View style={[styles.card, transitionNoticeOpen ? styles.cardTight : null]}>
             <Text style={styles.cardTitle}>
               이번 회차 번호 이후 통계 (전체 {fullHistoryDraws.length}회 기준)
             </Text>
@@ -460,8 +794,21 @@ export default function LabScreen() {
               표본 크기(해당 번호가 나온 뒤 다음 회차 데이터가 있는 과거 횟수):{" "}
               {transitionRows.map((r) => `${r.triggerNumber}번 ${r.sampleSize}회`).join(" · ")}
             </Text>
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setTransitionNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="통계 해석 시 유의사항 보기"
+              accessibilityState={{ expanded: transitionNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("통계", "해석", "시", "유의사항")} {transitionNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
           </View>
-          <DisclaimerCard text={TRANSITION_FREQUENCY_NOTICE} style={styles.attachedNotice} />
+          {transitionNoticeOpen ? (
+            <DisclaimerCard text={TRANSITION_FREQUENCY_NOTICE} style={styles.attachedNotice} />
+          ) : null}
         </>
       ) : null}
 
@@ -490,75 +837,72 @@ export default function LabScreen() {
 
       {firstPrizeExpectation ? (
         <>
-          <View style={[styles.card, styles.cardTight]}>
+          <View
+            style={[styles.card, firstPrizeDetailOpen ? styles.cardTight : null]}
+            onLayout={registerSection("firstPrize")}
+          >
             <Text style={styles.cardTitle}>
               기대 대비 실제 1등 당첨자 수 (제 {firstPrizeExpectation.drawNumber}회)
             </Text>
             <Text style={styles.cardSub}>{describeFirstPrizeExpectation(firstPrizeExpectation)}</Text>
-            <Row
-              styles={styles}
-              label="총 판매액"
-              value={`${firstPrizeExpectation.totalSalesAmount.toLocaleString("ko-KR")}원`}
-            />
-            <Row
-              styles={styles}
-              label="추정 구매 게임 수"
-              value={`약 ${Math.round(firstPrizeExpectation.estimatedGameCount).toLocaleString("ko-KR")}게임`}
-            />
-            <Row
-              styles={styles}
-              label="이론적 기대 1등 당첨자 수"
-              value={`약 ${firstPrizeExpectation.expectedWinnerCount.toFixed(1)}명`}
-            />
-            <Row
-              styles={styles}
-              label="실제 1등 당첨자 수"
-              value={`${firstPrizeExpectation.actualWinnerCount}명`}
-            />
-            {firstPrizeExpectation.ratio !== null ? (
-              <Row
-                styles={styles}
-                label="기대 대비 실제 비율"
-                value={`${Math.round(firstPrizeExpectation.ratio * 100)}%`}
-              />
+            {/* 2026-10-02 개편: 기존 Row 5개(총판매액/추정게임수/이론적기대/실제/비율) 중
+                비교가 핵심인 두 값(이론적 기대 vs 실제)만 2열로 바로 보여주고, 나머지 3개
+                (산출 근거)는 아래 토글 안에 그대로 유지한다 — 전부 보존, 노출 방식만 분리. */}
+            <View style={styles.compareRow}>
+              <View style={styles.compareCol}>
+                <Text style={styles.compareLabel}>실제 1등 당첨자</Text>
+                <Text style={styles.compareValue}>{firstPrizeExpectation.actualWinnerCount}명</Text>
+              </View>
+              <View style={[styles.compareCol, styles.compareColBorder]}>
+                <Text style={styles.compareLabel}>이론적 기대 1등 당첨자</Text>
+                <Text style={[styles.compareValue, styles.compareValueMuted]}>
+                  약 {firstPrizeExpectation.expectedWinnerCount.toFixed(1)}명
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setFirstPrizeDetailOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="계산 기준 및 유의사항 보기"
+              accessibilityState={{ expanded: firstPrizeDetailOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("계산", "기준·유의사항", "보기")} {firstPrizeDetailOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
+            {firstPrizeDetailOpen ? (
+              <>
+                <Row
+                  styles={styles}
+                  label="총 판매액"
+                  value={`${firstPrizeExpectation.totalSalesAmount.toLocaleString("ko-KR")}원`}
+                />
+                <Row
+                  styles={styles}
+                  label="추정 구매 게임 수"
+                  value={`약 ${Math.round(firstPrizeExpectation.estimatedGameCount).toLocaleString("ko-KR")}게임`}
+                />
+                {firstPrizeExpectation.ratio !== null ? (
+                  <Row
+                    styles={styles}
+                    label="기대 대비 실제 비율"
+                    value={`${Math.round(firstPrizeExpectation.ratio * 100)}%`}
+                  />
+                ) : null}
+              </>
             ) : null}
           </View>
-          <DisclaimerCard text={FIRST_PRIZE_EXPECTATION_NOTICE} style={styles.attachedNotice} />
+          {firstPrizeDetailOpen ? (
+            <DisclaimerCard text={FIRST_PRIZE_EXPECTATION_NOTICE} style={styles.attachedNotice} />
+          ) : null}
         </>
       ) : null}
 
-      {myAnalysis ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>내 번호 분석 (최근 {myAnalysis.totalGames}게임)</Text>
-          <Text style={styles.cardSub}>가장 많이 선택한 번호</Text>
-          <View style={styles.ballRow}>
-            {myAnalysis.mostFrequent.map((item) => (
-              <View key={item.number} style={styles.freqItem}>
-                <LottoBall number={item.number} size={32} />
-                <Text style={styles.freqCount}>{item.count}회</Text>
-              </View>
-            ))}
-          </View>
-          <Row styles={styles} label="평균 홀수 개수" value={myAnalysis.averageOddCount.toFixed(2)} />
-          <Row
-            styles={styles}
-            label="저장한 조합끼리 겹치는 번호 수 (평균, 6개 중)"
-            value={`${myAnalysis.averageOverlap.toFixed(2)}개`}
-          />
-          <Text style={styles.helperNote}>
-            내가 저장한 조합 2개씩 짝지어 비교했을 때, 평균적으로 몇 개의 번호가 겹치는지를
-            나타냅니다. 6개에 가까울수록 서로 비슷한(또는 같은) 조합을 자주 저장했다는 뜻입니다.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardSub}>
-            아직 생성한 번호가 없습니다. 번호를 만들면 내 선택 성향을 분석해드립니다.
-          </Text>
-        </View>
-      )}
+      {/* 2026-10-02: 내 번호 분석 카드는 위쪽 "내 번호" 섹션(weeklyCard 바로 아래)으로
+          옮겼다 — 이 자리엔 더 이상 중복 렌더링하지 않는다. */}
 
-      <View style={[styles.card, styles.cardTight]}>
+      <View style={[styles.card, sumTrendNoticeOpen ? styles.cardTight : null]}>
         {sumTrend.length > 0 ? (
           <>
             <Text style={styles.cardTitle}>당첨번호 합계 추세 (최근 {sumTrend.length}회)</Text>
@@ -567,6 +911,17 @@ export default function LabScreen() {
               회차 순서대로 보여줍니다.
             </Text>
             <SumTrendChart points={sumTrend} midpoint={SUM_MIDPOINT} />
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setSumTrendNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="통계 해석 시 유의사항 보기"
+              accessibilityState={{ expanded: sumTrendNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("통계", "해석", "시", "유의사항")} {sumTrendNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
           </>
         ) : (
           <>
@@ -577,7 +932,9 @@ export default function LabScreen() {
           </>
         )}
       </View>
-      {sumTrend.length > 0 ? <DisclaimerCard text={SUM_TREND_NOTICE} style={styles.attachedNotice} /> : null}
+      {sumTrend.length > 0 && sumTrendNoticeOpen ? (
+        <DisclaimerCard text={SUM_TREND_NOTICE} style={styles.attachedNotice} />
+      ) : null}
     </ScrollView>
     <StatusBarSafeMask />
     </View>
@@ -589,6 +946,20 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * 2026-10-02 신규: 화면을 "이번 회차 결과 / 핵심 발견 / 내 번호 / 각 통계" 네 구간으로 나누는
+ * 섹션 라벨. 오른쪽으로 뻗는 가는 선은 View 하나로 flex:1을 줘서 구현한다(웹 CSS의
+ * `::after` 가상 요소에 대응하는 RN 방식).
+ */
+function SectionLabel({ children, styles }: { children: string; styles: ReturnType<typeof createStyles> }) {
+  return (
+    <View style={styles.sectionLabelRow}>
+      <Text style={styles.sectionLabelText}>{children}</Text>
+      <View style={styles.sectionLabelLine} />
     </View>
   );
 }
@@ -732,5 +1103,78 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
     rowLabel: { fontSize: 12, color: colors.textMuted, flexShrink: 1, marginRight: 8 },
     rowValue: { fontSize: 12, color: colors.textPrimary, fontWeight: "700", flexShrink: 0 },
+
+    // ===================== 2026-10-02 "로또 연구소" 레이아웃 개편 전용 스타일 =====================
+    // 섹션 라벨 ("이번 회차 결과" / "핵심 발견" / "내 번호" / "각 통계")
+    sectionLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 22,
+      marginBottom: 10,
+    },
+    sectionLabelText: {
+      fontSize: 13,
+      fontWeight: "800",
+      color: brand.primary,
+      letterSpacing: 0.2,
+    },
+    sectionLabelLine: { flex: 1, height: 1, backgroundColor: colors.border },
+
+    // "핵심 발견" 요약 카드
+    insightCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+      overflow: "hidden",
+    },
+    insightRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 13,
+      paddingHorizontal: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    insightIconBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    insightIconBadgeText: { fontSize: 13, fontWeight: "800" },
+    insightTextWrap: { flex: 1 },
+    insightTextMain: { fontSize: 14, fontWeight: "700", color: colors.textPrimary, lineHeight: 19 },
+    insightTextSub: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 17 },
+    insightLink: { color: brand.primary, fontWeight: "700" },
+
+    // "이번 회차 값"을 가장 먼저 보여주는 헤럴드 박스(연번(연속번호) 통계 카드 등에서 사용)
+    heraldBox: {
+      backgroundColor: tints.indigo.bg,
+      borderRadius: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginBottom: 12,
+    },
+    heraldLabel: { fontSize: 11, fontWeight: "700", color: tints.indigo.fg, marginBottom: 4, letterSpacing: 0.2 },
+    heraldValue: { fontSize: 21, fontWeight: "800", color: colors.textPrimary, lineHeight: 27 },
+    heraldValueStrong: { color: tints.indigo.fg },
+
+    // 직접 비교가 가능한 두 값(실제 vs 이론적 기대)을 2열로 보여주는 비교 행
+    compareRow: { flexDirection: "row", marginTop: 4 },
+    compareCol: { flex: 1, alignItems: "center", paddingVertical: 6, paddingHorizontal: 4 },
+    compareColBorder: { borderLeftWidth: 1, borderLeftColor: colors.border },
+    compareLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6 },
+    compareValue: { fontSize: 23, fontWeight: "800", color: colors.textPrimary },
+    compareValueMuted: { color: colors.textSecondary },
+
+    // 카드 하단에 접혀 있다가 탭했을 때만 펼쳐지는 "통계 해석 시 유의사항" / "계산 기준" 토글.
+    // 토글 문구 자체는 DisclaimerCard의 기존 안내 문구를 그대로 재사용하고, 노출 여부만 바꾼다.
+    noticeToggleRow: { marginTop: 12 },
+    noticeToggleText: { fontSize: 12, fontWeight: "700", color: brand.primary },
   });
 }
