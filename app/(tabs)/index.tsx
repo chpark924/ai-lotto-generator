@@ -173,12 +173,24 @@ export default function HomeScreen() {
 
         {jackpotAmount !== null && latestDrawNumber !== null ? (
           <View style={styles.jackpotLine}>
-            <Ionicons name="trophy" size={16} color={trophyGold} />
+            <Ionicons name="trophy" size={18} color={trophyGold} />
             {/* 2026-09-27 피드백: 이 예상 당첨금이 "이번 주(아직 추첨 전인 다음 회차)" 기준임을
                 한눈에 알 수 있게 "이번 주"를 회차 번호 앞에 붙인다. 한 줄을 넘기지 않도록
-                numberOfLines={1}로 강제하고(길어도 줄바꿈 대신 말줄임), 폰트도 한 단계
-                줄여(12→11) 실제로 줄바꿈이 필요할 일을 애초에 최소화한다. */}
-            <Text style={styles.jackpotLabel} numberOfLines={1}>
+                numberOfLines={1}로 강제한다.
+                [2026-10-20 가독성 피드백] 이 줄이 다른 보조 텍스트들 사이에 묻혀 눈에 덜
+                띈다는 지적 — 라벨/금액 폰트를 한 단계씩 키우고(11→13/11→16), 금액 색도
+                트로피 아이콘과 통일되게 brand.primary(파랑)에서 trophyGold(금색)로 바꿔
+                존재감을 높였다. 문구 길이상 커진 폰트가 375px 같은 좁은 화면에서는 한
+                줄을 넘길 수 있어, 이미 퀵메뉴 라벨(quickMenuText)에 쓰던 것과 동일한
+                패턴인 adjustsFontSizeToFit + minimumFontScale을 붙여 "넘치면 줄바꿈" 대신
+                "넘치면 그 화면에 맞게 글자만 살짝 줄여서라도 한 줄 유지"로 만든다 — 넓은
+                화면에선 키운 크기 그대로, 가장 좁은 화면에서도 항상 한 줄을 유지한다. */}
+            <Text
+              style={styles.jackpotLabel}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
               이번 주 제{latestDrawNumber + 1}회 1등 예상 총 당첨금{" "}
               <Text style={styles.jackpotAmount}>{jackpotAmount.toLocaleString("ko-KR")}원</Text>
             </Text>
@@ -324,11 +336,18 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     // 11차 업데이트 — 실시간 1등 예상 당첨금(2026-09-26). 라벨은 다른 보조 텍스트와
     // 같은 textMuted 회색·일반 굵기, 금액만 브랜드 블루 + 세미볼드로 살짝 강조한다
     // (ProbabilityCard.tsx의 label/value 쌍과 동일한 위계 규칙).
-    jackpotLine: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16 },
-    // flexShrink: numberOfLines={1}(위 JSX 참고)가 실제로 잘리려면 이 Text가 행(row) 안에서
-    // 남은 너비만큼으로 제한돼야 한다 — 없으면 화면 밖으로 그냥 넘칠 수 있다.
-    jackpotLabel: { fontSize: 11, color: colors.textMuted, flexShrink: 1 },
-    jackpotAmount: { fontSize: 11, color: brand.primary, fontWeight: "600" },
+    jackpotLine: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 16 },
+    // flexShrink: numberOfLines={1} + adjustsFontSizeToFit(위 JSX 참고)가 실제로 한 줄을
+    // 유지하며 줄어들려면 이 Text가 행(row) 안에서 남은 너비만큼으로 제한돼야 한다 — 없으면
+    // 화면 밖으로 그냥 넘칠 수 있다.
+    // [2026-10-20] 가독성을 높이려고 11px(보조 텍스트 크기)에서 13px로, 색도 textMuted에서
+    // 한 단계 진한 textSecondary로 올렸다 — 그래도 금액(jackpotAmount)보다는 옅게 유지해
+    // "라벨은 설명, 금액이 주인공"이라는 위계는 그대로 둔다.
+    jackpotLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: "600", flexShrink: 1 },
+    // [2026-10-20] 11px·brand.primary(파랑)·세미볼드에서 16px·trophyGold(금색)·엑스트라볼드로.
+    // 옆 트로피 아이콘과 같은 금색을 써서 "이 줄은 1등 상금 이야기"라는 묶음감을 주고,
+    // 다른 보조 텍스트들 사이에서 분명히 눈에 띄게 한다.
+    jackpotAmount: { fontSize: 16, color: trophyGold, fontWeight: "800" },
     quickMenuItem: {
       flex: 1,
       backgroundColor: colors.surface,
