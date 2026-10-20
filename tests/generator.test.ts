@@ -171,6 +171,90 @@ describe("generateAiSearchGames", () => {
     }, 20000);
   });
 
+  // 2차 로컬 탐색(언덕 오르기) — 끝수 스프레드 최적화와 동일한 조건(3만 회/10만 회
+  // 탐색)에서만 내재화되어 적용된다. 무작위성 때문에 "항상 점수가 더 올라간다"는 식의
+  // 결정론적 검증은 어렵지만, 이 단계가 기존 불변식(필수번호 보존/제외번호 회피/
+  // 다양성 규칙/mustIncludeOneOfSets 안전 범위)을 깨지 않는지는 end-to-end로 검증한다.
+  describe("2차 로컬 탐색 (3만 회/10만 회 탐색에서만 내재화 적용)", () => {
+    it("3만 회 탐색 결과도 정상적으로 반환되고 제외번호·다양성 규칙을 유지한다", async () => {
+      const request = baseRequest({
+        mode: "AI_SEARCH",
+        gameCount: 5,
+        searchCount: 30000,
+        excludedNumbers: [1, 2, 3],
+      });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      expect(result.games).toHaveLength(5);
+      for (const game of result.games) {
+        expect(game.numbers).toHaveLength(6);
+        expect(new Set(game.numbers).size).toBe(6);
+        for (const n of game.numbers) {
+          expect([1, 2, 3]).not.toContain(n);
+        }
+      }
+
+      const numberSets = result.games.map((g) => g.numbers);
+      for (let i = 0; i < numberSets.length; i += 1) {
+        for (let j = i + 1; j < numberSets.length; j += 1) {
+          const overlap = numberSets[i].filter((n) => numberSets[j].includes(n)).length;
+          expect(overlap).toBeLessThan(6);
+        }
+      }
+    }, 20000);
+
+    it("필수번호는 로컬 탐색으로도 항상 그대로 유지된다", async () => {
+      const request = baseRequest({
+        mode: "AI_SEARCH",
+        gameCount: 3,
+        searchCount: 30000,
+        requiredNumbers: [7, 21],
+      });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      for (const game of result.games) {
+        expect(game.numbers).toContain(7);
+        expect(game.numbers).toContain(21);
+      }
+    }, 20000);
+
+    it("mustIncludeOneOfSets가 있으면 로컬 탐색을 건너뛰어도 그 제약은 그대로 만족한다", async () => {
+      const request = baseRequest({
+        mode: "AI_SEARCH",
+        gameCount: 3,
+        searchCount: 30000,
+        mustIncludeOneOfSets: [[40, 41, 42]],
+      });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+
+      for (const game of result.games) {
+        expect(game.numbers.some((n) => [40, 41, 42].includes(n))).toBe(true);
+      }
+    }, 20000);
+
+    it("바로 생성(searchCount=1)에는 로컬 탐색이 적용되지 않아도 결과는 정상 반환된다", async () => {
+      const request = baseRequest({ mode: "AI_SEARCH", gameCount: 1, searchCount: 1 });
+      const result = await generateAiSearchGames(request, {
+        popularityByNumber: new Array(45).fill(0.3),
+        savedCombinations: [],
+        batchSize: 2000,
+      });
+      expect(result.games).toHaveLength(1);
+    }, 20000);
+  });
+
   // "다음 회차 통계 전략" — transitionStrategyPool이 주어지면 게임 수는 그대로 유지한 채,
   // 마지막 1개만 pool에서 3~4개를 강제 포함하도록 별도 구성되고 score가 없어야 한다.
   describe("다음 회차 통계 전략 (transitionStrategyPool)", () => {

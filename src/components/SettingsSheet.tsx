@@ -143,7 +143,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.title}>설정</Text>
 
           <Text style={styles.sectionTitle}>구매·추첨일 알림</Text>
-          <DisclaimerCard text="서버 푸시가 아니라 이 기기에 예약되는 로컬 알림입니다. 매주 금요일(구매 마감 하루 전), 토요일 오후 6시(구매 마감일), 토요일 저녁(추첨 임박)까지 총 3번 알려드립니다." />
+          <DisclaimerCard text="서버 푸시가 아니라 이 기기에 예약되는 로컬 알림입니다. 매주 금요일(구매 마감 하루 전), 토요일 오후 6시(구매 마감일), 토요일 저녁(추첨 임박), 일요일 오전 10시(결과 확인 안내)까지 총 4번 알려드립니다. 당첨 여부 자체는 알려드리지 않아요 — 서버가 없어 저장번호를 따로 확인할 방법이 없거든요." />
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>매주 구매·추첨 알림</Text>
             <Switch

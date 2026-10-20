@@ -5,6 +5,7 @@ import {
   getLastDigitSpreadBadge,
   getSakaiPatternBadge,
   getTransitionStatsStrategyBadge,
+  getCharacterBadge,
   computeBatchLevelBadges,
   computeGameLevelBadges,
   type SakaiAnalysisInputs,
@@ -130,6 +131,73 @@ describe("getTransitionStatsStrategyBadge", () => {
   });
 });
 
+describe("getCharacterBadge (성격 배지)", () => {
+  function baseScore(
+    overrides: Partial<{
+      diversityScore: number;
+      userUniquenessScore: number;
+      personalNoveltyScore: number;
+      balanceScore: number;
+      lastDigitSpreadScore: number;
+    }> = {}
+  ) {
+    return {
+      diversityScore: 60,
+      userUniquenessScore: 60,
+      personalNoveltyScore: 60,
+      balanceScore: 60,
+      ...overrides,
+    };
+  }
+
+  it("다양성 점수가 뚜렷하게 높으면 구간 다양성형", () => {
+    expect(getCharacterBadge(baseScore({ diversityScore: 95 }))).toEqual({
+      key: "DIVERSITY_SPREAD",
+      label: "구간 다양성형",
+    });
+  });
+
+  it("희귀도 점수가 뚜렷하게 높으면 희귀번호 중심형", () => {
+    expect(getCharacterBadge(baseScore({ userUniquenessScore: 95 }))).toEqual({
+      key: "RARE_NUMBERS",
+      label: "희귀번호 중심형",
+    });
+  });
+
+  it("개인 신선도 점수가 뚜렷하게 높으면 새로운 시도형", () => {
+    expect(getCharacterBadge(baseScore({ personalNoveltyScore: 95 }))).toEqual({
+      key: "FRESH_PICK",
+      label: "새로운 시도형",
+    });
+  });
+
+  it("균형 점수가 뚜렷하게 높으면 균형형", () => {
+    expect(getCharacterBadge(baseScore({ balanceScore: 95 }))).toEqual({
+      key: "BALANCED",
+      label: "균형형",
+    });
+  });
+
+  it("끝수 분산 점수가 있고 뚜렷하게 높으면 끝수 분산형", () => {
+    expect(getCharacterBadge(baseScore({ lastDigitSpreadScore: 95 }))).toEqual({
+      key: "LAST_DIGIT_VARIETY",
+      label: "끝수 분산형",
+    });
+  });
+
+  it("점수가 전반적으로 비슷하면(두드러진 특성 없음) null", () => {
+    expect(getCharacterBadge(baseScore({ diversityScore: 88, userUniquenessScore: 85 }))).toBeNull();
+  });
+
+  it("최고 점수가 85점 미만이면 null", () => {
+    expect(getCharacterBadge(baseScore({ diversityScore: 80 }))).toBeNull();
+  });
+
+  it("score가 없으면 null", () => {
+    expect(getCharacterBadge(undefined)).toBeNull();
+  });
+});
+
 describe("computeBatchLevelBadges", () => {
   it("배치(요청) 조건에 맞는 배지만 모아서 반환한다 — 끝수 스프레드 포함, 사카이는 제외", () => {
     const request = baseRequest({ searchCount: 100000, avoidPopularNumbers: true, gameCount: 5 });
@@ -165,5 +233,23 @@ describe("computeGameLevelBadges", () => {
       null
     ).map((b) => b.key);
     expect(keys).toEqual(["TRANSITION_STATS_STRATEGY"]);
+  });
+
+  it("score가 주어지고 특성이 뚜렷하면 성격 배지도 함께, 맨 앞에 반환한다", () => {
+    const keys = computeGameLevelBadges(
+      {
+        numbers: [1, 2, 3, 4, 5, 6],
+        score: {
+          totalScore: 90,
+          conditionMatchScore: 90,
+          diversityScore: 96,
+          userUniquenessScore: 60,
+          personalNoveltyScore: 60,
+          balanceScore: 60,
+        },
+      },
+      null
+    ).map((b) => b.key);
+    expect(keys).toEqual(["DIVERSITY_SPREAD"]);
   });
 });

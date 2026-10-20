@@ -19,7 +19,7 @@
  *    전략은 그 게임이 실제로 그 방식으로 생성됐는지(game.specialStrategy)에 따라 게임마다
  *    결과가 달라지므로 카드마다 따로 계산해서 보여줄 가치가 있다. `computeGameLevelBadges()`.
  */
-import type { GeneratedGame, GenerationRequest } from "./types";
+import type { CandidateScore, GeneratedGame, GenerationRequest } from "./types";
 import { isLastDigitSpreadOptimizationActive } from "./scoring";
 
 export interface ResultBadge {
@@ -29,7 +29,12 @@ export interface ResultBadge {
     | "WHEELING"
     | "LAST_DIGIT_SPREAD"
     | "SAKAI_PATTERN"
-    | "TRANSITION_STATS_STRATEGY";
+    | "TRANSITION_STATS_STRATEGY"
+    | "DIVERSITY_SPREAD"
+    | "RARE_NUMBERS"
+    | "FRESH_PICK"
+    | "BALANCED"
+    | "LAST_DIGIT_VARIETY";
   label: string;
 }
 
@@ -114,6 +119,47 @@ export function getTransitionStatsStrategyBadge(
   return { key: "TRANSITION_STATS_STRATEGY", label: "다음 회차 통계 전략" };
 }
 
+/**
+ * "성격 배지" — 추천 적합도의 하위 점수들 중 조건일치(conditionMatchScore)를 뺀 나머지
+ * (다양성/희귀도/개인신선도/균형/끝수분산) 중 유독 두드러지는 게 있으면 그 특성을 짧게
+ * 서술한다. conditionMatchScore는 사용자가 직접 설정한 조건(홀짝/합계 등)을 얼마나
+ * 지켰는지일 뿐 조합 자체의 "성격"이라 보기 어려워 제외한다.
+ *
+ * 사용자가 "적합도 1위만 선호하는" 심리 때문에 점수가 2~3점 낮은 다른 추천을 덜
+ * 신뢰하게 되는 문제를 줄이기 위한 장치다 — 점수 숫자 대신 "이 조합은 이런 강점이
+ * 있다"는 근거를 준다. 최고값이 다른 값들보다 뚜렷하게(8점 이상) 높고 절대값도 충분히
+ * 높을 때(85점 이상)만 배지를 붙인다 — 애매하게 비슷비슷한 점수 구성에는 억지로
+ * 특성을 붙이지 않는다.
+ */
+export function getCharacterBadge(
+  score:
+    | Pick<
+        CandidateScore,
+        "diversityScore" | "userUniquenessScore" | "personalNoveltyScore" | "balanceScore" | "lastDigitSpreadScore"
+      >
+    | undefined
+): ResultBadge | null {
+  if (!score) return null;
+
+  const candidates: { key: ResultBadge["key"]; label: string; value: number }[] = [
+    { key: "DIVERSITY_SPREAD", label: "구간 다양성형", value: score.diversityScore },
+    { key: "RARE_NUMBERS", label: "희귀번호 중심형", value: score.userUniquenessScore },
+    { key: "FRESH_PICK", label: "새로운 시도형", value: score.personalNoveltyScore },
+    { key: "BALANCED", label: "균형형", value: score.balanceScore },
+  ];
+  if (score.lastDigitSpreadScore !== undefined) {
+    candidates.push({ key: "LAST_DIGIT_VARIETY", label: "끝수 분산형", value: score.lastDigitSpreadScore });
+  }
+
+  const sorted = [...candidates].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+  const second = sorted[1];
+  if (top.value < 85) return null;
+  if (second && top.value - second.value < 8) return null;
+
+  return { key: top.key, label: top.label };
+}
+
 export interface SakaiAnalysisInputs {
   /** 최근 26주 표본 기준 출현 3~4회(평균권) 번호 (drawStats.ts의 getSakaiAverageFrequencyNumbers). */
   averageFrequencyNumbers: number[];
@@ -156,15 +202,18 @@ export function computeBatchLevelBadges(request: GenerationRequest): ResultBadge
 }
 
 /**
- * 게임 단위 배지(사카이 분석 패턴, 다음 회차 통계 전략)를 모아 반환한다. 카드마다 따로
- * 계산한다 — 사카이는 결과 번호 구성에 따라, 다음 회차 통계 전략은 game.specialStrategy
- * 태그 유무에 따라 게임마다 다르게 붙을 수 있다.
+ * 게임 단위 배지(성격 배지, 사카이 분석 패턴, 다음 회차 통계 전략)를 모아 반환한다.
+ * 카드마다 따로 계산한다 — 성격 배지는 game.score의 하위 점수 구성에 따라, 사카이는
+ * 결과 번호 구성에 따라, 다음 회차 통계 전략은 game.specialStrategy 태그 유무에 따라
+ * 게임마다 다르게 붙을 수 있다.
  */
 export function computeGameLevelBadges(
-  game: Pick<GeneratedGame, "numbers" | "specialStrategy">,
+  game: Pick<GeneratedGame, "numbers" | "specialStrategy" | "score">,
   sakaiInputs: SakaiAnalysisInputs | null
 ): ResultBadge[] {
-  return [getSakaiPatternBadge(game.numbers, sakaiInputs), getTransitionStatsStrategyBadge(game)].filter(
-    (badge): badge is ResultBadge => badge !== null
-  );
+  return [
+    getCharacterBadge(game.score),
+    getSakaiPatternBadge(game.numbers, sakaiInputs),
+    getTransitionStatsStrategyBadge(game),
+  ].filter((badge): badge is ResultBadge => badge !== null);
 }

@@ -19,6 +19,13 @@ const DRAW_REMINDER_ID = "weekly-draw-reminder";
 const PURCHASE_DEADLINE_EVE_ID = "weekly-purchase-deadline-eve-reminder";
 /** 로또 구매 마감 당일(토요일) 알림. 마감 시각과 무관하게 오후 6시 고정 발송. */
 const PURCHASE_DEADLINE_DAY_ID = "weekly-purchase-deadline-day-reminder";
+/**
+ * 추첨 다음날(일요일) 아침 "결과 나왔어요, 확인해보세요" 알림. 서버가 없어 저장번호가
+ * 실제로 당첨됐는지는 알 수 없으므로(기획서 7.5/23장과 동일한 "서버 없음" 원칙), 당첨
+ * 여부를 말하지 않고 결과가 나왔다는 사실만 알려 앱에서 직접 확인(내 번호 탭의 자동
+ * 당첨 확인)하도록 유도하는 역할만 한다. 발송 시각과 무관하게 일요일 오전 10시 고정.
+ */
+const RESULT_CHECK_ID = "weekly-result-check-reminder";
 
 type NotificationsModule = typeof import("expo-notifications");
 
@@ -53,10 +60,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * 로또 구매·추첨 관련 로컬 알림을 한 번에 예약한다 (토글 하나로 3건 관리).
+ * 로또 구매·추첨 관련 로컬 알림을 한 번에 예약한다 (토글 하나로 4건 관리).
  *  1) 구매 마감 하루 전 (금요일, hour/minute 설정값)
  *  2) 구매 마감 당일 (토요일, 오후 6시 고정) — 마감 직전 마지막 구매 알림
  *  3) 추첨 임박 (토요일, hour/minute 설정값, 기본 오후 8시) — 기존 알림
+ *  4) 추첨 다음날 결과 확인 (일요일 오전 10시 고정) — 저장번호를 확인해보라는 안내,
+ *     당첨 여부 자체는 서버가 없어 알 수 없으므로 말하지 않는다(위 RESULT_CHECK_ID 참고)
  */
 export async function scheduleWeeklyDrawReminder(hour = 20, minute = 0): Promise<boolean> {
   const Notifications = await getNotifications();
@@ -121,6 +130,22 @@ export async function scheduleWeeklyDrawReminder(hour = 20, minute = 0): Promise
       },
     });
 
+    // expo-notifications 기준 weekday: 1=일요일. 추첨 다음날 아침 — 당첨 여부는 말하지
+    // 않고(서버 없음 원칙, RESULT_CHECK_ID 주석 참고) 결과가 나왔다는 사실만 안내한다.
+    await Notifications.scheduleNotificationAsync({
+      identifier: RESULT_CHECK_ID,
+      content: {
+        title: "이번 주 추첨 결과가 나왔어요",
+        body: "저장해둔 번호를 확인해보세요.",
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 1,
+        hour: 10,
+        minute: 0,
+      },
+    });
+
     return true;
   } catch (error) {
     await cancelWeeklyDrawReminder();
@@ -134,5 +159,6 @@ export async function cancelWeeklyDrawReminder(): Promise<void> {
     Notifications.cancelScheduledNotificationAsync(PURCHASE_DEADLINE_EVE_ID).catch(() => undefined),
     Notifications.cancelScheduledNotificationAsync(PURCHASE_DEADLINE_DAY_ID).catch(() => undefined),
     Notifications.cancelScheduledNotificationAsync(DRAW_REMINDER_ID).catch(() => undefined),
+    Notifications.cancelScheduledNotificationAsync(RESULT_CHECK_ID).catch(() => undefined),
   ]);
 }

@@ -11,7 +11,13 @@ import { pickOne, randomInt, securePartialShuffle } from "./random";
 import { buildGameMetadata } from "./pattern";
 import { combinationKey, maxOverlapAgainstList } from "./similarity";
 import { calculateCoveragePercent, calculateFirstPrizeProbability, PROBABILITY_DISCLAIMER } from "./probability";
-import { scoreCandidate, isConsecutiveRuleOk, stretchScoresForDisplay, type ScoringContext } from "./scoring";
+import {
+  scoreCandidate,
+  isConsecutiveRuleOk,
+  isLastDigitSpreadOptimizationActive,
+  stretchScoresForDisplay,
+  type ScoringContext,
+} from "./scoring";
 import { validateGenerationRequest } from "./validators";
 import type {
   GeneratedGame,
@@ -209,6 +215,70 @@ function generateTransitionStrategyNumbers(
   return null;
 }
 
+/** 2차 로컬 탐색에서 한 후보당 시도할 "번호 1개 교체" 최대 횟수. */
+const LOCAL_SEARCH_MAX_ATTEMPTS = 40;
+
+/**
+ * 상위 후보 "2차 로컬 탐색"(언덕 오르기) — 번호 1개를 다른 번호로 바꿔보며 원점수
+ * (score.totalScore)가 더 높아지는 변형이 있는지 가볍게 탐색한다. AI 조합 탐색 1단계
+ * (대량 무작위 생성 + 채점 + 상위 1~5% 채택)가 이미 고른 후보 안에서, 같은 풀을 다시
+ * 전부 돌리지 않고도 소폭이지만 더 나은 조합을 찾아내는 보조 단계다.
+ *
+ * 호출부(generateAiSearchGames)가 아래 두 조건에서만 호출한다:
+ *  - isLastDigitSpreadOptimizationActive(3만 회/10만 회 탐색) — 100만 회 부스터는 후보
+ *    풀 자체가 매우 커서 추가 탐색 비용 대비 효과가 낮고 기존 성능 특성을 유지하려는
+ *    목적(기존 끝수 스프레드 최적화와 동일 범위 결정), "바로 생성"은 비교 대상이 없다.
+ *  - mustIncludeOneOfSets가 비어 있을 때만 — 어떤 번호가 그 제약("고빈도 상위권 포함" 등)을
+ *    만족시키는 번호인지 이 함수만으로는 알 수 없어, 잘못 교체해 제약을 깨뜨릴 위험을
+ *    감수하지 않는다(생성 실패 대신 조용히 건너뛰는 기존 폴백 철학과 동일).
+ *
+ * 이 함수 자체는 필수번호(requiredNumbers)는 항상 보존하고, 교체 후보는 제외번호를
+ * 피하며, 연속번호 규칙과 다른 채택 게임과의 다양성 규칙(4개 이상 중복 배제)도 그대로
+ * 지킨다. 더 나은 변형을 못 찾으면 null을 반환해 원래 후보를 그대로 둔다.
+ */
+function localSearchImprove(
+  candidate: { numbers: number[]; score: ReturnType<typeof scoreCandidate> },
+  context: ScoringContext,
+  request: Pick<GenerationRequest, "excludedNumbers" | "requiredNumbers" | "consecutiveRule">,
+  otherChosenNumbers: number[][],
+  usedKeys: Set<string>
+): { numbers: number[]; score: ReturnType<typeof scoreCandidate> } | null {
+  const excluded = new Set(request.excludedNumbers);
+  const required = new Set(request.requiredNumbers);
+  const movableIndexes = candidate.numbers
+    .map((_, i) => i)
+    .filter((i) => !required.has(candidate.numbers[i]));
+  if (movableIndexes.length === 0) return null;
+
+  let best = candidate;
+
+  for (let attempt = 0; attempt < LOCAL_SEARCH_MAX_ATTEMPTS; attempt += 1) {
+    const posIndex = movableIndexes[randomInt(0, movableIndexes.length)];
+    const currentSet = new Set(best.numbers);
+    const replacementPool = Array.from({ length: 45 }, (_, i) => i + 1).filter(
+      (n) => !excluded.has(n) && !currentSet.has(n)
+    );
+    if (replacementPool.length === 0) continue;
+    const replacement = replacementPool[randomInt(0, replacementPool.length)];
+
+    const candidateNumbers = [...best.numbers];
+    candidateNumbers[posIndex] = replacement;
+    candidateNumbers.sort((a, b) => a - b);
+
+    const key = combinationKey(candidateNumbers);
+    if (usedKeys.has(key)) continue;
+    if (!isConsecutiveRuleOk(candidateNumbers, request.consecutiveRule)) continue;
+    if (maxOverlapAgainstList(candidateNumbers, otherChosenNumbers) >= 4) continue;
+
+    const candidateScore = scoreCandidate(candidateNumbers, context);
+    if (candidateScore.totalScore > best.score.totalScore) {
+      best = { numbers: candidateNumbers, score: candidateScore };
+    }
+  }
+
+  return best === candidate ? null : best;
+}
+
 /**
  * 기획서 7장 AI 조합 탐색.
  * 방법 B(지정 횟수만 생성)를 사용한다 — MVP에 적합하고 구현이 단순하다 (기획서 7.3).
@@ -308,6 +378,25 @@ export async function generateAiSearchGames(
     for (const candidate of topCandidates) {
       if (chosen.length >= normalGameCount) break;
       if (!chosen.includes(candidate)) chosen.push(candidate);
+    }
+  }
+
+  // 2차 로컬 탐색 — 3만 회/10만 회 탐색에서만, mustIncludeOneOfSets 제약이 없을 때만
+  // 켜진다(localSearchImprove 주석 참고). 이미 채택된 후보들 안에서 번호 1개를 바꿔보며
+  // 원점수가 더 높아지는 변형이 있으면 교체한다 — 채택 순서나 다양성 제약(4개 이상 중복
+  // 배제)은 그대로 유지한다.
+  const localSearchEligible =
+    isLastDigitSpreadOptimizationActive(request) && (request.mustIncludeOneOfSets?.length ?? 0) === 0;
+  if (localSearchEligible) {
+    const usedKeys = new Set(chosen.map((c) => combinationKey(c.numbers)));
+    for (let i = 0; i < chosen.length; i += 1) {
+      const otherNumbers = chosen.filter((_, j) => j !== i).map((c) => c.numbers);
+      const improved = localSearchImprove(chosen[i], scoringContext, request, otherNumbers, usedKeys);
+      if (improved) {
+        usedKeys.delete(combinationKey(chosen[i].numbers));
+        chosen[i] = improved;
+        usedKeys.add(combinationKey(improved.numbers));
+      }
     }
   }
 
