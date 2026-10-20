@@ -39,11 +39,16 @@ describe("buildOfficialPurchasePageUrl", () => {
 });
 
 describe("estimateDrawDate / estimateLatestDrawNumber", () => {
-  it("estimateDrawDate(1)은 실제 1회차 추첨일(2002-12-07)과 같다", () => {
+  // [2026-10-20] 기준 시각이 00:00에서 실제 추첨 방송 시각인 20:35(KST)로 바뀌었다
+  // (아래 "토요일 추첨 시각 경계" describe 참고) — 그래서 UTC로 환산하면 전날로 넘어가지
+  // 않고 같은 날(12/7) 11:35 UTC가 된다.
+  it("estimateDrawDate(1)은 실제 1회차 추첨일(2002-12-07, 추첨 시각 20:35 KST)과 같다", () => {
     const date = estimateDrawDate(1);
     expect(date.getUTCFullYear()).toBe(2002);
     expect(date.getUTCMonth()).toBe(11); // 0-indexed → 12월
-    expect(date.getUTCDate()).toBe(6); // KST 00:00은 UTC 전날 15:00
+    expect(date.getUTCDate()).toBe(7); // 20:35 KST = 11:35 UTC, 같은 날(전날로 안 넘어감)
+    expect(date.getUTCHours()).toBe(11);
+    expect(date.getUTCMinutes()).toBe(35);
   });
 
   it("연속된 회차는 정확히 7일 간격이다", () => {
@@ -58,7 +63,10 @@ describe("estimateDrawDate / estimateLatestDrawNumber", () => {
       new Date("2026-08-03T10:00:00+09:00"), // 오늘 (평일)
       new Date("2026-08-08T10:00:00+09:00"), // 토요일
       new Date("2010-01-01T00:00:00+09:00"),
-      new Date("2002-12-07T00:00:00+09:00"), // 1회차 당일
+      // 1회차 당일이지만 추첨 시각(20:35) 이후 — 추첨 전(00:00~20:34)에는 아직 "완료된
+      // 최신 회차"가 하나도 없는 상태라 latestDate<=now 전제 자체가 성립하지 않는다(이
+      // 앱 역사상 유일하게 그런 시점이고, 그 경계는 바로 아래 describe가 별도로 검증한다).
+      new Date("2002-12-07T21:00:00+09:00"),
     ];
 
     for (const now of sampleDates) {
@@ -80,6 +88,49 @@ describe("estimateDrawDate / estimateLatestDrawNumber", () => {
 
     expect(estimateDrawDate(thisWeek).getTime()).toBeGreaterThan(now.getTime());
     expect(estimateDrawDate(nextWeek).getTime()).toBeGreaterThan(estimateDrawDate(thisWeek).getTime());
+  });
+});
+
+/**
+ * 신뢰성 버그 회귀 테스트(2026-10-20) — 사용자가 "토요일 저녁 8시 전에 저장한 번호가
+ * 금주 번호로 저장되는지" 직접 확인해달라고 요청해 찾아낸 문제. 실제 로또 추첨은 매주
+ * 토요일 오후 8시 35분, MBC "생방송 행복드림 로또 645"로 진행된다(기사로 확인). 아래
+ * 날짜들은 실제 회차 기준(2026-10-17이 제1246회, 2026-10-24가 제1247회 — "연속된 회차는
+ * 정확히 7일 간격이다" 테스트로 보장됨)으로 고정해, 이 경계가 다시 깨지면 테스트가
+ * 실패하게 한다.
+ */
+describe("estimateLatestDrawNumber — 토요일 추첨 시각(20:35 KST) 경계", () => {
+  it("추첨일 00:00~20:34(추첨 전)까지는 그날 밤 추첨될 회차가 아직 '최신 완료 회차'로 넘어가지 않는다", () => {
+    const beforeDraw = [
+      "2026-10-24T00:00:00+09:00",
+      "2026-10-24T08:00:00+09:00",
+      "2026-10-24T18:00:00+09:00", // 구매 마감(오후 6시) 직후
+      "2026-10-24T20:00:00+09:00", // 사용자가 우려한 "저녁 8시 전"
+      "2026-10-24T20:34:00+09:00", // 추첨 1분 전
+    ];
+    for (const iso of beforeDraw) {
+      expect(estimateLatestDrawNumber(new Date(iso))).toBe(1246);
+    }
+  });
+
+  it("추첨 시각(20:35 KST) 이후부터는 그 회차가 '최신 완료 회차'로 넘어간다", () => {
+    const atAndAfterDraw = [
+      "2026-10-24T20:35:00+09:00",
+      "2026-10-24T20:36:00+09:00",
+      "2026-10-24T21:00:00+09:00",
+      "2026-10-25T00:00:00+09:00",
+    ];
+    for (const iso of atAndAfterDraw) {
+      expect(estimateLatestDrawNumber(new Date(iso))).toBe(1247);
+    }
+  });
+
+  it("따라서 '이번 주' 저장 대상 회차(estimateLatestDrawNumber+1)는 추첨 당일 저녁 8시까지도 그날 밤 추첨될 회차를 가리킨다", () => {
+    const beforeDraw = new Date("2026-10-24T19:00:00+09:00"); // 저녁 8시 전
+    expect(estimateLatestDrawNumber(beforeDraw) + 1).toBe(1247);
+
+    const afterDraw = new Date("2026-10-24T21:00:00+09:00");
+    expect(estimateLatestDrawNumber(afterDraw) + 1).toBe(1248);
   });
 });
 
