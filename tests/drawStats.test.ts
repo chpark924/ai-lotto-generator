@@ -14,6 +14,10 @@ import {
   describeConsecutiveGap,
   describeConsecutiveGapHeadline,
   computeConsecutiveTripleGapStats,
+  getTopBonusNumbers,
+  computeBirthdayNumberRatio,
+  computeFirstPrizeWinnerCountStats,
+  computeTicketCoverageReport,
 } from "../src/lib/draws/drawStats";
 import type { ConsecutiveGapStats } from "../src/lib/draws/drawStats";
 import type { WinningDraw } from "../src/lib/draws/types";
@@ -462,3 +466,149 @@ describe("computeConsecutiveTripleGapStats", () => {
     expect(computeConsecutiveTripleGapStats(draws)).toBeNull();
   });
 });
+
+describe("getTopBonusNumbers", () => {
+  it("보너스볼 출현 횟수(bonusCount) 내림차순으로, 동점이면 번호 오름차순으로 정렬한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 10 }),
+      draw({ drawNumber: 2, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 10 }),
+      draw({ drawNumber: 3, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 20 }),
+      draw({ drawNumber: 4, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 5 }),
+    ];
+    const frequencies = computeNumberFrequencies(draws);
+    const top = getTopBonusNumbers(frequencies, 3);
+
+    expect(top).toEqual([
+      { number: 10, bonusCount: 2 },
+      { number: 5, bonusCount: 1 },
+      { number: 20, bonusCount: 1 },
+    ]);
+  });
+
+  it("topN을 지정하면 그만큼만 반환한다", () => {
+    const draws: WinningDraw[] = [draw({ drawNumber: 1, numbers: [1, 2, 3, 4, 5, 6], bonusNumber: 7 })];
+    const frequencies = computeNumberFrequencies(draws);
+    expect(getTopBonusNumbers(frequencies, 2)).toHaveLength(2);
+  });
+});
+
+describe("computeBirthdayNumberRatio", () => {
+  it("당첨번호가 없으면 null을 반환한다", () => {
+    expect(computeBirthdayNumberRatio([])).toBeNull();
+  });
+
+  it("1~31 범위 번호 비율과 이론적 비율(31/45)을 함께 계산한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, numbers: [1, 5, 10, 32, 40, 45], bonusNumber: 7 }),
+      draw({ drawNumber: 2, numbers: [2, 3, 31, 33, 41, 44], bonusNumber: 8 }),
+    ];
+    const ratio = computeBirthdayNumberRatio(draws);
+
+    // 1~31: 1,5,10 / 2,3,31 = 6개. 32~45: 32,40,45 / 33,41,44 = 6개. 전체 12개 중 6개.
+    expect(ratio).not.toBeNull();
+    expect(ratio?.sampleSize).toBe(12);
+    expect(ratio?.birthdayRangeCount).toBe(6);
+    expect(ratio?.birthdayRangeRatio).toBeCloseTo(0.5, 10);
+    expect(ratio?.theoreticalRatio).toBeCloseTo(31 / 45, 10);
+  });
+});
+
+describe("computeFirstPrizeWinnerCountStats", () => {
+  it("firstPrizeWinnerCount가 기록된 회차가 하나도 없으면 null을 반환한다", () => {
+    const draws: WinningDraw[] = [draw({ drawNumber: 1 })];
+    expect(computeFirstPrizeWinnerCountStats(draws)).toBeNull();
+  });
+
+  it("평균·혼자 독식·10명 이상·최다 당첨 회차를 정확히 계산한다", () => {
+    const draws: WinningDraw[] = [
+      draw({ drawNumber: 1, firstPrizeWinnerCount: 1 }),
+      draw({ drawNumber: 2, firstPrizeWinnerCount: 10 }),
+      draw({ drawNumber: 3, firstPrizeWinnerCount: 15 }),
+      draw({ drawNumber: 4, firstPrizeWinnerCount: 0 }),
+      // firstPrizeWinnerCount 누락 — 표본에서 제외돼야 한다.
+      draw({ drawNumber: 5 }),
+    ];
+
+    const stats = computeFirstPrizeWinnerCountStats(draws);
+
+    expect(stats).not.toBeNull();
+    expect(stats?.sampleSize).toBe(4);
+    expect(stats?.averageWinnerCount).toBeCloseTo((1 + 10 + 15 + 0) / 4, 10);
+    expect(stats?.soloCount).toBe(1);
+    expect(stats?.soloRatio).toBeCloseTo(0.25, 10);
+    expect(stats?.manyCount).toBe(2);
+    expect(stats?.manyRatio).toBeCloseTo(0.5, 10);
+    expect(stats?.maxWinnerCount).toBe(15);
+    expect(stats?.maxWinnerDrawNumber).toBe(3);
+  });
+});
+
+describe("computeTicketCoverageReport", () => {
+  const targetDraw = draw({ drawNumber: 100, numbers: [4, 5, 25, 28, 32, 42], bonusNumber: 12 });
+
+  it("해당 회차로 저장된 티켓이 없으면 null을 반환한다", () => {
+    const report = computeTicketCoverageReport(
+      [{ id: "t1", numbers: [1, 2, 3, 4, 5, 6], drawNumber: 99 }],
+      targetDraw
+    );
+    expect(report).toBeNull();
+  });
+
+  it("다른 회차로 저장된 티켓은 집계에서 제외한다", () => {
+    const report = computeTicketCoverageReport(
+      [
+        { id: "other-week", numbers: [4, 5, 25, 28, 32, 42], drawNumber: 99 },
+        { id: "this-week", numbers: [1, 2, 3, 4, 5, 6], drawNumber: 100 },
+      ],
+      targetDraw
+    );
+    expect(report).not.toBeNull();
+    expect(report?.ticketCount).toBe(1);
+    expect(report?.tickets[0].ticketId).toBe("this-week");
+  });
+
+  it("여러 조합에 흩어진 번호도 전부 커버리지로 잡아, 어느 한 조합도 다 맞히지 못해도 당첨번호 전부를 커버했는지 보여준다", () => {
+    const report = computeTicketCoverageReport(
+      [
+        { id: "t1", numbers: [4, 11, 19, 25, 33, 41], drawNumber: 100 },
+        { id: "t2", numbers: [2, 5, 14, 28, 36, 44], drawNumber: 100 },
+        { id: "t3", numbers: [7, 16, 22, 32, 38, 42], drawNumber: 100 },
+        { id: "t4", numbers: [1, 9, 18, 27, 35, 43], drawNumber: 100 },
+      ],
+      targetDraw
+    );
+
+    expect(report).not.toBeNull();
+    expect(report?.winningNumbers).toEqual([4, 5, 25, 28, 32, 42]);
+    expect(report?.coveredWinningNumbers).toEqual([4, 5, 25, 28, 32, 42]);
+    expect(report?.missedWinningNumbers).toEqual([]);
+    expect(report?.tickets.map((t) => t.matchCount)).toEqual([2, 2, 2, 0]);
+    expect(report?.tickets.map((t) => t.rank)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("아무 조합에도 없는 당첨번호는 missedWinningNumbers에 남는다", () => {
+    const report = computeTicketCoverageReport(
+      [{ id: "t1", numbers: [1, 2, 3, 4, 5, 6], drawNumber: 100 }],
+      targetDraw
+    );
+    expect(report).not.toBeNull();
+    expect(report?.coveredWinningNumbers).toEqual([4, 5]);
+    expect(report?.missedWinningNumbers).toEqual([25, 28, 32, 42]);
+    expect(report?.tickets[0]).toEqual({
+      ticketId: "t1",
+      numbers: [1, 2, 3, 4, 5, 6],
+      matchCount: 2,
+      rank: 0,
+    });
+  });
+
+  it("4개 이상 맞으면 등수(rank)도 함께 계산해둔다", () => {
+    const report = computeTicketCoverageReport(
+      [{ id: "t1", numbers: [4, 5, 21, 28, 32, 39], drawNumber: 100 }],
+      targetDraw
+    );
+    expect(report?.tickets[0].matchCount).toBe(4);
+    expect(report?.tickets[0].rank).toBe(4);
+  });
+});
+

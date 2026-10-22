@@ -4,6 +4,8 @@
  */
 import { getOddCount, getLowNumberCount, getMaxConsecutiveLength, getNumberSum } from "../lottery/pattern";
 import { TOTAL_COMBINATIONS } from "../lottery/probability";
+import { overlapCount } from "../lottery/similarity";
+import { computeRank } from "./rank";
 import type { WinningDraw } from "./types";
 
 export interface NumberFrequency {
@@ -617,5 +619,200 @@ export function computeConsecutiveTripleGapStats(fullHistoryDraws: WinningDraw[]
     currentGap: hasTriple.length - 1 - lastIndex,
     averageGap: gaps.reduce((sum, g) => sum + g, 0) / gaps.length,
     longestGap: Math.max(...gaps),
+  };
+}
+
+
+/** 보너스볼이 1~31(흔히 "생일번호"로 선택되는 범위)에 몰리는지 볼 때 쓰는 경계값. */
+const BIRTHDAY_NUMBER_MAX = 31;
+
+/**
+ * computeNumberFrequencies() 결과를 보너스볼 출현 횟수(bonusCount) 기준으로 재정렬한다.
+ * bonusCount 자체는 이미 computeNumberFrequencies가 계산해두고 있었지만(장기 미출현 번호의
+ * "마지막 출현 회차" 판정에만 쓰임), 화면에 "보너스볼 번호별 통계"로 직접 노출한 적은 없었다
+ * (2026-10 로또 연구소 신규 카드).
+ */
+export function getTopBonusNumbers(
+  frequencies: NumberFrequency[],
+  topN = 6
+): { number: number; bonusCount: number }[] {
+  return [...frequencies]
+    .sort((a, b) => b.bonusCount - a.bonusCount || a.number - b.number)
+    .slice(0, topN)
+    .map((f) => ({ number: f.number, bonusCount: f.bonusCount }));
+}
+
+export interface BirthdayNumberRatio {
+  /** 당첨번호 전체 개수(회차 수 × 6, 보너스볼 제외). */
+  sampleSize: number;
+  birthdayRangeCount: number;
+  /** 실제 1~31 비율. */
+  birthdayRangeRatio: number;
+  /** 45개 중 31개가 균등하게 뽑힌다고 가정했을 때의 이론적 비율(31/45). */
+  theoreticalRatio: number;
+}
+
+/**
+ * 당첨번호(본번호 6개, 보너스볼 제외) 중 1~31(생일번호 범위) 비율을 이론적 비율(31/45)과
+ * 비교한다. "로또 연구소 — 1등, 혼자 받을 확률은 낮아요" 카드가 "당첨번호 자체엔 번호 쏠림이
+ * 없다"는 근거로 사용한다.
+ *
+ * ⚠️ 이 값은 순수 사후 서술 통계다. 1~31번을 더 많이 "선택"하는 사람이 많다는 것과 무관하게,
+ * 실제로 1~31번이 더 자주 "당첨"되는지만 보여준다.
+ */
+export function computeBirthdayNumberRatio(draws: WinningDraw[]): BirthdayNumberRatio | null {
+  if (draws.length === 0) return null;
+
+  let birthdayRangeCount = 0;
+  let sampleSize = 0;
+  for (const draw of draws) {
+    for (const n of draw.numbers) {
+      sampleSize += 1;
+      if (n <= BIRTHDAY_NUMBER_MAX) birthdayRangeCount += 1;
+    }
+  }
+
+  return {
+    sampleSize,
+    birthdayRangeCount,
+    birthdayRangeRatio: birthdayRangeCount / sampleSize,
+    theoreticalRatio: BIRTHDAY_NUMBER_MAX / 45,
+  };
+}
+
+/** computeFirstPrizeWinnerCountStats()의 "혼자 독식" 판정 기준(당첨자 1명). */
+const SOLO_WINNER_COUNT = 1;
+/** computeFirstPrizeWinnerCountStats()의 "많이 나눠 가짐" 판정 기준(당첨자 10명 이상). */
+const MANY_WINNERS_THRESHOLD = 10;
+
+export interface FirstPrizeWinnerCountStats {
+  /** firstPrizeWinnerCount가 기록된 회차 수. */
+  sampleSize: number;
+  averageWinnerCount: number;
+  /** 당첨자가 정확히 1명(혼자 독식)이었던 회차 수. */
+  soloCount: number;
+  soloRatio: number;
+  /** 당첨자가 10명 이상이었던 회차 수. */
+  manyCount: number;
+  manyRatio: number;
+  maxWinnerCount: number;
+  maxWinnerDrawNumber: number | null;
+}
+
+/**
+ * 로또 연구소 "1등, 혼자 받을 확률은 낮아요" 카드 — 역대 회차의 1등 당첨자 수 분포.
+ *
+ * 애초 후보였던 "생일번호(1~31) 비율 68.61% vs 이론상 68.89%"는 차이가 0.28%p뿐이라 체감이
+ * 약하다는 피드백(2026-10-22)에 따라, 그 사실이 실제로 의미하는 체감 수치 — 당첨자가
+ * 평균적으로 몇 명이나 나눠 갖는지 — 를 헤드라인으로 올렸다. computeBirthdayNumberRatio()는
+ * "당첨번호 자체엔 쏠림이 없는데도 당첨자 수가 왜 들쭉날쭉한지"를 설명하는 보조 근거로
+ * 함께 쓰인다(사람들이 고르는 번호가 겹치기 때문).
+ *
+ * firstPrizeWinnerCount가 기록되지 않은 회차(데이터 누락)는 표본에서 제외한다. 표본이
+ * 하나도 없으면 null(호출부는 카드를 숨겨야 함).
+ */
+export function computeFirstPrizeWinnerCountStats(draws: WinningDraw[]): FirstPrizeWinnerCountStats | null {
+  const withCount = draws.filter(
+    (d): d is WinningDraw & { firstPrizeWinnerCount: number } =>
+      typeof d.firstPrizeWinnerCount === "number" && d.firstPrizeWinnerCount >= 0
+  );
+  if (withCount.length === 0) return null;
+
+  const sampleSize = withCount.length;
+  let total = 0;
+  let soloCount = 0;
+  let manyCount = 0;
+  let maxWinnerCount = -1;
+  let maxWinnerDrawNumber: number | null = null;
+
+  for (const d of withCount) {
+    total += d.firstPrizeWinnerCount;
+    if (d.firstPrizeWinnerCount === SOLO_WINNER_COUNT) soloCount += 1;
+    if (d.firstPrizeWinnerCount >= MANY_WINNERS_THRESHOLD) manyCount += 1;
+    if (d.firstPrizeWinnerCount > maxWinnerCount) {
+      maxWinnerCount = d.firstPrizeWinnerCount;
+      maxWinnerDrawNumber = d.drawNumber;
+    }
+  }
+
+  return {
+    sampleSize,
+    averageWinnerCount: total / sampleSize,
+    soloCount,
+    soloRatio: soloCount / sampleSize,
+    manyCount,
+    manyRatio: manyCount / sampleSize,
+    maxWinnerCount,
+    maxWinnerDrawNumber,
+  };
+}
+
+/** computeTicketCoverageReport() 입력 — SavedTicket 전체가 아니라 필요한 필드만 받아
+ * src/lib/draws가 src/lib/storage(티켓 저장소)에 의존하지 않도록 한다. */
+export interface TicketCoverageInput {
+  id: string;
+  numbers: number[];
+  drawNumber?: number;
+}
+
+export interface TicketCoverageTicketResult {
+  ticketId: string;
+  numbers: number[];
+  matchCount: number;
+  rank: 0 | 1 | 2 | 3 | 4 | 5;
+}
+
+export interface TicketCoverageReport {
+  drawNumber: number;
+  /** 당첨번호 6개(오름차순). */
+  winningNumbers: number[];
+  ticketCount: number;
+  /** 당첨번호 중 저장한 번호 어딘가에 포함됐던 번호(오름차순). */
+  coveredWinningNumbers: number[];
+  /** 당첨번호 중 저장한 번호 어디에도 없었던 번호(오름차순). */
+  missedWinningNumbers: number[];
+  tickets: TicketCoverageTicketResult[];
+}
+
+/**
+ * 로또 연구소 "제 N회 번호 커버리지" 카드 — 특정 회차에 저장한 조합들을 "번호 단위"로 모아,
+ * 당첨번호 6개 중 몇 개가 저장했던 번호 안에 있었는지 보여준다. 어떤 조합도 6개를 다
+ * 맞추지 못해도 "번호 자체는 놓치지 않았는지"를 보여줄 수 있어, 조합별 등수만으로는 보이지
+ * 않던 정보를 제공한다.
+ *
+ * 저장한 번호 중 해당 회차(drawNumber)로 지정된 것만 집계한다. 다음 회차를 예측하는 지표가
+ * 아니라 이미 확정된 결과를 돌아보는 사후 통계다.
+ *
+ * 해당 회차로 저장된 티켓이 하나도 없으면 null(호출부는 빈 상태 문구를 보여줘야 함).
+ */
+export function computeTicketCoverageReport(
+  tickets: TicketCoverageInput[],
+  draw: WinningDraw
+): TicketCoverageReport | null {
+  const relevant = tickets.filter((t) => t.drawNumber === draw.drawNumber);
+  if (relevant.length === 0) return null;
+
+  const winningNumbers = [...draw.numbers].sort((a, b) => a - b);
+  const coveredSet = new Set<number>();
+
+  const ticketResults: TicketCoverageTicketResult[] = relevant.map((t) => {
+    for (const n of t.numbers) {
+      if (draw.numbers.includes(n)) coveredSet.add(n);
+    }
+    return {
+      ticketId: t.id,
+      numbers: t.numbers,
+      matchCount: overlapCount(t.numbers, draw.numbers),
+      rank: computeRank(t.numbers, draw),
+    };
+  });
+
+  return {
+    drawNumber: draw.drawNumber,
+    winningNumbers,
+    ticketCount: relevant.length,
+    coveredWinningNumbers: winningNumbers.filter((n) => coveredSet.has(n)),
+    missedWinningNumbers: winningNumbers.filter((n) => !coveredSet.has(n)),
+    tickets: ticketResults,
   };
 }

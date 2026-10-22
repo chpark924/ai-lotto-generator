@@ -32,8 +32,14 @@ import type { SavedTicket } from "../../src/lib/storage";
 // AsyncStorage와 무관한 drawStats.ts 서브모듈만 콕 집어 requireActual한다.
 jest.mock("../../src/lib/draws", () => {
   const drawStats = jest.requireActual("../../src/lib/draws/drawStats");
+  // 2026-10-22: "번호 커버리지" 카드가 rank.ts의 RANK_LABELS/computeRank도 바렐에서 가져온다.
+  // drawStats.ts만 requireActual하면 이 테스트 환경에서 RANK_LABELS가 undefined가 되어,
+  // 당첨 등수가 있는 조합을 렌더링할 때(이 테스트엔 없지만 추후 테스트엔 있을 수 있음)
+  // 터질 수 있다 — drawStats와 같은 이유로 rank도 함께 requireActual한다.
+  const rank = jest.requireActual("../../src/lib/draws/rank");
   return {
     ...drawStats,
+    ...rank,
     getRecentDrawsSafe: jest.fn(),
   };
 });
@@ -60,7 +66,13 @@ describe("LabScreen (로또 연구소)", () => {
     jest.clearAllMocks();
   });
 
-  it("저장 이력과 최근 티켓이 있으면 '내 번호 분석'·'이번 주 리포트' 카드가 실제로 나타난다", async () => {
+  // 2026-10-22: 로또 연구소에 신규 카드 3종(번호 커버리지·보너스볼 통계·1등 당첨자 수 통계)이
+  // 추가되면서 LottoBall(Animated Svg) 렌더 개수가 늘어, 기본 5000ms 제한에 걸려 이 테스트가
+  // 간헐적으로 타임아웃됐다(로직 오류 아님 — 같은 입력으로 재실행하면 통과하기도 함). 순수
+  // 렌더 비용 문제이므로 테스트 타임아웃만 15000ms로 늘린다.
+  it(
+    "저장 이력과 최근 티켓이 있으면 '내 번호 분석'·'이번 주 리포트' 카드가 실제로 나타난다",
+    async () => {
     (draws.getRecentDrawsSafe as jest.Mock).mockResolvedValue([
       makeDraw(1234, [1, 2, 3, 4, 5, 6]),
       makeDraw(1233, [7, 8, 9, 10, 11, 12]),
@@ -87,5 +99,7 @@ describe("LabScreen (로또 연구소)", () => {
     });
 
     expect(screen.getByText(/이번 주 리포트/)).toBeTruthy();
-  });
+    },
+    15000
+  );
 });

@@ -24,12 +24,17 @@ import {
   computeConsecutiveTripleGapStats,
   describeConsecutiveGapHeadline,
   getLongestAbsentNumbers,
+  getTopBonusNumbers,
+  computeBirthdayNumberRatio,
+  computeFirstPrizeWinnerCountStats,
+  computeTicketCoverageReport,
+  RANK_LABELS,
   SUM_MIDPOINT,
   type WinningDraw,
   type NumberFrequency,
   type TransitionFrequencyRow,
 } from "../../src/lib/draws";
-import { getGenerationHistory, getTickets } from "../../src/lib/storage";
+import { getGenerationHistory, getTickets, type SavedTicket } from "../../src/lib/storage";
 import { getOddCount } from "../../src/lib/lottery/pattern";
 import { overlapCount } from "../../src/lib/lottery/similarity";
 import { LottoBall, DisclaimerCard, SkeletonBlock, SkeletonBall, SumTrendChart, StatusBarSafeMask } from "../../src/components";
@@ -38,6 +43,9 @@ import {
   TRANSITION_FREQUENCY_NOTICE,
   FIRST_PRIZE_EXPECTATION_NOTICE,
   CONSECUTIVE_GAP_NOTICE,
+  TICKET_COVERAGE_NOTICE,
+  BONUS_NUMBER_NOTICE,
+  WINNER_COUNT_NOTICE,
 } from "../../src/constants/messages";
 import { useAppTheme, accentViolet, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
@@ -171,6 +179,10 @@ export default function LabScreen() {
     topNumbers: { number: number; count: number }[];
     averageOddCount: number;
   } | null>(null);
+  // 2026-10-22 신규: "제 N회 번호 커버리지" 카드가 특정 회차에 저장된 티켓 원본(번호 배열)이
+  // 필요해서 추가했다 — 기존엔 weeklyReport/myAnalysis로 가공한 요약값만 state에 남기고
+  // 원본 티켓 배열은 버렸다.
+  const [savedTickets, setSavedTickets] = useState<SavedTicket[]>([]);
 
   // ----- 2026-10-02 개편: "핵심 발견" 카드의 "자세히 ↓" 링크가 같은 화면의 해당 통계 카드로
   // 스크롤 이동하기 위한 참조. sectionOffsets는 state로 두면 onLayout마다 불필요한 리렌더가
@@ -197,6 +209,9 @@ export default function LabScreen() {
   const [transitionNoticeOpen, setTransitionNoticeOpen] = useState(false);
   const [firstPrizeDetailOpen, setFirstPrizeDetailOpen] = useState(false);
   const [sumTrendNoticeOpen, setSumTrendNoticeOpen] = useState(false);
+  const [coverageNoticeOpen, setCoverageNoticeOpen] = useState(false);
+  const [bonusNoticeOpen, setBonusNoticeOpen] = useState(false);
+  const [winnerCountNoticeOpen, setWinnerCountNoticeOpen] = useState(false);
 
   const loadLabData = useCallback(async () => {
     // FULL_HISTORY_SAMPLE_SIZE(2000)는 RECENT_DRAW_SAMPLE_SIZE(52)의 상위집합이므로,
@@ -240,6 +255,7 @@ export default function LabScreen() {
     }
 
     const tickets = await getTickets();
+    setSavedTickets(tickets);
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const weeklyTickets = tickets.filter((t) => new Date(t.createdAt).getTime() >= oneWeekAgo);
     if (weeklyTickets.length > 0) {
@@ -354,6 +370,17 @@ export default function LabScreen() {
   const topFrequencyLabel = getTopFrequencyLabel(topFrequent);
   const longestAbsentHeadline = getLongestAbsentHeadline(longestAbsent);
   const consecutivePairLabel = latestDraw ? getConsecutivePairLabel(latestDraw.numbers) : null;
+
+  // ----- 2026-10-22 신규 카드 3종(제안 문서 claude/lab-tab-new-content-ideas-proposal.md) -----
+  const topBonusNumbers = frequencies.length > 0 ? getTopBonusNumbers(frequencies, 6) : [];
+  const winnerCountStats = computeFirstPrizeWinnerCountStats(fullHistoryDraws);
+  const birthdayRatio = computeBirthdayNumberRatio(fullHistoryDraws);
+  const coverageReport = latestDraw
+    ? computeTicketCoverageReport(
+        savedTickets.map((t) => ({ id: t.id, numbers: t.game.numbers, drawNumber: t.drawNumber })),
+        latestDraw
+      )
+    : null;
   const firstPrizeShort = firstPrizeExpectation ? describeFirstPrizeExpectationShort(firstPrizeExpectation) : null;
   const hasAnyInsight = Boolean(
     (consecutiveStats && consecutiveGapHeadline) || topFrequencyLabel || longestAbsentHeadline || firstPrizeShort
@@ -547,6 +574,94 @@ export default function LabScreen() {
 
       <SectionLabel styles={styles}>내 번호</SectionLabel>
 
+      {/* 2026-10-22 신규: "제 N회 번호 커버리지" — 최근 저장한 조합들을 번호 단위로 모아
+          당첨번호 6개 중 몇 개를 놓치지 않았는지 보여준다. "이번 회차 결과"를 막 확인한
+          직후 가장 궁금할 질문("내 번호는 어땠지?")에 답하는 카드라 "내 번호" 섹션 맨 위에
+          둔다(claude/lab-tab-new-content-ideas-proposal.md 아이디어 A). */}
+      {coverageReport ? (
+        <>
+          <View
+            style={[styles.card, coverageNoticeOpen ? styles.cardTight : null]}
+            onLayout={registerSection("coverage")}
+          >
+            <Text style={styles.cardTitle}>제 {coverageReport.drawNumber}회 번호 커버리지</Text>
+            <Text style={styles.cardSub}>
+              최근 저장한 <Text style={styles.cardSubHighlight}>{coverageReport.ticketCount}개 조합</Text> 기준이에요.
+            </Text>
+
+            <View style={styles.heraldBox}>
+              <Text style={styles.heraldLabel}>당첨번호 포함 현황</Text>
+              <Text style={styles.heraldValue}>
+                <Text style={styles.heraldValueStrong}>
+                  {coverageReport.winningNumbers.length}개 중 {coverageReport.coveredWinningNumbers.length}개
+                </Text>
+                가 내가 저장한 번호 안에 있었어요
+              </Text>
+            </View>
+
+            <View style={styles.ballRow}>
+              {coverageReport.winningNumbers.map((n) => {
+                const covered = coverageReport.coveredWinningNumbers.includes(n);
+                return (
+                  <View key={n} style={styles.coverageBallWrap}>
+                    <View style={covered ? undefined : styles.coverageMissedBall}>
+                      <LottoBall number={n} size={32} />
+                    </View>
+                    {covered ? (
+                      <View style={styles.coverageCheckBadge}>
+                        <Text style={styles.coverageCheckBadgeText}>✓</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.cardSub, styles.coverageSectionLabel]}>조합별 일치 현황</Text>
+            {coverageReport.tickets.map((t, idx) => (
+              <View
+                key={t.ticketId}
+                style={[
+                  styles.ticketRow,
+                  idx === coverageReport.tickets.length - 1 ? styles.ticketRowLast : null,
+                ]}
+              >
+                <View style={styles.ticketBalls}>
+                  {t.numbers.map((n) => (
+                    <LottoBall key={n} number={n} size={24} />
+                  ))}
+                </View>
+                <Text style={[styles.ticketMatchBadge, t.matchCount > 0 ? styles.ticketMatchBadgeWin : null]}>
+                  {t.matchCount}개 일치{t.rank > 0 ? ` · ${RANK_LABELS[t.rank]}` : ""}
+                </Text>
+              </View>
+            ))}
+
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setCoverageNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="번호 커버리지 리포트 설명 보기"
+              accessibilityState={{ expanded: coverageNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("더", "알아보기")} {coverageNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
+          </View>
+          {coverageNoticeOpen ? (
+            <DisclaimerCard text={TICKET_COVERAGE_NOTICE} style={styles.attachedNotice} />
+          ) : null}
+        </>
+      ) : (
+        <View style={styles.card} onLayout={registerSection("coverage")}>
+          <Text style={styles.cardTitle}>번호 커버리지 리포트</Text>
+          <Text style={styles.cardSub}>
+            이번 회차에 저장한 번호가 없어요. 번호를 저장하면 당첨번호와 비교한 커버리지를 보여드려요.
+          </Text>
+        </View>
+      )}
+
       {weeklyReport ? (
         <View style={styles.weeklyCard}>
           <Text style={styles.weeklyTitle}>이번 주 리포트</Text>
@@ -627,6 +742,42 @@ export default function LabScreen() {
           </Text>
         )}
       </View>
+
+      {/* 2026-10-22 신규: "보너스볼 번호별 통계" — computeNumberFrequencies가 이미 계산해두고도
+          화면에 쓰지 않던 bonusCount를 노출한다. 바로 위 "번호별 출현 빈도" 카드와 같은 데이터
+          원본(frequencies)·같은 디자인을 써서 "출현 빈도 계열" 카드끼리 인접하게 배치한다
+          (claude/lab-tab-new-content-ideas-proposal.md 아이디어 B). */}
+      {topBonusNumbers.length > 0 ? (
+        <>
+          <View
+            style={[styles.card, bonusNoticeOpen ? styles.cardTight : null]}
+            onLayout={registerSection("bonus")}
+          >
+            <Text style={styles.cardTitle}>보너스볼 번호별 통계</Text>
+            <Text style={styles.cardSub}>최근 {draws.length}회 보너스볼 기준이에요.</Text>
+            <View style={styles.ballRow}>
+              {topBonusNumbers.map((item) => (
+                <View key={item.number} style={styles.freqItem}>
+                  <LottoBall number={item.number} size={32} />
+                  <Text style={styles.freqCount}>{item.bonusCount}회</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setBonusNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="보너스볼 통계 설명 보기"
+              accessibilityState={{ expanded: bonusNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("더", "알아보기")} {bonusNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
+          </View>
+          {bonusNoticeOpen ? <DisclaimerCard text={BONUS_NUMBER_NOTICE} style={styles.attachedNotice} /> : null}
+        </>
+      ) : null}
 
       {longestAbsent.length > 0 ? (
         <View style={styles.card} onLayout={registerSection("longestAbsent")}>
@@ -902,6 +1053,82 @@ export default function LabScreen() {
       {/* 2026-10-02: 내 번호 분석 카드는 위쪽 "내 번호" 섹션(weeklyCard 바로 아래)으로
           옮겼다 — 이 자리엔 더 이상 중복 렌더링하지 않는다. */}
 
+      {/* 2026-10-22 신규: "1등, 혼자 받을 확률은 낮아요" — 애초 "생일번호(1~31) 비율 거의
+          동일(68.61% vs 68.89%)"을 헤드라인으로 제안했으나, 차이가 0.28%p뿐이라 체감이
+          약하다는 피드백(2026-10-22)을 받아 그 사실이 실제로 의미하는 체감 수치(1등 당첨자
+          수 분포)를 헤드라인으로 올리고 생일번호 통계는 보조 근거로 내렸다. 바로 위
+          "기대 대비 실제 1등 당첨자 수" 카드와 같은 "1등/당첨자 수" 주제라 인접 배치한다
+          (claude/lab-tab-new-content-ideas-proposal.md 아이디어 C 수정안). */}
+      {winnerCountStats ? (
+        <>
+          <View
+            style={[styles.card, winnerCountNoticeOpen ? styles.cardTight : null]}
+            onLayout={registerSection("winnerCount")}
+          >
+            <Text style={styles.cardTitle}>1등, 혼자 받을 확률은 낮아요</Text>
+            <Text style={styles.cardSub}>
+              역대 <Text style={styles.cardSubHighlight}>{winnerCountStats.sampleSize}회</Text> 1등 당첨자 수
+              기준이에요.
+            </Text>
+
+            <View style={styles.heraldBox}>
+              <Text style={styles.heraldLabel}>회차당 평균 1등 당첨자 수</Text>
+              <Text style={styles.heraldValue}>
+                <Text style={styles.heraldValueStrong}>{winnerCountStats.averageWinnerCount.toFixed(2)}명</Text>이
+                나눠 가져요
+              </Text>
+            </View>
+
+            <Row
+              styles={styles}
+              label="혼자 독식(1명)한 회차"
+              value={`${winnerCountStats.soloCount}회 · ${Math.round(winnerCountStats.soloRatio * 100)}%`}
+            />
+            <Row
+              styles={styles}
+              label="10명 이상이 나눠 가진 회차"
+              value={`${winnerCountStats.manyCount}회 · ${Math.round(winnerCountStats.manyRatio * 100)}%`}
+            />
+            {winnerCountStats.maxWinnerDrawNumber != null ? (
+              <Row
+                styles={styles}
+                label={`최다 당첨자 (제${winnerCountStats.maxWinnerDrawNumber}회)`}
+                value={`${winnerCountStats.maxWinnerCount}명`}
+              />
+            ) : null}
+
+            {birthdayRatio ? (
+              <View style={styles.tripleHighlightBox}>
+                <Text style={styles.tripleHighlightText}>
+                  당첨번호 자체엔 번호 쏠림이 없는데도(1~31번 비율{" "}
+                  <Text style={styles.tripleHighlightNumber}>
+                    {(birthdayRatio.birthdayRangeRatio * 100).toFixed(2)}%
+                  </Text>{" "}
+                  ≈ 이론상 {(birthdayRatio.theoreticalRatio * 100).toFixed(2)}%), 당첨자 수는 이렇게
+                  들쭉날쭉해요. <Text style={styles.tripleHighlightNumber}>사람들이 고르는 번호가 서로 겹치기 때문</Text>
+                  이에요.
+                </Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              style={styles.noticeToggleRow}
+              onPress={() => setWinnerCountNoticeOpen((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="1등 당첨자 수 통계 설명 보기"
+              accessibilityState={{ expanded: winnerCountNoticeOpen }}
+            >
+              <Text style={styles.noticeToggleText}>
+                {nbspJoin("더", "알아보기")} {winnerCountNoticeOpen ? "▴" : "▾"}
+              </Text>
+            </Pressable>
+          </View>
+          {winnerCountNoticeOpen ? (
+            <DisclaimerCard text={WINNER_COUNT_NOTICE} style={styles.attachedNotice} />
+          ) : null}
+        </>
+      ) : null}
+
       <View style={[styles.card, sumTrendNoticeOpen ? styles.cardTight : null]}>
         {sumTrend.length > 0 ? (
           <>
@@ -1176,5 +1403,37 @@ function createStyles(colors: AppColors, tints: AppTints, brand: BrandTokens) {
     // 토글 문구 자체는 DisclaimerCard의 기존 안내 문구를 그대로 재사용하고, 노출 여부만 바꾼다.
     noticeToggleRow: { marginTop: 12 },
     noticeToggleText: { fontSize: 12, fontWeight: "700", color: brand.primary },
+
+    // 2026-10-22 신규: "제 N회 번호 커버리지" 카드 전용 — 당첨번호 공 위에 포함 여부 체크
+    // 배지를 겹치고, 놓친 번호는 흐리게(opacity) 표시한다. 조합별 일치 현황은 작은 공 6개 +
+    // 일치 개수 배지를 한 줄씩 보여준다.
+    coverageSectionLabel: { marginTop: 10, marginBottom: 0 },
+    coverageBallWrap: { position: "relative" },
+    coverageMissedBall: { opacity: 0.35 },
+    coverageCheckBadge: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: tints.green.fg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    coverageCheckBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+    ticketRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    ticketRowLast: { borderBottomWidth: 0 },
+    ticketBalls: { flexDirection: "row", gap: 4, flexShrink: 1, flexWrap: "wrap" },
+    ticketMatchBadge: { fontSize: 11, fontWeight: "700", color: colors.textSecondary, flexShrink: 0 },
+    ticketMatchBadgeWin: { color: tints.green.fg },
   });
 }
