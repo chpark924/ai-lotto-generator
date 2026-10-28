@@ -16,8 +16,14 @@ import { shareFeedTemplate } from "@react-native-kakao/share";
  */
 
 // 기존 GitHub 저장소 배포 패턴(당첨번호 데이터와 동일)으로 올린 공유 카드 브랜딩 이미지.
+// 2026-10-28: 기존 kakao-share-card.png(800x419 와이드)가 카카오톡 Feed 카드에서
+// 정사각형에 가깝게 중앙 크롭되어 로고·문구가 잘려 보이는 문제 발견 → 800x800
+// 정사각형으로 재제작. 같은 파일명으로 내용만 바꿔서는 카카오 쪽 이미지 캐시가
+// 갱신되지 않아(다른 채팅방에서도 예전 카드가 계속 보임) 파일명을 v2로 바꿔
+// URL 자체를 새로 발급했다 — 캐시 무효화를 위해 다음에 또 이미지를 바꿀 때도
+// 파일명을 바꿔서(v3, v4...) 새 URL을 쓸 것.
 const SHARE_IMAGE_URL =
-  "https://raw.githubusercontent.com/chpark924/ai-lotto-generator/main/assets/kakao-share-card.png";
+  "https://raw.githubusercontent.com/chpark924/ai-lotto-generator/main/assets/kakao-share-card-v2.png";
 
 // [TODO] 플레이스토어 정식 출시 전까지는 이 URL이 실제로 열리지 않는다(스토어 등록 전이라
 // 404). 패키지명 기준으로 미리 만들어둔 값이라 출시 즉시 그대로 유효해지므로, 출시 후
