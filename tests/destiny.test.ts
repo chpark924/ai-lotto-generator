@@ -111,6 +111,10 @@ describe("computeVisualPatternScore", () => {
     expect(consecutive).toBeGreaterThan(scattered);
   });
 
+  it("2연번만 있는 조합에는 연번 가산이 없다(2026-11-15 한국 데이터 근거로 제거)", () => {
+    expect(computeVisualPatternScore([3, 4, 17, 25, 38, 44])).toBe(computeVisualPatternScore([3, 9, 17, 25, 38, 44]));
+  });
+
   it("일정 간격 조합은 패턴 점수가 있다", () => {
     const evenlySpaced = computeVisualPatternScore([5, 10, 15, 20, 25, 30]);
     expect(evenlySpaced).toBeGreaterThan(0);

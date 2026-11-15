@@ -52,8 +52,10 @@ export interface PopularityFeatures {
 export function computeVisualPatternScore(numbers: number[]): number {
   let score = 0;
   const maxConsecutive = getMaxConsecutiveLength(numbers);
+  // 2026-11-15: 2연번 가산(+18) 제거. 한국 1등 당첨자 수 회귀(88~1250회)에서 연번 포함 조합은
+  // 오히려 당첨자가 적었다(×0.92, p=0.03) — 사람들은 2연번을 "보기 좋은 패턴"으로 고르기보다
+  // 피하는 쪽이라 인기 가산 근거가 없다. 3연번 이상(1·2·3처럼 눈에 띄는 줄)은 근거가 부족해 유지.
   if (maxConsecutive >= 3) score += 35;
-  else if (maxConsecutive === 2) score += 18;
 
   const sorted = [...numbers].sort((a, b) => a - b);
   const gaps = new Set<number>();

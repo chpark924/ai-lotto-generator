@@ -110,8 +110,11 @@ export function buildPopularityHeuristic(): number[] {
   for (let n = 1; n <= 45; n += 1) {
     let score = 0.3;
     if (n <= 31) score += 0.35; // 생일번호(1~31) 쏠림
-    if (n % 10 === 0) score += 0.1; // 10,20,30,40 같은 정갈한 숫자 선호
-    if (n === 7) score += 0.15; // 전통적 행운번호
+    // 2026-11-15: "10의 배수(10·20·30·40) 선호" 가산은 근거가 없어 제거했다. 한국 1등 당첨자 수
+    // 회귀(88~1250회)에서 10의 배수 개수 효과 ×1.00, 벨기에 6/45 연구(Roger et al., J. Gambling
+    // Studies 2023)에선 40이 오히려 가장 덜 고르는 번호 중 하나였다.
+    // (claude/2026-11-15-tickets-win-jackpot-popularity-review.md 참고)
+    if (n === 7) score += 0.15; // 전통적 행운번호 — Roger & Roger, Economics Letters 2025("Costly number seven"): 7 포함 티켓 당첨금 대체로 10~20% 낮음
     if (n === 3 || n === 8) score += 0.05;
     if (n >= 41) score -= 0.1; // 41~45는 상대적으로 덜 선택되는 경향
     byNumber[n - 1] = Math.max(0, Math.min(1, score));
