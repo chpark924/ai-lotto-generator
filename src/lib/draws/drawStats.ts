@@ -2,6 +2,7 @@
  * 기획서 14장 로또 연구소 - 기본 당첨 통계 / 조합 패턴 통계.
  * 기기에 캐시된 과거 당첨번호만으로 전부 클라이언트에서 계산한다 (서버 집계 없음).
  */
+import { KOREAN_NUMBER_POPULARITY } from "./popularityModel";
 import { getOddCount, getLowNumberCount, getMaxConsecutiveLength, getNumberSum } from "../lottery/pattern";
 import { TOTAL_COMBINATIONS } from "../lottery/probability";
 import { overlapCount } from "../lottery/similarity";
@@ -97,29 +98,19 @@ export function computeCombinationPatternStats(draws: WinningDraw[]): Combinatio
 }
 
 /**
- * 점수 엔진의 userUniquenessScore(기획서 7.5, 13.4)에서 쓰는 "흔한 선택" 근사치.
+ * 점수 엔진의 userUniquenessScore(기획서 7.5, 13.4)·운명의 신에서 쓰는 번호별 "흔한 선택" 정도(0~1).
  *
- * 주의: 이 값은 실제 타 사용자 선택 데이터의 서버 집계가 아니다(서버가 없으므로 수집 자체를
- * 하지 않는다). 대신 기획서 11.3/13.4에 설명된 일반적인 번호 선택 편향(생일번호 1~31 쏠림,
- * 보기 좋은 패턴 선호)을 정적 규칙으로 근사한 값이며, 실제 당첨 여부와는 무관하다.
- * UI에는 반드시 "일반적인 선택 편향 근사치"라고 표기해야 한다.
+ * 2026-11-15부터 정적 추측 규칙(생일번호 +0.35, 7 +0.15, 10의 배수 +0.1 등) 대신 한국 로또 실제
+ * 데이터로 추정한 값을 쓴다 — 88~1250회 5등 실제 당첨 게임 수 ÷ 이론 기대값을 번호별로 회귀
+ * (scripts/fit-popularity-model.mjs → popularityModel.ts). 홀짝 회차 분할 상관 0.96으로 안정적.
+ * 결과는 연구(벨기에 6/45: 7·12·13·17 인기, 40·43·44·45 비인기)와도 대체로 일치하고, 예전 규칙과
+ * 달리 29·28·22·15처럼 생일 범위 안이어도 덜 고르는 번호를 구분한다.
+ *
+ * 주의: 사람들이 그 번호를 얼마나 고르는지의 추정일 뿐, 실제 당첨 여부·확률과는 무관하다.
+ * 타 사용자 데이터를 서버로 수집한 값도 아니다(공개된 회차별 당첨자 수 통계에서 역산).
  */
 export function buildPopularityHeuristic(): number[] {
-  const byNumber = new Array(45).fill(0.3); // 기본값
-
-  for (let n = 1; n <= 45; n += 1) {
-    let score = 0.3;
-    if (n <= 31) score += 0.35; // 생일번호(1~31) 쏠림
-    // 2026-11-15: "10의 배수(10·20·30·40) 선호" 가산은 근거가 없어 제거했다. 한국 1등 당첨자 수
-    // 회귀(88~1250회)에서 10의 배수 개수 효과 ×1.00, 벨기에 6/45 연구(Roger et al., J. Gambling
-    // Studies 2023)에선 40이 오히려 가장 덜 고르는 번호 중 하나였다.
-    // (claude/2026-11-15-tickets-win-jackpot-popularity-review.md 참고)
-    if (n === 7) score += 0.15; // 전통적 행운번호 — Roger & Roger, Economics Letters 2025("Costly number seven"): 7 포함 티켓 당첨금 대체로 10~20% 낮음
-    if (n === 3 || n === 8) score += 0.05;
-    if (n >= 41) score -= 0.1; // 41~45는 상대적으로 덜 선택되는 경향
-    byNumber[n - 1] = Math.max(0, Math.min(1, score));
-  }
-  return byNumber;
+  return [...KOREAN_NUMBER_POPULARITY];
 }
 
 /**

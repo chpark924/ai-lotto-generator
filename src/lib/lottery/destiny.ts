@@ -5,6 +5,8 @@
  * "조합 인기도 목표값"으로 변환해, 후보 조합 중 목표 인기도에 가장 가까운 것을 고른다.
  * 인기도 계산은 서버 집계가 아니라 기획서 11.3/13.4에 설명된 일반적인 편향
  * (생일번호 쏠림, 보기 좋은 패턴)을 근사한 것이다 — 실제 타 사용자 데이터가 아니다.
+ * 2026-11-15: 번호별 인기도는 역대 5등 당첨자 수로 추정한 한국 데이터 값으로 교체됐다
+ * (src/lib/draws/popularityModel.ts). 보기 좋은 패턴 점수는 여전히 규칙 기반 근사.
  */
 import { secureShuffle, randomInt } from "./random";
 import { getMaxConsecutiveLength, getSameEndingMaxCount } from "./pattern";
@@ -74,8 +76,11 @@ export function computeVisualPatternScore(numbers: number[]): number {
 
 export function calculatePopularityScore(features: PopularityFeatures): number {
   return (
-    features.numberPopularityScore * 0.4 +
-    features.birthdayRangeScore * 0.2 +
+    // 2026-11-15: 번호별 인기도가 한국 실제 데이터 추정값(popularityModel.ts)으로 바뀌면서 생일 범위
+    // 효과도 그 안에 이미 반영된다(1~31 평균 +0.5%, 32~45 평균 -1.2%) — 생일 범위 점수를 따로 더하면
+    // 이중 계산이라 가중치를 번호 인기도로 옮겼다(0.4+0.2 → 0.6, birthdayRangeScore 가중치 0).
+    features.numberPopularityScore * 0.6 +
+    features.birthdayRangeScore * 0 +
     features.visualPatternScore * 0.15 +
     features.savedCombinationSimilarityScore * 0.25
   );

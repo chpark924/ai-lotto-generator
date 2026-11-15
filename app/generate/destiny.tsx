@@ -179,7 +179,7 @@ export default function DestinyScreen() {
       </Pressable>
       {showExclusionPicker ? <NumberGrid selected={excluded} onToggle={toggleExcluded} /> : null}
 
-      <DisclaimerCard text="목표 당첨자 수는 실제 당첨자 수를 예측하거나 통제하지 않는 엔터테인먼트용 시나리오입니다. 일반적인 선택 편향을 근사한 값을 기반으로 구성됩니다." />
+      <DisclaimerCard text="목표 당첨자 수는 실제 당첨자 수를 예측하거나 통제하지 않는 엔터테인먼트용 시나리오입니다. 역대 당첨자 수 통계로 추정한 '사람들이 많이 고르는 번호' 경향을 기반으로 구성됩니다." />
       </ScrollView>
 
       <BottomActionBar label={buttonLabel} onPress={handleGenerate} color={accentViolet.primary} />
