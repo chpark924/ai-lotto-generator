@@ -312,6 +312,9 @@ export interface FirstPrizeExpectation {
  */
 export function computeFirstPrizeExpectation(draw: WinningDraw): FirstPrizeExpectation | null {
   if (
+    // dataVersion 2 미만 레코드의 totalSalesAmount는 실제 총판매액의 절반이라(2026-11-15 발견,
+    // types.ts 주석) 기대 인원이 절반으로 계산된다 — 보강될 때까지 카드를 숨긴다.
+    (draw.dataVersion ?? 1) < 2 ||
     draw.totalSalesAmount == null ||
     draw.totalSalesAmount <= 0 ||
     draw.firstPrizeWinnerCount == null ||

@@ -2,7 +2,7 @@ import { readJson, writeJson } from "../storage/storage";
 import { estimateLatestDrawNumber, fetchWinningDraw, fetchWinningDrawWithStatus } from "./drawApi";
 import type { DrawFetchResult } from "./drawApi";
 import { fetchAllDrawsFromGithub, isGithubDataSourceConfigured } from "./githubDataSource";
-import type { WinningDraw } from "./types";
+import { CURRENT_DRAW_DATA_VERSION, type WinningDraw } from "./types";
 
 const KEY = "winningDraws";
 const GITHUB_SYNC_KEY = "githubDrawsSyncedAt";
@@ -37,12 +37,31 @@ async function syncFromGithubIfNeeded(cache: Record<number, WinningDraw>): Promi
 
   let changed = false;
   for (const draw of draws) {
-    if (!cache[draw.drawNumber]) {
+    const cached = cache[draw.drawNumber];
+    if (!cached) {
+      cache[draw.drawNumber] = draw;
+      changed = true;
+      continue;
+    }
+    // 2026-11-15 — 캐시는 원래 "이미 있는 회차는 절대 덮어쓰지 않는다"(먼저 들어온 값이 그
+    // 회차의 진실, 보안 감사 M4 참고). 다만 옛 형식(dataVersion < 2) 레코드는 총판매액이
+    // 실제의 절반이고 1~5등 인원 정보도 없어서, 같은 회차의 최신 형식 레코드로 "보강"만
+    // 허용한다. 당첨번호·보너스가 완전히 같을 때만 교체하므로 번호 자체는 절대 바뀌지 않는다.
+    if (isOutdatedAndSameNumbers(cached, draw)) {
       cache[draw.drawNumber] = draw;
       changed = true;
     }
   }
   return changed;
+}
+
+function isOutdatedAndSameNumbers(cached: WinningDraw, incoming: WinningDraw): boolean {
+  if ((cached.dataVersion ?? 1) >= CURRENT_DRAW_DATA_VERSION) return false;
+  if ((incoming.dataVersion ?? 1) < CURRENT_DRAW_DATA_VERSION) return false;
+  if (cached.bonusNumber !== incoming.bonusNumber) return false;
+  const a = [...cached.numbers].sort((x, y) => x - y);
+  const b = [...incoming.numbers].sort((x, y) => x - y);
+  return a.every((n, i) => n === b[i]);
 }
 
 async function getCachedMap(): Promise<Record<number, WinningDraw>> {

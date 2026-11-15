@@ -19,7 +19,7 @@
  * 참고: 이 엔드포인트는 비공식 공개 API로, 서비스 정책 변경 시 응답 형식이 다시 바뀔 수 있다.
  * 실패 시에는 로컬 캐시(drawCache.ts)에 저장된 마지막 데이터로 그레이스풀하게 폴백한다.
  */
-import type { WinningDraw } from "./types";
+import { CURRENT_DRAW_DATA_VERSION, type WinningDraw } from "./types";
 
 const ENDPOINT = "https://www.dhlottery.co.kr/lt645/selectPstLt645Info.do";
 
@@ -37,7 +37,57 @@ export interface RawDrawListItem {
   rnk1WnNope: number;
   /** "1게임당" 당첨금(=1인당). 1등 총 당첨금이 아니다 — WinningDraw.firstPrizeAmount 주석 참고. */
   rnk1WnAmt: number;
+  /** ⚠️ 실제 총판매액의 절반 수준 값 — 총판매액으로 쓰면 안 된다(WinningDraw.totalSalesAmount 주석). */
   rlvtEpsdSumNtslAmt: number;
+  /** 해당 회차 실제 총판매액. */
+  wholEpsdSumNtslAmt?: number;
+  rnk2WnNope?: number;
+  rnk3WnNope?: number;
+  rnk4WnNope?: number;
+  rnk5WnNope?: number;
+  rnk2WnAmt?: number;
+  rnk3WnAmt?: number;
+  rnk4WnAmt?: number;
+  rnk5WnAmt?: number;
+  /** 1등 자동 당첨 게임 수 */
+  winType1?: number;
+  /** 1등 수동 당첨 게임 수 */
+  winType2?: number;
+  /** 1등 반자동 당첨 게임 수 */
+  winType3?: number;
+}
+
+function nonNegInt(v: unknown): number | null {
+  return Number.isInteger(v) && (v as number) >= 0 ? (v as number) : null;
+}
+
+/**
+ * isPlausibleWinningDraw를 통과한 API 항목을 앱 레코드로 변환한다.
+ * scripts/update-lotto-data.mjs의 buildDraw와 같은 규칙을 따라야 한다(두 경로로 들어온
+ * 레코드가 같은 모양이어야 캐시 보강 로직이 단순해진다).
+ */
+export function buildDrawFromApiItem(item: RawDrawListItem): WinningDraw {
+  const counts = [item.rnk1WnNope, item.rnk2WnNope, item.rnk3WnNope, item.rnk4WnNope, item.rnk5WnNope].map(nonNegInt);
+  const amounts = [item.rnk1WnAmt, item.rnk2WnAmt, item.rnk3WnAmt, item.rnk4WnAmt, item.rnk5WnAmt].map(nonNegInt);
+  const winTypes = [item.winType1, item.winType2, item.winType3].map(nonNegInt);
+  const draw: WinningDraw = {
+    drawNumber: item.ltEpsd,
+    drawDate: formatYmd(item.ltRflYmd),
+    numbers: [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo].sort(
+      (a, b) => a - b
+    ) as WinningDraw["numbers"],
+    bonusNumber: item.bnsWnNo,
+    firstPrizeWinnerCount: item.rnk1WnNope,
+    firstPrizeAmount: item.rnk1WnAmt,
+    totalSalesAmount: nonNegInt(item.wholEpsdSumNtslAmt) ?? undefined,
+    dataVersion: CURRENT_DRAW_DATA_VERSION,
+  };
+  if (counts.every((v) => v !== null)) draw.rankWinnerCounts = counts as WinningDraw["rankWinnerCounts"];
+  if (amounts.every((v) => v !== null)) draw.rankPrizeAmounts = amounts as WinningDraw["rankPrizeAmounts"];
+  if (winTypes.every((v) => v !== null)) {
+    draw.firstPrizeWinTypes = { auto: winTypes[0] as number, manual: winTypes[1] as number, semiAuto: winTypes[2] as number };
+  }
+  return draw;
 }
 
 export interface RawDrawResponse {
@@ -140,20 +190,7 @@ export async function fetchWinningDrawWithStatus(drawNumber: number): Promise<Dr
     return { status: "network_error" };
   }
 
-  return {
-    status: "success",
-    draw: {
-      drawNumber: item.ltEpsd,
-      drawDate: formatYmd(item.ltRflYmd),
-      numbers: [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo].sort(
-        (a, b) => a - b
-      ) as WinningDraw["numbers"],
-      bonusNumber: item.bnsWnNo,
-      firstPrizeWinnerCount: item.rnk1WnNope,
-      firstPrizeAmount: item.rnk1WnAmt,
-      totalSalesAmount: item.rlvtEpsdSumNtslAmt,
-    },
-  };
+  return { status: "success", draw: buildDrawFromApiItem(item) };
 }
 
 /** 기존 호출부(통계·홈 화면 등)와의 호환을 위한 단순 버전. 실패 사유를 구분하지 않는다. */

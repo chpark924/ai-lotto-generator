@@ -88,6 +88,46 @@ function isPlausibleDraw(item, requestedDrawNumber) {
   return allValid1To45 && allDistinct && bonusValid;
 }
 
+/**
+ * 레코드 형식 버전. 2(2026-11-15): totalSalesAmount를 실제 총판매액(wholEpsdSumNtslAmt)으로
+ * 바로잡고 1~5등 당첨 인원·금액, 1등 자동/수동/반자동 인원을 추가했다.
+ * src/lib/draws/types.ts의 CURRENT_DRAW_DATA_VERSION과 반드시 같은 값으로 유지할 것.
+ */
+const DATA_VERSION = 2;
+
+function intOrNull(v) {
+  return Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+/** API 항목 하나를 저장용 레코드로 변환한다. isPlausibleDraw를 통과한 항목에만 호출할 것. */
+function buildDraw(item) {
+  const counts = [item.rnk1WnNope, item.rnk2WnNope, item.rnk3WnNope, item.rnk4WnNope, item.rnk5WnNope].map(intOrNull);
+  const amounts = [item.rnk1WnAmt, item.rnk2WnAmt, item.rnk3WnAmt, item.rnk4WnAmt, item.rnk5WnAmt].map(intOrNull);
+  const winTypes = [item.winType1, item.winType2, item.winType3].map(intOrNull);
+  const draw = {
+    drawNumber: item.ltEpsd,
+    drawDate: formatYmd(item.ltRflYmd),
+    numbers: [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo].sort(
+      (a, b) => a - b
+    ),
+    bonusNumber: item.bnsWnNo,
+    firstPrizeWinnerCount: item.rnk1WnNope,
+    // rnk1WnAmt는 "1등 총 당첨금"이 아니라 이미 "1게임(1인)당" 당첨금이다(2026-09-27 QA로
+    // 확인 — src/lib/draws/types.ts의 firstPrizeAmount 주석 참고). 소비하는 쪽에서 다시
+    // winnerCount로 나누면 안 된다.
+    firstPrizeAmount: item.rnk1WnAmt,
+    // 실제 총판매액. rlvtEpsdSumNtslAmt는 그 절반이라 쓰면 안 된다(types.ts 주석 참고).
+    totalSalesAmount: intOrNull(item.wholEpsdSumNtslAmt) ?? undefined,
+    dataVersion: DATA_VERSION,
+  };
+  if (counts.every((v) => v !== null)) draw.rankWinnerCounts = counts;
+  if (amounts.every((v) => v !== null)) draw.rankPrizeAmounts = amounts;
+  if (winTypes.every((v) => v !== null)) {
+    draw.firstPrizeWinTypes = { auto: winTypes[0], manual: winTypes[1], semiAuto: winTypes[2] };
+  }
+  return draw;
+}
+
 /** "YYYYMMDD" → "YYYY-MM-DD" */
 function formatYmd(ymd) {
   return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
@@ -148,7 +188,13 @@ async function main() {
   const byNumber = new Map(existing.map((d) => [d.drawNumber, d]));
   const maxKnown = byNumber.size > 0 ? Math.max(...byNumber.keys()) : 0;
   const estimatedLatest = estimateLatestDrawNumber();
-  const startFrom = maxKnown + 1;
+  // 옛 형식(dataVersion < 2) 레코드가 하나라도 있으면 1회부터 전체를 다시 받아 보강한다
+  // (이 API는 전체 범위를 한 번의 요청으로 돌려준다 — 상단 주석 참고).
+  const needsBackfill = existing.some((d) => (d.dataVersion ?? 1) < DATA_VERSION);
+  const startFrom = needsBackfill ? 1 : maxKnown + 1;
+  if (needsBackfill) {
+    console.log(`[update-lotto-data] 옛 형식 레코드가 있어 1회부터 전체를 다시 받아 보강합니다(dataVersion ${DATA_VERSION}).`);
+  }
   // 추정 로직이 실제보다 늦게 잡힐 수도 있으니 여유를 좀 두고 요청한다. 이 API는 존재하지
   // 않거나 아직 추첨 전인 회차를 포함해도 에러 없이 빈 배열을 주므로 넉넉히 요청해도 안전하다.
   const tryUpTo = estimatedLatest + 3;
@@ -174,6 +220,8 @@ async function main() {
   }
 
   let added = 0;
+  let upgraded = 0;
+  let mismatched = 0;
   let skippedInvalid = 0;
   for (const item of result.items) {
     if (!isPlausibleDraw(item, item?.ltEpsd)) {
@@ -182,24 +230,32 @@ async function main() {
     }
     if (item.ltEpsd < startFrom || item.ltEpsd > tryUpTo) continue; // 방어적 범위 체크
 
-    const draw = {
-      drawNumber: item.ltEpsd,
-      drawDate: formatYmd(item.ltRflYmd),
-      numbers: [item.tm1WnNo, item.tm2WnNo, item.tm3WnNo, item.tm4WnNo, item.tm5WnNo, item.tm6WnNo].sort(
-        (a, b) => a - b
-      ),
-      bonusNumber: item.bnsWnNo,
-      firstPrizeWinnerCount: item.rnk1WnNope,
-      // rnk1WnAmt는 "1등 총 당첨금"이 아니라 이미 "1게임(1인)당" 당첨금이다(2026-09-27 QA로
-      // 확인 — src/lib/draws/types.ts의 firstPrizeAmount 주석 참고). 소비하는 쪽에서 다시
-      // winnerCount로 나누면 안 된다.
-      firstPrizeAmount: item.rnk1WnAmt,
-      totalSalesAmount: item.rlvtEpsdSumNtslAmt,
-    };
+    const draw = buildDraw(item);
+    const prev = byNumber.get(draw.drawNumber);
+    if (prev) {
+      // 이미 있는 회차는 당첨번호·보너스가 완전히 같을 때만 보강(덮어쓰기)한다 — 당첨번호
+      // 자체가 바뀌는 일은 정상적으로는 없으므로, 다르면 기존 값을 유지하고 경고만 남긴다.
+      const same =
+        prev.bonusNumber === draw.bonusNumber &&
+        prev.numbers.length === 6 &&
+        prev.numbers.every((n, i) => n === draw.numbers[i]);
+      if (!same) {
+        mismatched += 1;
+        console.warn(`  ! ${draw.drawNumber}회 당첨번호가 기존 기록과 달라 기존 값을 유지합니다.`);
+        continue;
+      }
+      if ((prev.dataVersion ?? 1) >= DATA_VERSION) continue;
+      byNumber.set(draw.drawNumber, draw);
+      upgraded += 1;
+      continue;
+    }
     byNumber.set(draw.drawNumber, draw);
     added += 1;
     console.log(`  - ${draw.drawNumber}회 확보 (추첨일 ${draw.drawDate}, 번호 ${draw.numbers.join(",")})`);
   }
+
+  if (upgraded > 0) console.log(`[update-lotto-data] 기존 회차 보강(dataVersion ${DATA_VERSION}): ${upgraded}건.`);
+  if (mismatched > 0) console.warn(`[update-lotto-data] 당첨번호 불일치로 보강하지 않은 회차: ${mismatched}건.`);
 
   if (skippedInvalid > 0) {
     console.warn(`[update-lotto-data] 형식이 이상해 건너뛴 항목: ${skippedInvalid}건.`);

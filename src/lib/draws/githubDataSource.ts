@@ -59,6 +59,43 @@ function isPlausibleDraw(entry: unknown): entry is WinningDraw {
   return allValid1To45 && allDistinct && bonusValid;
 }
 
+function isNonNegIntArray(v: unknown, len: number): boolean {
+  return Array.isArray(v) && v.length === len && v.every((n) => Number.isInteger(n) && (n as number) >= 0);
+}
+
+/**
+ * 2026-11-15 dataVersion 2에서 추가된 선택 필드들은 형식이 맞을 때만 남기고, 이상하면 그
+ * 필드만 지운다(당첨번호가 멀쩡한 회차 전체를 버리지 않기 위해). 형식이 깨진 보강 필드가
+ * 하나라도 있으면 dataVersion도 지워 "옛 형식"으로 취급한다 — 그래야 나중에 정상 데이터로
+ * 다시 보강될 수 있다.
+ */
+function sanitizeOptionalFields(draw: WinningDraw): WinningDraw {
+  const d = { ...draw } as WinningDraw & Record<string, unknown>;
+  let broken = false;
+  if (d.totalSalesAmount !== undefined && !(Number.isInteger(d.totalSalesAmount) && (d.totalSalesAmount as number) >= 0)) {
+    delete d.totalSalesAmount;
+    broken = true;
+  }
+  if (d.rankWinnerCounts !== undefined && !isNonNegIntArray(d.rankWinnerCounts, 5)) {
+    delete d.rankWinnerCounts;
+    broken = true;
+  }
+  if (d.rankPrizeAmounts !== undefined && !isNonNegIntArray(d.rankPrizeAmounts, 5)) {
+    delete d.rankPrizeAmounts;
+    broken = true;
+  }
+  if (d.firstPrizeWinTypes !== undefined) {
+    const w = d.firstPrizeWinTypes as unknown as Record<string, unknown>;
+    const ok = !!w && ["auto", "manual", "semiAuto"].every((k) => Number.isInteger(w[k]) && (w[k] as number) >= 0);
+    if (!ok) {
+      delete d.firstPrizeWinTypes;
+      broken = true;
+    }
+  }
+  if (broken || !Number.isInteger(d.dataVersion)) delete d.dataVersion;
+  return d;
+}
+
 const FETCH_TIMEOUT_MS = 6000;
 
 /**
@@ -78,7 +115,7 @@ export async function fetchAllDrawsFromGithub(): Promise<WinningDraw[] | null> {
     if (!Array.isArray(data)) return null;
 
     // 이상한 항목은 조용히 걸러낼 뿐, 하나 때문에 전체를 버리지 않는다.
-    const valid = data.filter(isPlausibleDraw);
+    const valid = data.filter(isPlausibleDraw).map(sanitizeOptionalFields);
     return valid.length > 0 ? valid : null;
   } catch {
     return null;
