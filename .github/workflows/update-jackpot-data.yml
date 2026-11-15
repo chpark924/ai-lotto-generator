@@ -20,7 +20,10 @@ name: Update Jackpot Data
 "on":
   schedule:
     # 매시 정각(UTC 기준 = KST 기준 정각과 동일, 분 단위 차이 없음).
-    - cron: "0 * * * *"
+    # 2026-11-15: 정각("0 * * * *")은 GitHub 예약 실행이 몰려 지연·누락이 잦아 실제 갱신 간격이
+    # 평균 6.8시간이었다. 정각을 피해 30분 간격으로 돌린다. 앱은 이제 공식 API를 직접 먼저
+    # 조회하고 이 JSON은 폴백용이다(src/lib/jackpot/index.ts). 공개 저장소라 실행 비용 없음.
+    - cron: "7,37 * * * *"
   workflow_dispatch: {}
 
 permissions:

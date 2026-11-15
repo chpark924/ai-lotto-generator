@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Image, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { estimateLatestDrawNumber, getRecentDrawsSafe, getLongestAbsentNumbers, computeNumberFrequencies } from "../../src/lib/draws";
 import { getGenerationHistory } from "../../src/lib/storage";
 import { ENTERTAINMENT_NOTICE } from "../../src/constants/messages";
 import { HeroCtaMorph, LottoBall, SettingsSheet, SkeletonBlock, SkeletonBall, StatusBarSafeMask } from "../../src/components";
 import { useAppTheme, type AppColors, type BrandTokens } from "../../src/theme";
-import { fetchJackpotInfoFromGithub } from "../../src/lib/jackpot";
+import { fetchJackpotInfo } from "../../src/lib/jackpot";
 
 // 2026-09-27 QA 피드백: "1등 예상 총 당첨금" 줄 맨 앞 아이콘(cash-outline, 무채색 회색)이
 // 무엇을 뜻하는지 잘 안 들어온다는 지적 — 1등 상금이라는 의미를 바로 읽히게 트로피로 바꾸고,
@@ -100,12 +100,24 @@ export default function HomeScreen() {
 
   // 다른 카드들의 loading 상태와 독립적으로 돈다 — 실패해도 화면 전체 스켈레톤을
   // 막지 않고, 그냥 이 줄만 안 보이게 둔다.
-  useEffect(() => {
-    (async () => {
-      const info = await fetchJackpotInfoFromGithub();
-      if (info) setJackpotAmount(info.expectedRank1Amount);
-    })();
-  }, []);
+  // 2026-11-15: 탭 화면은 언마운트되지 않아 처음 한 번만 불러오면 계속 옛 금액이 남았다.
+  // 홈에 돌아올 때마다(최소 1분 간격) 공식 API로 다시 조회한다(src/lib/jackpot/index.ts).
+  const lastJackpotFetchRef = useRef(0);
+  useFocusEffect(
+    useCallback(() => {
+      if (Date.now() - lastJackpotFetchRef.current < 60 * 1000) return;
+      lastJackpotFetchRef.current = Date.now();
+      let cancelled = false;
+      (async () => {
+        const info = await fetchJackpotInfo();
+        if (cancelled) return;
+        setJackpotAmount(info ? info.expectedRank1Amount : null);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   return (
     <>
