@@ -402,11 +402,8 @@ export default function TicketsScreen() {
   async function handleShare(ticket: SavedTicket) {
     const numbersText = ticket.game.numbers.join(" · ");
     // [10차 업데이트] 카카오톡에서는 카드로, 그 외에는 기존과 동일한 순수 텍스트로 공유된다.
-    await shareLottoNumbers(
-      `내 로또 번호 (${STATUS_LABELS[ticket.status]})`,
-      numbersText,
-      `내 로또 번호 (${STATUS_LABELS[ticket.status]}): ${numbersText}`
-    );
+    // 2026-11-15: 받는 사람에게는 의미 없는 내부 상태 라벨("(확인 완료)" 등)을 제목에서 뺐다.
+    await shareLottoNumbers("내 로또 번호", numbersText, `내 로또 번호: ${numbersText}`);
   }
 
   function handleDelete(id: string) {

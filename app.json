@@ -64,7 +64,9 @@
         {
           "nativeAppKey": "457dfeb6e32b6c6f9221a8bbdacfaea1",
           "ios": {},
-          "android": {}
+          "android": {
+            "forwardKakaoLinkIntentFilterToMainActivity": true
+          }
         }
       ]
     ],
