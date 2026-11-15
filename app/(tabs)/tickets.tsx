@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, SectionList, StyleSheet, Text, TextInput, Vi
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { LottoBall, StatusBarSafeMask } from "../../src/components";
 import { shareLottoNumbers } from "../../src/lib/share/kakaoShare";
 import {
@@ -12,6 +13,8 @@ import {
   updateTicketMatchedRank,
   clearTicketCheckResult,
   deleteTicket,
+  pruneExpiredLostTickets,
+  TicketLimitError,
   getPreferences,
   getExclusionSets,
   type SavedTicket,
@@ -19,11 +22,13 @@ import {
 } from "../../src/lib/storage";
 import {
   getDrawByNumberWithStatus,
+  getDrawByNumber,
   estimateLatestDrawNumber,
   estimateDrawDate,
   computeRank,
   buildOfficialResultPageUrl,
   RANK_LABELS,
+  type WinningDraw,
 } from "../../src/lib/draws";
 import { useAppTheme, type AppColors, type AppTints, type BrandTokens } from "../../src/theme";
 
@@ -47,6 +52,29 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 };
 
 const STATUS_ORDER: TicketStatus[] = ["SAVED", "PLANNED", "PURCHASED", "CHECKED"];
+
+/** 홈 화면 "1등 예상 총 당첨금" 트로피와 같은 고정 금색 — 당첨 카드 테두리·아이콘에만 쓴다. */
+const TROPHY_GOLD = "#F5A623";
+
+/**
+ * 2026-11-15 당첨 표시 강화 — 당첨 카드 배너에 보여줄 1게임당 당첨금 문구.
+ * 4등(5만원)·5등(5천원)은 고정 금액이고, 1~3등은 회차 데이터(dataVersion 2의 rankPrizeAmounts,
+ * 1등은 firstPrizeAmount로도 가능)에 있을 때만 보여준다. 없으면 null — 금액 없이 등수만 표시.
+ */
+function describePrizeAmount(rank: number, draw: WinningDraw | undefined): string | null {
+  const fromData =
+    draw?.rankPrizeAmounts?.[rank - 1] ?? (rank === 1 ? draw?.firstPrizeAmount : undefined);
+  const amount = fromData ?? (rank === 4 ? 50_000 : rank === 5 ? 5_000 : undefined);
+  return amount ? `${amount.toLocaleString("ko-KR")}원` : null;
+}
+
+/** 이 티켓 번호 중 그 회차 당첨번호와 일치한 번호(2등이면 보너스 번호 포함). */
+function matchedNumbersOf(ticket: SavedTicket, draw: WinningDraw | undefined): Set<number> | null {
+  if (!draw) return null;
+  const winning = new Set<number>(draw.numbers);
+  if (ticket.matchedRank === 2) winning.add(draw.bonusNumber);
+  return new Set(ticket.game.numbers.filter((n) => winning.has(n)));
+}
 
 /**
  * 당첨 확인 결과 알림을 사람 말투로 보여준다. 예전엔 rank(0=낙첨, 1~5=등수)를
@@ -80,6 +108,8 @@ export default function TicketsScreen() {
   // 상단 여백을 직접 챙겨줘야 한다.
   const insets = useSafeAreaInsets();
   const [tickets, setTickets] = useState<SavedTicket[]>([]);
+  // 결과가 확인된 티켓의 회차 당첨번호 — "맞은 공만 강조"에 쓴다(대부분 로컬 캐시에서 바로 나옴).
+  const [drawsByNumber, setDrawsByNumber] = useState<Record<number, WinningDraw>>({});
   const [drawNumberDrafts, setDrawNumberDrafts] = useState<Record<string, string>>({});
   // 회차 지정 입력칸을 펼쳐서 보여줄지 여부. 회차가 이미 있으면 평소엔 접어두고
   // "당첨 확인" 버튼 하나만 강조해서, 두 버튼이 나란히 있어 헷갈리는 걸 막는다.
@@ -198,6 +228,18 @@ export default function TicketsScreen() {
   const load = useCallback(async () => {
     const list = await getTickets();
     setTickets(list);
+    // 결과가 있는 회차의 당첨번호를 모아둔다. 실패한 회차는 그냥 강조 없이 보인다.
+    const checkedDraws = Array.from(
+      new Set(list.filter((t) => t.matchedRank !== undefined && t.drawNumber).map((t) => t.drawNumber as number))
+    );
+    if (checkedDraws.length > 0) {
+      const entries = await Promise.all(
+        checkedDraws.map(async (n) => [n, await getDrawByNumber(n).catch(() => null)] as const)
+      );
+      const map: Record<number, WinningDraw> = {};
+      for (const [n, draw] of entries) if (draw) map[n] = draw;
+      setDrawsByNumber(map);
+    }
     return list;
   }, []);
 
@@ -286,10 +328,14 @@ export default function TicketsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load().then(async (list) => {
-        const healedList = await healFutureTickets(list);
-        autoCheckPendingTickets(healedList);
-      });
+      // 2026-11-15 — 낙첨 확인 후 3개월 지난 번호를 먼저 조용히 정리한다(당첨 번호는 유지).
+      pruneExpiredLostTickets()
+        .catch(() => 0)
+        .then(() => load())
+        .then(async (list) => {
+          const healedList = await healFutureTickets(list);
+          autoCheckPendingTickets(healedList);
+        });
       loadPreferenceSummary();
     }, [load, healFutureTickets, autoCheckPendingTickets, loadPreferenceSummary])
   );
@@ -337,7 +383,11 @@ export default function TicketsScreen() {
         "회차를 지정했어요",
         `제 ${drawNumber}회(${formatDrawDateShort(estimateDrawDate(drawNumber))} 추첨 예정)로 지정됐어요.`
       );
-    } catch {
+    } catch (e) {
+      if (e instanceof TicketLimitError) {
+        Alert.alert("이 회차로 옮길 수 없어요", e.message);
+        return;
+      }
       Alert.alert("변경 실패", "회차를 저장하지 못했어요. 다시 시도해주세요.");
     }
   }
@@ -501,6 +551,15 @@ export default function TicketsScreen() {
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
             <Text style={styles.sectionHeaderTitle}>{section.title}</Text>
+            {(() => {
+              const winCount = section.data.filter((t) => (t.matchedRank ?? 0) > 0).length;
+              return winCount > 0 ? (
+                <View style={[styles.sectionWinBadge, { backgroundColor: tints.orange.bg }]}>
+                  <Ionicons name="trophy" size={11} color={TROPHY_GOLD} />
+                  <Text style={[styles.sectionWinText, { color: tints.orange.fg }]}>당첨 {winCount}개</Text>
+                </View>
+              ) : null;
+            })()}
             <View style={styles.sectionHeaderCountBadge}>
               <Text style={styles.sectionHeaderCountText}>{section.data.length}개</Text>
             </View>
@@ -517,8 +576,30 @@ export default function TicketsScreen() {
             // 중"이라는 게 한눈에 안 들어온다는 피드백. 편집 중인 카드만 테두리를 브랜드
             // 블루로, 두께도 살짝 굵게 줘서 "지금 여기가 변경 중"이라는 걸 명확히 한다.
             editingDraw[item.id] && styles.cardEditing,
+            (item.matchedRank ?? 0) > 0 && styles.cardWin,
           ]}
         >
+          {(item.matchedRank ?? 0) > 0 ? (
+            // 2026-11-15 당첨 표시 강화 — 예전엔 당첨/낙첨 모두 작은 빨간 글씨라 구분이 안 됐다.
+            // 당첨 카드만 금색 테두리 + 상단 배너(등수·1게임당 금액)로 확실히 드러낸다.
+            (() => {
+              const prize = describePrizeAmount(item.matchedRank as number, drawsByNumber[item.drawNumber ?? -1]);
+              const label = `${RANK_LABELS[item.matchedRank as number]} 당첨`;
+              return (
+                <View
+                  style={[styles.winBanner, { backgroundColor: tints.orange.bg }]}
+                  accessibilityRole="text"
+                  accessibilityLabel={prize ? `${label}, ${prize}` : label}
+                >
+                  <Ionicons name="trophy" size={18} color={TROPHY_GOLD} />
+                  <Text style={[styles.winBannerText, { color: tints.orange.fg }]}>
+                    {label}
+                    {prize ? ` · ${prize}` : ""}
+                  </Text>
+                </View>
+              );
+            })()
+          ) : null}
           <View style={styles.cardHeader}>
             <Pressable
               style={[styles.statusBadge, { backgroundColor: getStatusBadgeStyle(tints, item.status).backgroundColor }]}
@@ -533,13 +614,9 @@ export default function TicketsScreen() {
                 {STATUS_LABELS[item.status]}
               </Text>
             </Pressable>
-            {item.matchedRank !== undefined ? (
-              // [2026-09-11 다크모드 점검] 고정값 "#DC2626"은 다크 모드 카드 배경
-              // (colors.surface, #161F32) 위에서 대비비가 약 3.4:1로 WCAG AA(4.5:1) 미달이었다
-              // (라이트 배경에서는 약 4.8:1로 기준을 겨우 만족). statusBadgeText가 이미 쓰던
-              // 것과 같은 패턴(정적 스타일 + tints 인라인 오버라이드)으로 tints.red.fg를 써서
-              // 다크에서는 더 밝은 값(#FCA5A5, 대비비 약 8.7:1)으로 자동 전환되게 한다.
-              <Text style={[styles.rankText, { color: tints.red.fg }]}>{RANK_LABELS[item.matchedRank]}</Text>
+            {item.matchedRank === 0 ? (
+              // 낙첨은 회색 중립 표시(예전엔 당첨과 똑같은 빨간 글씨였다). 당첨은 위 배너가 대신한다.
+              <Text style={[styles.rankText, { color: colors.textMuted }]}>{RANK_LABELS[0]}</Text>
             ) : null}
           </View>
 
@@ -547,9 +624,16 @@ export default function TicketsScreen() {
               로또 연구소 "실제 당첨결과"와 같은 이유로 입체 효과를 준다 — LottoBall.tsx
               상단 주석·QA_LOG 132번 참고. */}
           <View style={styles.ballRow}>
-            {item.game.numbers.map((n) => (
-              <LottoBall key={n} number={n} size={32} variant="glossy" />
-            ))}
+            {(() => {
+              // 당첨 카드는 맞은 공만 또렷하게, 나머지는 흐리게 보여준다(회차 데이터가 있을 때만).
+              const matched =
+                (item.matchedRank ?? 0) > 0 ? matchedNumbersOf(item, drawsByNumber[item.drawNumber ?? -1]) : null;
+              return item.game.numbers.map((n) => (
+                <View key={n} style={matched && !matched.has(n) ? styles.ballDimmed : undefined}>
+                  <LottoBall number={n} size={32} variant="glossy" />
+                </View>
+              ));
+            })()}
           </View>
 
           {item.drawNumber && !editingDraw[item.id] ? (
@@ -719,6 +803,32 @@ function createStyles(colors: AppColors, brand: BrandTokens) {
     cardPast: {
       backgroundColor: colors.surfaceAlt,
     },
+    // 2026-11-15 — 당첨 카드: 홈 트로피와 같은 금색 테두리.
+    cardWin: {
+      borderColor: TROPHY_GOLD,
+      borderWidth: 2,
+    },
+    winBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 10,
+    },
+    winBannerText: { fontSize: 15, fontWeight: "800", flexShrink: 1 },
+    ballDimmed: { opacity: 0.3 },
+    sectionWinBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      marginRight: 6,
+    },
+    sectionWinText: { fontSize: 11, fontWeight: "800" },
     // 110번 — "회차 변경" 편집 중인 카드를 테두리 색으로 구분.
     cardEditing: {
       borderColor: brand.primary,

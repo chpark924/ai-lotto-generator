@@ -6,7 +6,7 @@ import { LottoBall, LottoBallLoader } from "../../src/components";
 import { PatternThumb } from "../../src/components/deepPattern";
 import { buildGameMetadata } from "../../src/lib/lottery/pattern";
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
-import { saveTicket } from "../../src/lib/storage";
+import { saveTicketsBatch, TicketLimitError } from "../../src/lib/storage";
 import { recommendDeepPatterns } from "../../src/lib/deepPattern/engine";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternRecommendation } from "../../src/lib/deepPattern/types";
@@ -70,11 +70,14 @@ export default function DeepPatternResultScreen() {
     setIsSavingAll(true);
     try {
       const nextDrawNumber = estimateLatestDrawNumber() + 1;
-      for (const rec of batch.recommendations) {
-        await saveTicket(toGeneratedGame(rec), "SAVED", nextDrawNumber);
-      }
+      // 한도를 넘으면 일부만 저장되지 않도록 한 번에 저장한다(saveTicketsBatch 주석 참고).
+      await saveTicketsBatch(batch.recommendations.map(toGeneratedGame), "SAVED", nextDrawNumber);
       Alert.alert("저장했습니다.", `${batch.recommendations.length}게임을 제 ${nextDrawNumber}회 기준으로 저장했어요.`);
-    } catch {
+    } catch (e) {
+      if (e instanceof TicketLimitError) {
+        Alert.alert("더 저장할 수 없어요", e.message);
+        return;
+      }
       Alert.alert("저장 실패", "번호를 저장하지 못했어요. 다시 시도해주세요.");
     } finally {
       setIsSavingAll(false);

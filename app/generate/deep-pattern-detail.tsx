@@ -5,7 +5,7 @@ import { BottomActionBar } from "../../src/components";
 import { PatternBoard, PatternPositionMap } from "../../src/components/deepPattern";
 import { buildGameMetadata } from "../../src/lib/lottery/pattern";
 import { estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
-import { saveTicket } from "../../src/lib/storage";
+import { saveTicket, TicketLimitError } from "../../src/lib/storage";
 import { useDeepPatternStore } from "../../src/state/deepPatternStore";
 import type { DeepPatternLevel } from "../../src/lib/deepPattern/types";
 import type { GeneratedGame } from "../../src/lib/lottery/types";
@@ -91,7 +91,11 @@ export default function DeepPatternDetailScreen() {
       };
       await saveTicket(game, "SAVED", nextDrawNumber);
       Alert.alert("번호가 저장되었습니다");
-    } catch {
+    } catch (e) {
+      if (e instanceof TicketLimitError) {
+        Alert.alert("더 저장할 수 없어요", e.message);
+        return;
+      }
       Alert.alert("저장 실패", "번호를 저장하지 못했어요. 다시 시도해주세요.");
     } finally {
       setIsSaving(false);

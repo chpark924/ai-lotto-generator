@@ -7,7 +7,7 @@ import { DisclaimerCard, GeneratedGameCard, LottoBallLoader, ProbabilityCard } f
 import { shareLottoNumbers } from "../../src/lib/share/kakaoShare";
 import { useGenerationStore } from "../../src/state/generationStore";
 import { buildGameFeatures, explainGameLocally } from "../../src/lib/ai";
-import { getGenerationHistory, saveTicket } from "../../src/lib/storage";
+import { getGenerationHistory, saveTicket, TicketLimitError } from "../../src/lib/storage";
 import { buildPopularityHeuristic, getSakaiAverageFrequencyNumbers } from "../../src/lib/draws/drawStats";
 import { buildOfficialPurchasePageUrl, estimateLatestDrawNumber } from "../../src/lib/draws/drawApi";
 import { getRecentDrawsSafe } from "../../src/lib/draws/drawCache";
@@ -122,7 +122,11 @@ export default function ResultScreen() {
         status === "SAVED" ? "저장했습니다." : "구매 예정으로 등록했습니다.",
         `제 ${nextDrawNumber}회 기준으로 등록했어요. 내 번호 탭에서 회차를 바꿀 수 있어요.`
       );
-    } catch {
+    } catch (e) {
+      if (e instanceof TicketLimitError) {
+        Alert.alert("더 저장할 수 없어요", e.message);
+        return;
+      }
       Alert.alert("저장 실패", "번호를 저장하지 못했어요. 다시 시도해주세요.");
     }
   }

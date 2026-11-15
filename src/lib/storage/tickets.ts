@@ -12,6 +12,41 @@ export interface SavedTicket {
   updatedAt: string;
   /** 당첨 결과 확인 후 채워짐. 실제 당첨 등수(0은 낙첨). */
   matchedRank?: 0 | 1 | 2 | 3 | 4 | 5;
+  /** matchedRank가 채워진 시각(ISO). 낙첨 번호 자동 정리 기준. 2026-11-15 이전 티켓은 없음 → updatedAt으로 대체. */
+  checkedAt?: string;
+}
+
+/**
+ * 2026-11-15 저장 한도. 모든 티켓이 AsyncStorage 키 하나에 JSON 배열로 들어가므로 무한정
+ * 쌓이면 Android 단일 값 크기 한계(약 2MB)에 가까워져 목록 전체를 못 읽을 수 있다.
+ * 회차당 100개는 로또 1회 구매 한도(10만원 = 100게임)와 같은 숫자다.
+ */
+export const MAX_TICKETS_PER_DRAW = 100;
+export const MAX_TICKETS_TOTAL = 1000;
+/** 낙첨이 확인된 번호는 확인 시점부터 3개월 뒤 자동 삭제한다. 당첨 번호는 자동 삭제하지 않는다. */
+export const LOST_TICKET_RETENTION_MONTHS = 3;
+
+export class TicketLimitError extends Error {
+  constructor(
+    public readonly kind: "PER_DRAW" | "TOTAL",
+    public readonly drawNumber?: number
+  ) {
+    super(
+      kind === "PER_DRAW"
+        ? `제 ${drawNumber}회에는 최대 ${MAX_TICKETS_PER_DRAW}개까지 저장할 수 있어요.\n로또 1회 구매 한도(10만원, 100게임)에 맞춘 개수예요.`
+        : `저장한 번호가 ${MAX_TICKETS_TOTAL.toLocaleString("ko-KR")}개를 넘어 더 저장할 수 없어요.\n내 번호 탭에서 지난 번호를 정리해주세요.`
+    );
+    this.name = "TicketLimitError";
+  }
+}
+
+/** list에 추가로 count개를 drawNumber 회차로 넣을 수 있는지 검사하고, 안 되면 TicketLimitError를 던진다. */
+function assertCapacity(list: SavedTicket[], count: number, drawNumber?: number): void {
+  if (list.length + count > MAX_TICKETS_TOTAL) throw new TicketLimitError("TOTAL");
+  if (drawNumber !== undefined) {
+    const sameDraw = list.filter((t) => t.drawNumber === drawNumber).length;
+    if (sameDraw + count > MAX_TICKETS_PER_DRAW) throw new TicketLimitError("PER_DRAW", drawNumber);
+  }
 }
 
 const KEY = "tickets";
@@ -27,19 +62,36 @@ export async function saveTicket(
   status: TicketStatus = "SAVED",
   drawNumber?: number
 ): Promise<SavedTicket> {
+  const [ticket] = await saveTicketsBatch([game], status, drawNumber);
+  return ticket;
+}
+
+/**
+ * 여러 게임을 한 번에 저장한다. 한도를 넘으면 하나도 저장하지 않고 TicketLimitError를 던진다
+ * (예전처럼 하나씩 저장하다 중간에 실패해 일부만 저장되는 상황을 막는다).
+ */
+export async function saveTicketsBatch(
+  games: GeneratedGame[],
+  status: TicketStatus = "SAVED",
+  drawNumber?: number
+): Promise<SavedTicket[]> {
   const tickets = await getTickets();
+  assertCapacity(tickets, games.length, drawNumber);
   const now = new Date().toISOString();
-  const ticket: SavedTicket = {
-    id: `ticket_${Date.now()}_${Math.round(Math.random() * 1e6)}`,
+  const created: SavedTicket[] = games.map((game, i) => ({
+    id: `ticket_${Date.now()}_${i}_${Math.round(Math.random() * 1e6)}`,
     game,
     status,
     drawNumber,
     createdAt: now,
     updatedAt: now,
-  };
-  await writeJson(KEY, [ticket, ...tickets]);
-  await pushToGenerationHistory(game.numbers);
-  return ticket;
+  }));
+  // 화면에는 최신순으로 보이므로, 배치 안에서는 원래 순서를 유지한 채 맨 앞에 붙인다.
+  await writeJson(KEY, [...created, ...tickets]);
+  for (const game of games) {
+    await pushToGenerationHistory(game.numbers);
+  }
+  return created;
 }
 
 export async function updateTicketStatus(id: string, status: TicketStatus): Promise<void> {
@@ -52,6 +104,12 @@ export async function updateTicketStatus(id: string, status: TicketStatus): Prom
 
 export async function updateTicketDrawNumber(id: string, drawNumber: number): Promise<void> {
   const tickets = await getTickets();
+  const target = tickets.find((t) => t.id === id);
+  if (target && target.drawNumber !== drawNumber) {
+    // 회차를 옮기는 것도 그 회차의 개수 한도를 지켜야 한다(전체 개수는 그대로라 회차 한도만 검사).
+    const sameDraw = tickets.filter((t) => t.drawNumber === drawNumber).length;
+    if (sameDraw + 1 > MAX_TICKETS_PER_DRAW) throw new TicketLimitError("PER_DRAW", drawNumber);
+  }
   const updated = tickets.map((t) => {
     if (t.id !== id) return t;
     if (t.drawNumber === drawNumber) {
@@ -71,6 +129,7 @@ export async function updateTicketDrawNumber(id: string, drawNumber: number): Pr
       ...t,
       drawNumber,
       matchedRank: undefined,
+      checkedAt: undefined,
       status: t.status === "CHECKED" ? "SAVED" : t.status,
       updatedAt: new Date().toISOString(),
     };
@@ -95,6 +154,7 @@ export async function clearTicketCheckResult(id: string): Promise<void> {
       ? {
           ...t,
           matchedRank: undefined,
+          checkedAt: undefined,
           status: t.status === "CHECKED" ? "SAVED" : t.status,
           updatedAt: new Date().toISOString(),
         }
@@ -110,10 +170,38 @@ export async function updateTicketMatchedRank(
   const tickets = await getTickets();
   const updated = tickets.map((t) =>
     t.id === id
-      ? { ...t, matchedRank, status: "CHECKED" as TicketStatus, updatedAt: new Date().toISOString() }
+      ? (() => {
+          const now = new Date().toISOString();
+          return { ...t, matchedRank, checkedAt: now, status: "CHECKED" as TicketStatus, updatedAt: now };
+        })()
       : t
   );
   await writeJson(KEY, updated);
+}
+
+/** 낙첨 확인 시점 + 3개월. checkedAt이 없는 예전 티켓은 updatedAt을 기준으로 삼는다. */
+export function lostTicketExpiresAt(ticket: SavedTicket): Date | null {
+  if (ticket.matchedRank !== 0) return null;
+  const base = Date.parse(ticket.checkedAt ?? ticket.updatedAt);
+  if (!Number.isFinite(base)) return null;
+  const d = new Date(base);
+  d.setMonth(d.getMonth() + LOST_TICKET_RETENTION_MONTHS);
+  return d;
+}
+
+/**
+ * 낙첨이 확인된 지 3개월이 지난 번호를 지운다. 당첨 번호(matchedRank 1~5)와 아직 확인 전인
+ * 번호는 절대 지우지 않는다. 지운 개수를 반환한다. 내 번호 탭 진입 시 조용히 실행된다.
+ */
+export async function pruneExpiredLostTickets(now: Date = new Date()): Promise<number> {
+  const tickets = await getTickets();
+  const kept = tickets.filter((t) => {
+    const expiresAt = lostTicketExpiresAt(t);
+    return !(expiresAt && expiresAt.getTime() <= now.getTime());
+  });
+  const removed = tickets.length - kept.length;
+  if (removed > 0) await writeJson(KEY, kept);
+  return removed;
 }
 
 export async function deleteTicket(id: string): Promise<void> {
