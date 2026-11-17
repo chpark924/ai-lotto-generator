@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { initializeKakaoSDK } from "@react-native-kakao/core";
 import { AppErrorBoundary } from "../src/components";
+import { useAppUpdatePrompt } from "../src/lib/appUpdate";
 import { ThemeProvider, brand } from "../src/theme";
 
 // 스플래시(로고) 최소 노출 시간(ms). 앱 초기화 자체는 순간적으로 끝나서
@@ -42,6 +43,9 @@ initializeKakaoSDK("457dfeb6e32b6c6f9221a8bbdacfaea1").catch(() => {
 // 다시 도입하고 싶으면 이 파일에 useFonts 호출을 되돌리고, 각 화면에 fontFamily 참조를
 // 다시 추가하면 된다.
 export default function RootLayout() {
+  // 2026-11-17 — 새 버전 업데이트 안내(권장/필수). data/app-config.json으로 제어 — src/lib/appUpdate 참고.
+  useAppUpdatePrompt();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => {});
