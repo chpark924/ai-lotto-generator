@@ -22,9 +22,11 @@ jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
 
-jest.mock("../../src/lib/storage", () => ({
-  saveTicket: jest.fn(),
-}));
+// 화면이 한도 초과(TicketLimitError)를 구분하므로 같이 흉내낸다(2026-11-15 저장 한도 추가).
+jest.mock("../../src/lib/storage", () => {
+  class TicketLimitError extends Error {}
+  return { saveTicket: jest.fn(), TicketLimitError };
+});
 
 function makeRec(overrides: Partial<DeepPatternRecommendation> = {}): DeepPatternRecommendation {
   return {

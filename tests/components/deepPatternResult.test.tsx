@@ -27,9 +27,16 @@ jest.mock("../../src/lib/deepPattern/engine", () => ({
   recommendDeepPatterns: jest.fn(),
 }));
 
-jest.mock("../../src/lib/storage", () => ({
-  saveTicket: jest.fn(),
-}));
+// 2026-11-15부터 "모두 저장"은 한도를 넘으면 하나도 저장하지 않도록 saveTicketsBatch로 한 번에
+// 저장한다(src/lib/storage/tickets.ts). 화면이 TicketLimitError로 한도 안내를 구분하므로 같이 흉내낸다.
+jest.mock("../../src/lib/storage", () => {
+  class TicketLimitError extends Error {
+    constructor(...args: unknown[]) {
+      super(args[0] === "PER_DRAW" ? "제 1회에는 최대 100개까지 저장할 수 있어요." : "저장한 번호가 너무 많아요.");
+    }
+  }
+  return { saveTicket: jest.fn(), saveTicketsBatch: jest.fn(), TicketLimitError };
+});
 
 function makeRec(overrides: Partial<DeepPatternRecommendation> = {}): DeepPatternRecommendation {
   return {
@@ -101,18 +108,40 @@ describe("DeepPatternResultScreen (딥 패턴 탐색 결과)", () => {
     });
   });
 
-  it("'N게임 모두 저장'을 누르면 배치의 게임 수만큼 saveTicket을 호출하고 완료 알림을 띄운다", async () => {
+  it("'N게임 모두 저장'을 누르면 배치의 게임을 한 번에(saveTicketsBatch) 저장하고 완료 알림을 띄운다", async () => {
     const batch = makeBatch([makeRec({ patternIndex: 1 }), makeRec({ patternIndex: 2, numbers: [10, 20, 30, 40, 41, 42] })]);
     useDeepPatternStore.setState({ batch, selectedIndex: 0 });
-    (storage.saveTicket as jest.Mock).mockResolvedValue(undefined);
+    (storage.saveTicketsBatch as jest.Mock).mockResolvedValue([]);
     const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
     render(<DeepPatternResultScreen />);
     fireEvent.press(screen.getByLabelText("2게임 모두 저장"));
 
     await waitFor(() => {
-      expect(storage.saveTicket).toHaveBeenCalledTimes(2);
+      expect(storage.saveTicketsBatch).toHaveBeenCalledTimes(1);
     });
+    const [games, status] = (storage.saveTicketsBatch as jest.Mock).mock.calls[0];
+    expect(games).toHaveLength(2);
+    expect(games.map((g: { numbers: number[] }) => g.numbers)).toEqual([
+      [1, 2, 3, 4, 5, 6],
+      [10, 20, 30, 40, 41, 42],
+    ]);
+    expect(status).toBe("SAVED");
+    expect(storage.saveTicket).not.toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith("저장했습니다.", expect.stringContaining("2게임"));
+  });
+
+  it("저장 한도를 넘으면 '더 저장할 수 없어요' 안내를 띄운다", async () => {
+    const batch = makeBatch([makeRec({ patternIndex: 1 }), makeRec({ patternIndex: 2, numbers: [10, 20, 30, 40, 41, 42] })]);
+    useDeepPatternStore.setState({ batch, selectedIndex: 0 });
+    (storage.saveTicketsBatch as jest.Mock).mockRejectedValue(new storage.TicketLimitError("PER_DRAW", 1));
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+    render(<DeepPatternResultScreen />);
+    fireEvent.press(screen.getByLabelText("2게임 모두 저장"));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith("더 저장할 수 없어요", expect.stringContaining("100개"));
+    });
   });
 });
