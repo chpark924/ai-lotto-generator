@@ -342,25 +342,27 @@ export function computeFirstPrizeExpectation(draw: WinningDraw): FirstPrizeExpec
  * 회차 예측이 아니다 — 반드시 FIRST_PRIZE_EXPECTATION_NOTICE와 함께 노출해야 한다.
  */
 export function describeFirstPrizeExpectation(exp: FirstPrizeExpectation): string {
+  // 2026-11-18: 기대값(판매 게임 수 × 1등 확률)과 실제값(동행복권 "당첨게임 수") 모두 사람이 아니라
+  // "게임" 단위다. 한 사람이 여러 게임을 살 수 있으므로 "명" 대신 "게임/개"로 표기한다.
   const expected = exp.expectedWinnerCount.toFixed(1);
 
   if (exp.actualWinnerCount === 0) {
-    return `제 ${exp.drawNumber}회는 1등 당첨자가 한 명도 없어 상금이 다음 회차로 이월됐습니다. (판매량 기준 이론적 기대치는 약 ${expected}명)`;
+    return `제 ${exp.drawNumber}회는 1등 당첨 게임이 하나도 없어 상금이 다음 회차로 이월됐습니다. (판매량 기준 이론적 기대치는 약 ${expected}개)`;
   }
   if (exp.zScore === null) {
-    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명입니다.`;
+    return `제 ${exp.drawNumber}회 1등 당첨 게임은 ${exp.actualWinnerCount}개입니다.`;
   }
 
   const absZ = Math.abs(exp.zScore);
   const direction = exp.zScore >= 0 ? "많이" : "적게";
 
   if (absZ < 1) {
-    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)와 비슷한 수준입니다.`;
+    return `제 ${exp.drawNumber}회 1등 당첨 게임은 ${exp.actualWinnerCount}개로, 판매량 기준 이론적 기대치(약 ${expected}개)와 비슷한 수준입니다.`;
   }
   if (absZ < 2) {
-    return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)보다 다소 ${direction} 나왔습니다.`;
+    return `제 ${exp.drawNumber}회 1등 당첨 게임은 ${exp.actualWinnerCount}개로, 판매량 기준 이론적 기대치(약 ${expected}개)보다 다소 ${direction} 나왔습니다.`;
   }
-  return `제 ${exp.drawNumber}회 1등 당첨자는 ${exp.actualWinnerCount}명으로, 판매량 기준 이론적 기대치(약 ${expected}명)보다 꽤 이례적으로 ${direction} 나왔습니다.`;
+  return `제 ${exp.drawNumber}회 1등 당첨 게임은 ${exp.actualWinnerCount}개로, 판매량 기준 이론적 기대치(약 ${expected}개)보다 꽤 이례적으로 ${direction} 나왔습니다.`;
 }
 /** 복권 당첨금 기타소득세 원천징수 계산에 쓰는 구간 상수 (2013년 세법 개정, 2014년 시행 기준 — 2026년 현재까지 유지). */
 const PRIZE_TAX_EXEMPT_THRESHOLD = 2_000_000; // 이 미만이면 비과세 (2023-01 시행, 과세최저한도 5만원→200만원 상향)

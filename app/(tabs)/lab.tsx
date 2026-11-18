@@ -138,13 +138,13 @@ function describeFirstPrizeExpectationShort(exp: {
 }): { headline: string; detail: string } {
   const actual = exp.actualWinnerCount;
   if (exp.zScore === null || exp.ratio === null) {
-    return { headline: `1등 당첨자 ${actual}명`, detail: "" };
+    return { headline: `1등 당첨 게임 ${actual}개`, detail: "" };
   }
   const absZ = Math.abs(exp.zScore);
   const pct = Math.round(exp.ratio * 100);
   if (absZ < 1) {
     return {
-      headline: `1등 당첨자 ${actual}명, 기대와 비슷한 수준이에요`,
+      headline: `1등 당첨 게임 ${actual}개, 기대와 비슷한 수준이에요`,
       detail: "판매량 기준 이론적 기대치와 비슷한 수준이에요",
     };
   }
@@ -152,7 +152,7 @@ function describeFirstPrizeExpectationShort(exp: {
   const direction = exp.zScore >= 0 ? "많이" : "적게";
   const magnitude = absZ < 2 ? "다소" : "꽤 이례적으로";
   return {
-    headline: `1등 당첨자 ${actual}명, 기대보다 ${pct}% ${directionPast}`,
+    headline: `1등 당첨 게임 ${actual}개, 기대보다 ${pct}% ${directionPast}`,
     detail: `판매량 기준 이론적 기대치보다 ${magnitude} ${direction} 나왔어요`,
   };
 }
@@ -435,10 +435,11 @@ export default function LabScreen() {
             // 짧게 덧붙여 정직성 원칙(§23)을 유지한다.
             <>
               <View style={styles.officialDivider} />
-              <Row styles={styles} label="1등 당첨자 수" value={`${firstPrizeNetPayout.winnerCount}명`} />
+              {/* 2026-11-18: 동행복권 공식 표기와 같이 "당첨 게임 수"·"1게임당" 기준(한 사람이 여러 게임 가능). */}
+              <Row styles={styles} label="1등 당첨 게임 수" value={`${firstPrizeNetPayout.winnerCount}게임`} />
               <Row
                 styles={styles}
-                label="1인당 실수령액"
+                label="1게임당 실수령액"
                 value={`${firstPrizeNetPayout.netPerWinner.toLocaleString("ko-KR")}원`}
               />
               <Text style={styles.helperNote}>
@@ -561,7 +562,7 @@ export default function LabScreen() {
                     <Text style={styles.insightTextSub}>
                       {firstPrizeShort.detail} ·{" "}
                       <Text style={styles.insightLink} onPress={() => scrollToSection("firstPrize")}>
-                        {nbspJoin("자세히", "↓", "기대", "대비", "실제", "1등", "당첨자", "수")}
+                        {nbspJoin("자세히", "↓", "기대", "대비", "실제", "1등", "당첨", "게임", "수")}
                       </Text>
                     </Text>
                   ) : null}
@@ -993,7 +994,7 @@ export default function LabScreen() {
             onLayout={registerSection("firstPrize")}
           >
             <Text style={styles.cardTitle}>
-              기대 대비 실제 1등 당첨자 수 (제 {firstPrizeExpectation.drawNumber}회)
+              기대 대비 실제 1등 당첨 게임 수 (제 {firstPrizeExpectation.drawNumber}회)
             </Text>
             <Text style={styles.cardSub}>{describeFirstPrizeExpectation(firstPrizeExpectation)}</Text>
             {/* 2026-10-02 개편: 기존 Row 5개(총판매액/추정게임수/이론적기대/실제/비율) 중
@@ -1001,16 +1002,19 @@ export default function LabScreen() {
                 (산출 근거)는 아래 토글 안에 그대로 유지한다 — 전부 보존, 노출 방식만 분리. */}
             <View style={styles.compareRow}>
               <View style={styles.compareCol}>
-                <Text style={styles.compareLabel}>실제 1등 당첨자</Text>
-                <Text style={styles.compareValue}>{firstPrizeExpectation.actualWinnerCount}명</Text>
+                <Text style={styles.compareLabel}>실제 1등 당첨 게임</Text>
+                <Text style={styles.compareValue}>{firstPrizeExpectation.actualWinnerCount}게임</Text>
               </View>
               <View style={[styles.compareCol, styles.compareColBorder]}>
-                <Text style={styles.compareLabel}>이론적 기대 1등 당첨자</Text>
+                <Text style={styles.compareLabel}>이론적 기대 1등 당첨 게임</Text>
                 <Text style={[styles.compareValue, styles.compareValueMuted]}>
-                  약 {firstPrizeExpectation.expectedWinnerCount.toFixed(1)}명
+                  약 {firstPrizeExpectation.expectedWinnerCount.toFixed(1)}게임
                 </Text>
               </View>
             </View>
+            <Text style={styles.helperNote}>
+              한 사람이 여러 게임을 살 수 있어, 당첨자 수가 아니라 당첨 게임 수 기준이에요.
+            </Text>
             <Pressable
               style={styles.noticeToggleRow}
               onPress={() => setFirstPrizeDetailOpen((v) => !v)}
@@ -1067,33 +1071,33 @@ export default function LabScreen() {
           >
             <Text style={styles.cardTitle}>1등, 혼자 받을 확률은 낮아요</Text>
             <Text style={styles.cardSub}>
-              역대 <Text style={styles.cardSubHighlight}>{winnerCountStats.sampleSize}회</Text> 1등 당첨자 수
-              기준이에요.
+              역대 <Text style={styles.cardSubHighlight}>{winnerCountStats.sampleSize}회</Text> 1등 당첨 게임 수
+              기준이에요. 한 사람이 여러 게임을 살 수 있어 사람 수와는 다를 수 있어요.
             </Text>
 
             <View style={styles.heraldBox}>
-              <Text style={styles.heraldLabel}>회차당 평균 1등 당첨자 수</Text>
+              <Text style={styles.heraldLabel}>회차당 평균 1등 당첨 게임 수</Text>
               <Text style={styles.heraldValue}>
-                <Text style={styles.heraldValueStrong}>{winnerCountStats.averageWinnerCount.toFixed(2)}명</Text>이
+                <Text style={styles.heraldValueStrong}>{winnerCountStats.averageWinnerCount.toFixed(2)}게임</Text>이
                 나눠 가져요
               </Text>
             </View>
 
             <Row
               styles={styles}
-              label="혼자 독식(1명)한 회차"
+              label="혼자 독식(1게임)한 회차"
               value={`${winnerCountStats.soloCount}회 · ${Math.round(winnerCountStats.soloRatio * 100)}%`}
             />
             <Row
               styles={styles}
-              label="10명 이상이 나눠 가진 회차"
+              label="10게임 이상이 나눠 가진 회차"
               value={`${winnerCountStats.manyCount}회 · ${Math.round(winnerCountStats.manyRatio * 100)}%`}
             />
             {winnerCountStats.maxWinnerDrawNumber != null ? (
               <Row
                 styles={styles}
-                label={`최다 당첨자 (제${winnerCountStats.maxWinnerDrawNumber}회)`}
-                value={`${winnerCountStats.maxWinnerCount}명`}
+                label={`최다 당첨 게임 (제${winnerCountStats.maxWinnerDrawNumber}회)`}
+                value={`${winnerCountStats.maxWinnerCount}게임`}
               />
             ) : null}
 
@@ -1104,7 +1108,7 @@ export default function LabScreen() {
                   <Text style={styles.tripleHighlightNumber}>
                     {(birthdayRatio.birthdayRangeRatio * 100).toFixed(2)}%
                   </Text>{" "}
-                  ≈ 이론상 {(birthdayRatio.theoreticalRatio * 100).toFixed(2)}%), 당첨자 수는 이렇게
+                  ≈ 이론상 {(birthdayRatio.theoreticalRatio * 100).toFixed(2)}%), 당첨 게임 수는 이렇게
                   들쭉날쭉해요. <Text style={styles.tripleHighlightNumber}>사람들이 고르는 번호가 서로 겹치기 때문</Text>
                   이에요.
                 </Text>
@@ -1115,7 +1119,7 @@ export default function LabScreen() {
               style={styles.noticeToggleRow}
               onPress={() => setWinnerCountNoticeOpen((v) => !v)}
               accessibilityRole="button"
-              accessibilityLabel="1등 당첨자 수 통계 설명 보기"
+              accessibilityLabel="1등 당첨 게임 수 통계 설명 보기"
               accessibilityState={{ expanded: winnerCountNoticeOpen }}
             >
               <Text style={styles.noticeToggleText}>
