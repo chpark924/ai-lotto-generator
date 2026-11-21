@@ -44998,5 +44998,41 @@
       "manual": 0,
       "semiAuto": 0
     }
+  },
+  {
+    "drawNumber": 1251,
+    "drawDate": "2026-11-21",
+    "numbers": [
+      14,
+      18,
+      19,
+      29,
+      40,
+      45
+    ],
+    "bonusNumber": 1,
+    "firstPrizeWinnerCount": 14,
+    "firstPrizeAmount": 2068843286,
+    "totalSalesAmount": 116992886000,
+    "dataVersion": 2,
+    "rankWinnerCounts": [
+      14,
+      96,
+      2851,
+      146963,
+      2505977
+    ],
+    "rankPrizeAmounts": [
+      2068843286,
+      50284386,
+      1693196,
+      50000,
+      5000
+    ],
+    "firstPrizeWinTypes": {
+      "auto": 14,
+      "manual": 0,
+      "semiAuto": 0
+    }
   }
 ]
