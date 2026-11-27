@@ -2,7 +2,7 @@ import { readJson, writeJson } from "../storage/storage";
 import { estimateLatestDrawNumber, fetchWinningDraw, fetchWinningDrawWithStatus } from "./drawApi";
 import type { DrawFetchResult } from "./drawApi";
 import { fetchAllDrawsFromGithub, isGithubDataSourceConfigured } from "./githubDataSource";
-import { CURRENT_DRAW_DATA_VERSION, type WinningDraw } from "./types";
+import { isCompleteDraw, type WinningDraw } from "./types";
 
 const KEY = "winningDraws";
 const GITHUB_SYNC_KEY = "githubDrawsSyncedAt";
@@ -56,8 +56,10 @@ async function syncFromGithubIfNeeded(cache: Record<number, WinningDraw>): Promi
 }
 
 function isOutdatedAndSameNumbers(cached: WinningDraw, incoming: WinningDraw): boolean {
-  if ((cached.dataVersion ?? 1) >= CURRENT_DRAW_DATA_VERSION) return false;
-  if ((incoming.dataVersion ?? 1) < CURRENT_DRAW_DATA_VERSION) return false;
+  // 2026-11-27: "옛 형식"뿐 아니라 추첨 직후 미집계 상태로 캐시된 불완전 레코드(v10은 이것도
+  // dataVersion 2로 저장했음)도 보강 대상이다 — types.ts isCompleteDraw 주석.
+  if (isCompleteDraw(cached)) return false;
+  if (!isCompleteDraw(incoming)) return false;
   if (cached.bonusNumber !== incoming.bonusNumber) return false;
   const a = [...cached.numbers].sort((x, y) => x - y);
   const b = [...incoming.numbers].sort((x, y) => x - y);

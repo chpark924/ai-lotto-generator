@@ -36,3 +36,24 @@ export interface WinningDraw {
 
 /** 현재 레코드 형식 버전 — 이보다 낮은 캐시 레코드는 같은 번호의 최신 레코드로 보강 대상. */
 export const CURRENT_DRAW_DATA_VERSION = 2;
+
+/**
+ * 2026-11-27 — 집계가 끝난 "완전한" 레코드인지.
+ *
+ * 추첨(토 20:35) 직후 동행복권 API는 당첨번호는 바로 주지만 총판매액·등수별 당첨 게임 수는
+ * 집계가 끝난 뒤에야 채워진다. 그 사이에 앱이 회차를 받아 캐시하면 판매액·인원이 0/누락인
+ * 레코드가 dataVersion 2로 저장되고, 캐시는 이미 있는 회차를 덮어쓰지 않으므로 영영 그대로
+ * 남는다(v10 실기기: 1251회 "기대 대비 실제" 카드가 안 보임). 그래서 "완전함"을 따로 판정해,
+ * 불완전한 레코드는 같은 번호의 완전한 레코드로 보강할 수 있게 한다.
+ * 5등은 매 회차 수백만 게임이 당첨되므로 0이면 미집계로 본다.
+ */
+export function isCompleteDraw(d: WinningDraw): boolean {
+  return (
+    (d.dataVersion ?? 1) >= CURRENT_DRAW_DATA_VERSION &&
+    Number.isInteger(d.totalSalesAmount) &&
+    (d.totalSalesAmount as number) > 0 &&
+    Array.isArray(d.rankWinnerCounts) &&
+    d.rankWinnerCounts.length === 5 &&
+    d.rankWinnerCounts[4] > 0
+  );
+}

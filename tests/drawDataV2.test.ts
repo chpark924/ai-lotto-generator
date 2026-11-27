@@ -8,7 +8,7 @@
  */
 import { buildDrawFromApiItem, type RawDrawListItem } from "../src/lib/draws/drawApi";
 import { computeFirstPrizeExpectation } from "../src/lib/draws/drawStats";
-import type { WinningDraw } from "../src/lib/draws/types";
+import { isCompleteDraw, type WinningDraw } from "../src/lib/draws/types";
 
 // 1057회 실제 공식 API 응답(2026-11-15 조회).
 const RAW_1057: RawDrawListItem = {
@@ -35,6 +35,26 @@ const RAW_1057: RawDrawListItem = {
   rnk5WnAmt: 5000,
   winType1: 13,
   winType2: 4,
+  winType3: 0,
+};
+
+// 추첨 직후(집계 전) 응답 형태 — 번호는 있고 판매액·등수별 인원·금액은 0.
+const RAW_FRESH: RawDrawListItem = {
+  ...RAW_1057,
+  rnk1WnNope: 0,
+  rnk1WnAmt: 0,
+  rlvtEpsdSumNtslAmt: 0,
+  wholEpsdSumNtslAmt: 0,
+  rnk2WnNope: 0,
+  rnk3WnNope: 0,
+  rnk4WnNope: 0,
+  rnk5WnNope: 0,
+  rnk2WnAmt: 0,
+  rnk3WnAmt: 0,
+  rnk4WnAmt: 0,
+  rnk5WnAmt: 0,
+  winType1: 0,
+  winType2: 0,
   winType3: 0,
 };
 
@@ -154,5 +174,44 @@ describe("drawCache — 옛 레코드 보강", () => {
     const draw = await run({ 1057: v1(1057, [8, 13, 19, 27, 40, 45]) }, [tampered]);
     expect(draw?.numbers).toEqual([8, 13, 19, 27, 40, 45]);
     expect(draw?.dataVersion).toBeUndefined();
+  });
+
+  // 2026-11-27 — v10 실기기: 추첨 직후 받은 1251회가 판매액·인원 0인 채 dataVersion 2로 캐시돼
+  // GitHub의 완전한 레코드로 영영 보강되지 않았다(로또 연구소 "기대 대비 실제" 카드 미노출).
+  it("추첨 직후 미집계 상태로 캐시된 레코드(dataVersion 2라도)는 완전한 레코드로 보강한다", async () => {
+    const incompleteV10: WinningDraw = {
+      ...buildDrawFromApiItem(RAW_1057),
+      firstPrizeWinnerCount: 0,
+      firstPrizeAmount: 0,
+      totalSalesAmount: 0,
+      rankWinnerCounts: [0, 0, 0, 0, 0],
+      dataVersion: 2,
+    };
+    const draw = await run({ 1057: incompleteV10 }, [buildDrawFromApiItem(RAW_1057)]);
+    expect(draw?.totalSalesAmount).toBe(112523887000);
+    expect(draw?.firstPrizeWinnerCount).toBe(17);
+    expect(computeFirstPrizeExpectation(draw!)).not.toBeNull();
+  });
+
+  it("GitHub 쪽도 아직 미집계면 바꾸지 않는다", async () => {
+    const fresh = buildDrawFromApiItem(RAW_FRESH);
+    const cached = v1(1057, [8, 13, 19, 27, 40, 45]);
+    const draw = await run({ 1057: cached }, [fresh]);
+    expect(draw).toEqual(cached);
+  });
+});
+
+describe("추첨 직후 미집계 응답", () => {
+  it("판매액·인원이 0이면 dataVersion을 붙이지 않아(불완전) 나중에 보강될 수 있게 한다", () => {
+    const draw = buildDrawFromApiItem(RAW_FRESH);
+    expect(draw.numbers).toEqual([8, 13, 19, 27, 40, 45]);
+    expect(draw.dataVersion).toBeUndefined();
+    expect(isCompleteDraw(draw)).toBe(false);
+    expect(isCompleteDraw(buildDrawFromApiItem(RAW_1057))).toBe(true);
+  });
+
+  it("미집계 레코드는 '1등 0개 → 이월'로 오해하지 않게 기대 대비 실제 카드를 숨긴다", () => {
+    const forced = { ...buildDrawFromApiItem(RAW_FRESH), dataVersion: 2, totalSalesAmount: 1000 };
+    expect(computeFirstPrizeExpectation(forced)).toBeNull();
   });
 });

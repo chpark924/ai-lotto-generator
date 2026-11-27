@@ -19,7 +19,7 @@
  * 참고: 이 엔드포인트는 비공식 공개 API로, 서비스 정책 변경 시 응답 형식이 다시 바뀔 수 있다.
  * 실패 시에는 로컬 캐시(drawCache.ts)에 저장된 마지막 데이터로 그레이스풀하게 폴백한다.
  */
-import { CURRENT_DRAW_DATA_VERSION, type WinningDraw } from "./types";
+import { CURRENT_DRAW_DATA_VERSION, isCompleteDraw, type WinningDraw } from "./types";
 
 const ENDPOINT = "https://www.dhlottery.co.kr/lt645/selectPstLt645Info.do";
 
@@ -87,6 +87,9 @@ export function buildDrawFromApiItem(item: RawDrawListItem): WinningDraw {
   if (winTypes.every((v) => v !== null)) {
     draw.firstPrizeWinTypes = { auto: winTypes[0] as number, manual: winTypes[1] as number, semiAuto: winTypes[2] as number };
   }
+  // 추첨 직후 미집계 상태(판매액·인원 0)면 dataVersion을 붙이지 않는다 — 그래야 나중에 GitHub의
+  // 완전한 레코드로 보강된다(types.ts isCompleteDraw 주석).
+  if (!isCompleteDraw(draw)) delete draw.dataVersion;
   return draw;
 }
 

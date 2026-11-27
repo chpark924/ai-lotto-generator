@@ -7,7 +7,7 @@ import { getOddCount, getLowNumberCount, getMaxConsecutiveLength, getNumberSum }
 import { TOTAL_COMBINATIONS } from "../lottery/probability";
 import { overlapCount } from "../lottery/similarity";
 import { computeRank } from "./rank";
-import type { WinningDraw } from "./types";
+import { isCompleteDraw, type WinningDraw } from "./types";
 
 export interface NumberFrequency {
   number: number;
@@ -308,7 +308,8 @@ export function computeFirstPrizeExpectation(draw: WinningDraw): FirstPrizeExpec
   if (
     // dataVersion 2 미만 레코드의 totalSalesAmount는 실제 총판매액의 절반이라(2026-11-15 발견,
     // types.ts 주석) 기대 인원이 절반으로 계산된다 — 보강될 때까지 카드를 숨긴다.
-    (draw.dataVersion ?? 1) < 2 ||
+    // 2026-11-27: 추첨 직후 미집계 레코드(판매액·인원 0)도 숨긴다 — 0명을 "이월"로 오해하지 않게.
+    !isCompleteDraw(draw) ||
     draw.totalSalesAmount == null ||
     draw.totalSalesAmount <= 0 ||
     draw.firstPrizeWinnerCount == null ||

@@ -125,7 +125,21 @@ function buildDraw(item) {
   if (winTypes.every((v) => v !== null)) {
     draw.firstPrizeWinTypes = { auto: winTypes[0], manual: winTypes[1], semiAuto: winTypes[2] };
   }
+  // 추첨 직후 미집계(판매액·5등 인원 0)면 dataVersion을 붙이지 않아 다음 실행 때 다시 받게 한다
+  // (src/lib/draws/types.ts isCompleteDraw와 같은 규칙).
+  if (!isCompleteRecord(draw)) delete draw.dataVersion;
   return draw;
+}
+
+function isCompleteRecord(d) {
+  return (
+    (d.dataVersion ?? 1) >= DATA_VERSION &&
+    Number.isInteger(d.totalSalesAmount) &&
+    d.totalSalesAmount > 0 &&
+    Array.isArray(d.rankWinnerCounts) &&
+    d.rankWinnerCounts.length === 5 &&
+    d.rankWinnerCounts[4] > 0
+  );
 }
 
 /** "YYYYMMDD" → "YYYY-MM-DD" */
@@ -190,10 +204,10 @@ async function main() {
   const estimatedLatest = estimateLatestDrawNumber();
   // 옛 형식(dataVersion < 2) 레코드가 하나라도 있으면 1회부터 전체를 다시 받아 보강한다
   // (이 API는 전체 범위를 한 번의 요청으로 돌려준다 — 상단 주석 참고).
-  const needsBackfill = existing.some((d) => (d.dataVersion ?? 1) < DATA_VERSION);
+  const needsBackfill = existing.some((d) => !isCompleteRecord(d));
   const startFrom = needsBackfill ? 1 : maxKnown + 1;
   if (needsBackfill) {
-    console.log(`[update-lotto-data] 옛 형식 레코드가 있어 1회부터 전체를 다시 받아 보강합니다(dataVersion ${DATA_VERSION}).`);
+    console.log(`[update-lotto-data] 옛 형식·미집계 레코드가 있어 1회부터 전체를 다시 받아 보강합니다(dataVersion ${DATA_VERSION}).`);
   }
   // 추정 로직이 실제보다 늦게 잡힐 수도 있으니 여유를 좀 두고 요청한다. 이 API는 존재하지
   // 않거나 아직 추첨 전인 회차를 포함해도 에러 없이 빈 배열을 주므로 넉넉히 요청해도 안전하다.
@@ -244,7 +258,8 @@ async function main() {
         console.warn(`  ! ${draw.drawNumber}회 당첨번호가 기존 기록과 달라 기존 값을 유지합니다.`);
         continue;
       }
-      if ((prev.dataVersion ?? 1) >= DATA_VERSION) continue;
+      // 이미 완전하면 그대로, 새로 받은 것도 아직 미집계면 바꿀 의미가 없으니 그대로 둔다.
+      if (isCompleteRecord(prev) || !isCompleteRecord(draw)) continue;
       byNumber.set(draw.drawNumber, draw);
       upgraded += 1;
       continue;
